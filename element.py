@@ -18,7 +18,7 @@ class Element:
     _spacing=""
     _collocationPoints=""
     _interpolationPoints=""
-    _basisFunctions=""
+    _basisCoeff=""
     
     
     def __init__(self,order=1,bounds =[0,1],spacing="uniform"):
@@ -27,6 +27,7 @@ class Element:
         self.spacing=spacing
         
         self.setCollocationPoints()
+        self.solveBasisCoeff()
         
         
         
@@ -106,6 +107,20 @@ class Element:
                 self._interpolationPoints=value
                 
     
+    @property
+    def basisCoeff(self):
+        return self._basisCoeff
+    @basisCoeff.setter
+    def basisCoeff(self,value):
+        if type(value)!=np.ndarray:
+            raise Exception("Non-numpy array entered for basisCoeff: " + str(value))
+        elif value.shape[0]!=self.order+2 or value.shape[1]!=self.order+2:
+            raise Exception("Numpy array of non order+2 by order+2 entered for basisCoeff: " + str(value))
+        else:
+            self._basisCoeff=value
+
+                
+    
     #Write mappings between [-1,1] and element boundaries
     
     def mapToElementBounds(self,points):
@@ -142,45 +157,65 @@ class Element:
         interpolationPoints[-1]=self.bounds[1]
         self.interpolationPoints=interpolationPoints
             
+    def solveBasisCoeff(self):
+        basisCoeff=np.empty((self.order+2,self.order+2))
+        massMatrix=np.empty((self.order+2,self.order+2))
+        for iOrder in np.arange(self.order+2):
+            massMatrix[:,iOrder]=self.interpolationPoints**iOrder
+        invertedMass = np.linalg.inv(massMatrix)
+        for iBasis in np.arange(self.order+2):
+            b=np.zeros((self.order+2))
+            b[iBasis]=1
+            basisCoeff[iBasis]=np.dot(invertedMass,b)
+        self.basisCoeff=basisCoeff
+        
     def basisFunctions(self,x):
-        if type(x)!=list and type(x)!=np.ndarray:
+        if type(x)!=np.ndarray:
             basisFunctions=np.empty((self.order+2,1))
-        elif type(x)==list:
-            basisFunctions=np.empty((self.order+2,len(x)))
-        elif type(x)==np.ndarray:
-            if x.ndim!=1:
+        elif x.ndim!=1:
                 raise Exception("Multi-dimensional array entered for x: " + str(x))
+        else :
             basisFunctions=np.empty((self.order+2,x.size))
         
+        xExpanded = np.ones((self.order+2,)+x.shape)
+        for iOrder in np.arange(self.order+2):
+            xExpanded[iOrder]=x**iOrder
+            
         for iBasis in np.arange(self.order+2):
-            removedPoints=np.delete(self.interpolationPoints,iBasis)
-            differences=np.empty((self.order+1,basisFunctions.shape[1]))
-            for iPoints in np.arange(self.order+1):
-                differences[iPoints]=(x-removedPoints[iPoints])/(self.interpolationPoints[iBasis]-removedPoints[iPoints])
-            basisFunctions[iBasis]=np.prod(differences,axis=0)
+            basisFunctions[iBasis] = np.sum(xExpanded.transpose()*self.basisCoeff[iBasis],axis=1)
                     
         return basisFunctions
     
     def basisFirstDeriv(self,x):
-        basisValue=self.basisFunctions(x)
-        firstDeriv=np.empty(basisValue.shape)
+        if type(x)!=np.ndarray:
+            basisFirstDeriv=np.empty((self.order+2,1))
+        elif x.ndim!=1:
+                raise Exception("Multi-dimensional array entered for x: " + str(x))
+        else :
+            basisFirstDeriv=np.empty((self.order+2,x.size))
+        
+        xExpanded = np.ones((self.order+1,)+x.shape)
+        for iOrder in np.arange(self.order+1):
+            xExpanded[iOrder]=(iOrder+1)*(x**iOrder)
+            
         for iBasis in np.arange(self.order+2):
-            removedPoints=np.delete(self.interpolationPoints,iBasis)
-            differences = np.empty((self.order+1,basisValue.shape[1]))
-            for iPoints in np.arange(self.order+1):
-                differences[iPoints]=1/(x-removedPoints[iPoints])
-            firstDeriv[iBasis]=basisValue[iBasis]*np.sum(differences,axis=0)
-        return firstDeriv
+            basisFirstDeriv[iBasis] = np.sum(xExpanded.transpose()*self.basisCoeff[iBasis][1:],axis=1)
+                    
+        return basisFirstDeriv
     
     def basisSecondDeriv(self,x):
-        basisValue=self.basisFunctions(x)
-        firstDeriv=self.basisFirstDeriv(x)
-        secondDeriv=np.empty(basisValue.shape)
-        for iBasis in np.arange(self.order+2):
-            removedPoints=np.delete(self.interpolationPoints,iBasis)
-            differences = np.empty((self.order+1,basisValue.shape[1]))
-            for iPoints in np.arange(self.order+1):
-                differences[iPoints]=1/(x-removedPoints[iPoints])
-            secondDeriv[iBasis]=firstDeriv[iBasis]*np.sum(differences,axis=0)-basisValue[iBasis]*np.sum(differences**2,axis=0)
+        if type(x)!=np.ndarray:
+            basisSecondDeriv=np.empty((self.order+2,1))
+        elif x.ndim!=1:
+                raise Exception("Multi-dimensional array entered for x: " + str(x))
+        else :
+            basisSecondDeriv=np.empty((self.order+2,x.size))
         
-        return secondDerivs
+        xExpanded = np.ones((self.order,)+x.shape)
+        for iOrder in np.arange(self.order):
+            xExpanded[iOrder]=(iOrder+2)*(iOrder+1)*(x**iOrder)
+            
+        for iBasis in np.arange(self.order+2):
+            basisSecondDeriv[iBasis] = np.sum(xExpanded.transpose()*self.basisCoeff[iBasis][2:],axis=1)
+        
+        return basisSecondDeriv
