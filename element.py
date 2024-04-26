@@ -13,7 +13,7 @@ import numpy as np
 
 class Element:
     #Define Attributes
-    _order=""
+    _nCollocation=""
     _bounds=""
     _spacing=""
     _collocationPoints=""
@@ -21,8 +21,8 @@ class Element:
     _basisCoeff=""
     
     
-    def __init__(self,order=1,bounds =[0,1],spacing="uniform"):
-        self.order=order
+    def __init__(self,nCollocation=1,bounds =[0,1],spacing="uniform"):
+        self.nCollocation=nCollocation
         self.bounds=bounds
         self.spacing=spacing
         
@@ -78,12 +78,12 @@ class Element:
         if type(value)!=np.ndarray and type(value)!=list:
             raise Exception("Non-list or numpy array entered for collocationPoints: " + str(value))
         elif type(value)==np.ndarray:
-            if value.size!=self.order or value.ndim!=1:
+            if value.size!=self.nCollocation or value.ndim!=1:
                 raise Exception("Numpy array of non 1D with size order entered for collocationPoints: " + str(value))
             else:
                 self._collocationPoints=value
         elif type(value)==list:
-            if len(value)!=self.order:
+            if len(value)!=self.nCollocation:
                 raise Exception("List of length other than order entered for collocationPoints: " + str(value))
             else:
                 self._collocationPoints=value
@@ -96,12 +96,12 @@ class Element:
         if type(value)!=np.ndarray and type(value)!=list:
             raise Exception("Non-list or numpy array entered for interpolationPoints: " + str(value))
         elif type(value)==np.ndarray:
-            if value.size!=self.order+2 or value.ndim!=1:
+            if value.size!=self.nCollocation+2 or value.ndim!=1:
                 raise Exception("Numpy array of non 1D with size order+2 entered for interpolationPoints: " + str(value))
             else:
                 self._interpolationPoints=value
         elif type(value)==list:
-            if len(value)!=self.order+2:
+            if len(value)!=self.nCollocation+2:
                 raise Exception("List of length other than order+2 entered for interpolationPoints: " + str(value))
             else:
                 self._interpolationPoints=value
@@ -114,7 +114,7 @@ class Element:
     def basisCoeff(self,value):
         if type(value)!=np.ndarray:
             raise Exception("Non-numpy array entered for basisCoeff: " + str(value))
-        elif value.shape[0]!=self.order+2 or value.shape[1]!=self.order+2:
+        elif value.shape[0]!=self.nCollocation+2 or value.shape[1]!=self.nCollocation+2:
             raise Exception("Numpy array of non order+2 by order+2 entered for basisCoeff: " + str(value))
         else:
             self._basisCoeff=value
@@ -132,90 +132,113 @@ class Element:
     #Setup Collocation Points
     def setCollocationPoints(self):
         if self.spacing=="uniform":
-            self.collocationPoints=np.linspace(self.bounds[0],self.bounds[1],num=self.order+2)[1:self.order+1]
+            self.collocationPoints=np.linspace(self.bounds[0],self.bounds[1],num=self.nCollocation+2)[1:self.nCollocation+1]
         elif self.spacing=="legendre":
-            if self.order==1:
+            if self.nCollocation==1:
                 self.collocationPoints=self.mapToElementBounds(np.array([0]))
-            if self.order==2:
+            if self.nCollocation==2:
                 self.collocationPoints=self.mapToElementBounds(np.array([-0.577350269189626,0.577350269189626]))
-            if self.order==3:
+            if self.nCollocation==3:
                 self.collocationPoints=self.mapToElementBounds(np.array([-0.774596669241483,0,0.774596669241483]))
-            if self.order==4:
+            if self.nCollocation==4:
                 self.collocationPoints=self.mapToElementBounds(np.array([-.86113631159405,
                                                                          -0.33998104358485,
                                                                           0.33998104358485,
                                                                           0.86113631159405]))
-            if self.order==5:
+            if self.nCollocation==5:
                 self.collocationPoints=self.mapToElementBounds(np.array([-0.90617984593866,
                                                                          -0.538469310105683,
                                                                           0,
                                                                           0.538469310105683,
                                                                           0.90617984593866]))
-        interpolationPoints = np.empty((self.order+2))
+        interpolationPoints = np.empty((self.nCollocation+2))
         interpolationPoints[0]=self.bounds[0]
         interpolationPoints[1:-1]=self.collocationPoints
         interpolationPoints[-1]=self.bounds[1]
         self.interpolationPoints=interpolationPoints
             
     def solveBasisCoeff(self):
-        basisCoeff=np.empty((self.order+2,self.order+2))
-        massMatrix=np.empty((self.order+2,self.order+2))
-        for iOrder in np.arange(self.order+2):
+        basisCoeff=np.empty((self.nCollocation+2,self.nCollocation+2))
+        massMatrix=np.empty((self.nCollocation+2,self.nCollocation+2))
+        for iOrder in np.arange(self.nCollocation+2):
             massMatrix[:,iOrder]=self.interpolationPoints**iOrder
         invertedMass = np.linalg.inv(massMatrix)
-        for iBasis in np.arange(self.order+2):
-            b=np.zeros((self.order+2))
+        for iBasis in np.arange(self.nCollocation+2):
+            b=np.zeros((self.nCollocation+2))
             b[iBasis]=1
             basisCoeff[iBasis]=np.dot(invertedMass,b)
         self.basisCoeff=basisCoeff
         
     def basisFunctions(self,x):
         if type(x)!=np.ndarray:
-            basisFunctions=np.empty((self.order+2,1))
+            basisFunctions=np.empty((self.nCollocation+2,1))
         elif x.ndim!=1:
                 raise Exception("Multi-dimensional array entered for x: " + str(x))
         else :
-            basisFunctions=np.empty((self.order+2,x.size))
+            basisFunctions=np.empty((self.nCollocation+2,x.size))
         
-        xExpanded = np.ones((self.order+2,)+x.shape)
-        for iOrder in np.arange(self.order+2):
+        xExpanded = np.ones((self.nCollocation+2,)+x.shape)
+        for iOrder in np.arange(self.nCollocation+2):
             xExpanded[iOrder]=x**iOrder
             
-        for iBasis in np.arange(self.order+2):
+        for iBasis in np.arange(self.nCollocation+2):
             basisFunctions[iBasis] = np.sum(xExpanded.transpose()*self.basisCoeff[iBasis],axis=1)
                     
         return basisFunctions
     
     def basisFirstDeriv(self,x):
         if type(x)!=np.ndarray:
-            basisFirstDeriv=np.empty((self.order+2,1))
+            basisFirstDeriv=np.empty((self.nCollocation+2,1))
         elif x.ndim!=1:
                 raise Exception("Multi-dimensional array entered for x: " + str(x))
         else :
-            basisFirstDeriv=np.empty((self.order+2,x.size))
+            basisFirstDeriv=np.empty((self.nCollocation+2,x.size))
         
-        xExpanded = np.ones((self.order+1,)+x.shape)
-        for iOrder in np.arange(self.order+1):
+        xExpanded = np.ones((self.nCollocation+1,)+x.shape)
+        for iOrder in np.arange(self.nCollocation+1):
             xExpanded[iOrder]=(iOrder+1)*(x**iOrder)
             
-        for iBasis in np.arange(self.order+2):
+        for iBasis in np.arange(self.nCollocation+2):
             basisFirstDeriv[iBasis] = np.sum(xExpanded.transpose()*self.basisCoeff[iBasis][1:],axis=1)
                     
         return basisFirstDeriv
     
     def basisSecondDeriv(self,x):
         if type(x)!=np.ndarray:
-            basisSecondDeriv=np.empty((self.order+2,1))
+            basisSecondDeriv=np.empty((self.nCollocation+2,1))
         elif x.ndim!=1:
                 raise Exception("Multi-dimensional array entered for x: " + str(x))
         else :
-            basisSecondDeriv=np.empty((self.order+2,x.size))
+            basisSecondDeriv=np.empty((self.nCollocation+2,x.size))
         
-        xExpanded = np.ones((self.order,)+x.shape)
-        for iOrder in np.arange(self.order):
+        xExpanded = np.ones((self.nCollocation,)+x.shape)
+        for iOrder in np.arange(self.nCollocation):
             xExpanded[iOrder]=(iOrder+2)*(iOrder+1)*(x**iOrder)
             
-        for iBasis in np.arange(self.order+2):
+        for iBasis in np.arange(self.nCollocation+2):
             basisSecondDeriv[iBasis] = np.sum(xExpanded.transpose()*self.basisCoeff[iBasis][2:],axis=1)
         
         return basisSecondDeriv
+    
+    def integrate(self,f):
+        #element.integrate: Approximates integral of callable f using quadrature rule of collocation points
+        #  Inputs:
+        
+        #  Outputs:
+    
+        
+        #use midpoint rule if uniform weighting
+        if self.spacing == "uniform":
+            weights = np.ones(self.collocationPoints.shape)*(self.bounds[1]-self.bounds[0])/self.nCollocation
+        elif self.spacing == "legendre":
+            #Quadrature weights copied from https://pomax.github.io/bezierinfo/legendre-gauss.html
+            np.polynomial.legendre.leggauss(self.nCollocation)*(self.bounds[1]-self.bounds[0])/2
+        else:
+            raise(Exception("Invalid collocation spacing used"))
+        
+        integral =0
+        for iPoint in range(self.nCollocation):
+            integral+= f(self.collocationPoints[iPoint])*weights[iPoint]
+            
+        return integral
+            
