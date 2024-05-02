@@ -26,8 +26,8 @@ class Element:
         self.bounds=bounds
         self.spacing=spacing
         
-        self.setCollocationPoints()
-        self.solveBasisCoeff()
+        self.__setCollocationPoints__()
+        self.__solveBasisCoeff__()
         
         
         
@@ -130,34 +130,18 @@ class Element:
         return 1+2*(points-self.bounds[0])/(self.bounds[1]-self.bounds[0])
     
     #Setup Collocation Points
-    def setCollocationPoints(self):
+    def __setCollocationPoints__(self):
         if self.spacing=="uniform":
             self.collocationPoints=np.linspace(self.bounds[0],self.bounds[1],num=self.nCollocation+2)[1:self.nCollocation+1]
         elif self.spacing=="legendre":
-            if self.nCollocation==1:
-                self.collocationPoints=self.mapToElementBounds(np.array([0]))
-            if self.nCollocation==2:
-                self.collocationPoints=self.mapToElementBounds(np.array([-0.577350269189626,0.577350269189626]))
-            if self.nCollocation==3:
-                self.collocationPoints=self.mapToElementBounds(np.array([-0.774596669241483,0,0.774596669241483]))
-            if self.nCollocation==4:
-                self.collocationPoints=self.mapToElementBounds(np.array([-.86113631159405,
-                                                                         -0.33998104358485,
-                                                                          0.33998104358485,
-                                                                          0.86113631159405]))
-            if self.nCollocation==5:
-                self.collocationPoints=self.mapToElementBounds(np.array([-0.90617984593866,
-                                                                         -0.538469310105683,
-                                                                          0,
-                                                                          0.538469310105683,
-                                                                          0.90617984593866]))
+            self.collocationPoints=self.mapToElementBounds(np.polynomial.legendre.leggauss(self.nCollocation)[0])
         interpolationPoints = np.empty((self.nCollocation+2))
         interpolationPoints[0]=self.bounds[0]
         interpolationPoints[1:-1]=self.collocationPoints
         interpolationPoints[-1]=self.bounds[1]
         self.interpolationPoints=interpolationPoints
             
-    def solveBasisCoeff(self):
+    def __solveBasisCoeff__(self):
         basisCoeff=np.empty((self.nCollocation+2,self.nCollocation+2))
         massMatrix=np.empty((self.nCollocation+2,self.nCollocation+2))
         for iOrder in np.arange(self.nCollocation+2):
@@ -182,7 +166,7 @@ class Element:
             xExpanded[iOrder]=x**iOrder
             
         for iBasis in np.arange(self.nCollocation+2):
-            basisFunctions[iBasis] = np.sum(xExpanded.transpose()*self.basisCoeff[iBasis],axis=1)
+            basisFunctions[iBasis] = np.sum(xExpanded.transpose()*self.basisCoeff[iBasis],axis=-1)
                     
         return basisFunctions
     
@@ -199,7 +183,7 @@ class Element:
             xExpanded[iOrder]=(iOrder+1)*(x**iOrder)
             
         for iBasis in np.arange(self.nCollocation+2):
-            basisFirstDeriv[iBasis] = np.sum(xExpanded.transpose()*self.basisCoeff[iBasis][1:],axis=1)
+            basisFirstDeriv[iBasis] = np.sum(xExpanded.transpose()*self.basisCoeff[iBasis][1:],axis=-1)
                     
         return basisFirstDeriv
     
@@ -216,7 +200,7 @@ class Element:
             xExpanded[iOrder]=(iOrder+2)*(iOrder+1)*(x**iOrder)
             
         for iBasis in np.arange(self.nCollocation+2):
-            basisSecondDeriv[iBasis] = np.sum(xExpanded.transpose()*self.basisCoeff[iBasis][2:],axis=1)
+            basisSecondDeriv[iBasis] = np.sum(xExpanded.transpose()*self.basisCoeff[iBasis][2:],axis=-1)
         
         return basisSecondDeriv
     
@@ -231,8 +215,8 @@ class Element:
         if self.spacing == "uniform":
             weights = np.ones(self.collocationPoints.shape)*(self.bounds[1]-self.bounds[0])/self.nCollocation
         elif self.spacing == "legendre":
-            #Quadrature weights copied from https://pomax.github.io/bezierinfo/legendre-gauss.html
-            np.polynomial.legendre.leggauss(self.nCollocation)*(self.bounds[1]-self.bounds[0])/2
+            # Note that leggaus output tuple where first is sampling points and second is sampling weights
+            weights = np.polynomial.legendre.leggauss(self.nCollocation)[1]*(self.bounds[1]-self.bounds[0])/2
         else:
             raise(Exception("Invalid collocation spacing used"))
         
