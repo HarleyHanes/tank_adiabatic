@@ -65,33 +65,38 @@ class TankModel:
         massBoundaryMat=np.zeros([self.nElements+1,self.nElements+1])
         tempBoundaryMat=np.zeros([self.nElements+1,self.nElements+1])
         # Enter First and Last Rows Manually
-        massBoundaryMat[0,0]=self.params["PeM"]*self.elements[0].basisFirstDeriv(self.elements[0].interpolationPoints[0])[0]
-        massBoundaryMat[0,1]=-self.elements[0].basisFirstDeriv(self.elements[0].interpolationPoints[0])[-1]
+        #massBoundaryMat[0,0]=1
+        #massBoundaryMat[0,0]=2
+        massBoundaryMat[0,0]=self.params["PeM"]*self.elements[0].basisFirstDeriv(self.bounds[0])[0]
+        massBoundaryMat[0,1]=-self.elements[0].basisFirstDeriv(self.bounds[0])[-1]
+        massBoundaryMat[-1,-2]=self.elements[-1].basisFirstDeriv(self.bounds[1])[0]
+        massBoundaryMat[-1,-1]=self.elements[-1].basisFirstDeriv(self.bounds[1])[-1]
         
         tempBoundaryMat[0,0]=self.params["PeT"]*self.elements[0].basisFirstDeriv(self.elements[0].interpolationPoints[0])[0]
         tempBoundaryMat[0,1]=-self.elements[0].basisFirstDeriv(self.elements[0].interpolationPoints[0])[-1]
         tempBoundaryMat[0,-1]=self.params["f"]
+        tempBoundaryMat[-1,-2]=self.elements[-1].basisFirstDeriv(self.bounds[1])[0]
+        tempBoundaryMat[-1,-1]=self.elements[-1].basisFirstDeriv(self.bounds[1])[-1]
+        # tempBoundaryMat[0,-1]=self.params["f"]
         
         #Enter interior rows
         for iRow in np.arange(1,self.nElements):
                 massBoundaryMat[iRow,iRow-1]=self.elements[iRow-1].basisFirstDeriv(self.elements[iRow].interpolationPoints[0])[0]
                 massBoundaryMat[iRow,iRow]=self.elements[iRow-1].basisFirstDeriv(self.elements[iRow].interpolationPoints[0])[-1] \
                                             -self.elements[iRow].basisFirstDeriv(self.elements[iRow].interpolationPoints[0])[0]
-                massBoundaryMat[iRow,iRow-1]=-self.elements[iRow].basisFirstDeriv(self.elements[iRow].interpolationPoints[0])[-1]
+                massBoundaryMat[iRow,iRow+1]=-self.elements[iRow].basisFirstDeriv(self.elements[iRow].interpolationPoints[0])[-1]
                 
                 tempBoundaryMat[iRow,iRow-1]=self.elements[iRow-1].basisFirstDeriv(self.elements[iRow].interpolationPoints[0])[0]
                 tempBoundaryMat[iRow,iRow]=self.elements[iRow-1].basisFirstDeriv(self.elements[iRow].interpolationPoints[0])[-1] \
                                             -self.elements[iRow].basisFirstDeriv(self.elements[iRow].interpolationPoints[0])[0]
-                tempBoundaryMat[iRow,iRow-1]=-self.elements[iRow].basisFirstDeriv(self.elements[iRow].interpolationPoints[0])[-1]
+                tempBoundaryMat[iRow,iRow+1]=-self.elements[iRow].basisFirstDeriv(self.elements[iRow].interpolationPoints[0])[-1]
         
         #Print Condition Numbers
         print("Mass Boundary Condition Number: " + str(np.linalg.cond(massBoundaryMat)))
         print("Temp Boundary Condition Number: " + str(np.linalg.cond(tempBoundaryMat)))
-        #Compute inverse of Boundary mat
-        massBoundaryMatInv = np.linalg.inv(massBoundaryMat)
-        tempBoundaryMatInv = np.linalg.inv(tempBoundaryMat)
-        self.massBoundaryMatInv=massBoundaryMatInv
-        self.tempBoundaryMatInv=tempBoundaryMatInv
+        #Compute inverse of Boundary mat''
+        self.massBoundaryMatInv=np.linalg.inv(massBoundaryMat)
+        self.tempBoundaryMatInv=np.linalg.inv(tempBoundaryMat)
     
     @property
     def nElements(self):
@@ -250,24 +255,25 @@ class TankModel:
     def massBoundaryMatInv(self):
         return self._massBoundaryMatInv
     @massBoundaryMatInv.setter
-    def massBoundaryMat(self,value):
+    def massBoundaryMatInv(self,value):
         if type(value)!=np.ndarray:
             raise Exception("Non-numpy array enetered for massBoundaryMatInv: " +str(value))
-        elif value.shape!=[self.nElements+1,self.nElements+1]:
+        elif value.shape!=(self.nElements+1,self.nElements+1):
             raise Exception("Matrix of incorrect size entered for massBoundaryMatInv: massBoundaryMat.size="+str(value.shape))
-        else:
-            self._massBoundaryMatInv=value
+        
+        self._massBoundaryMatInv=value
+            
     @property 
     def tempBoundaryMatInv(self):
         return self._tempBoundaryMatInv
     @tempBoundaryMatInv.setter
-    def tempBoundaryMat(self,value):
+    def tempBoundaryMatInv(self,value):
         if type(value)!=np.ndarray:
             raise Exception("Non-numpy array enetered for tempBoundaryMatInv: " +str(value))
-        elif value.shape!=[self.nElements+1,self.nElements+1]:
+        elif value.shape!=(self.nElements+1,self.nElements+1):
             raise Exception("Matrix of incorrect size entered for tempBoundaryMatInv: tempBoundaryMat.size="+str(value.shape))
-        else:
-            self._tempBoundaryMatInv=value
+       
+        self._tempBoundaryMatInv=value
         
     
     

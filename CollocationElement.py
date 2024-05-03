@@ -173,6 +173,7 @@ class Element:
     def basisFirstDeriv(self,x):
         if type(x)!=np.ndarray:
             basisFirstDeriv=np.empty((self.nCollocation+2,1))
+            x = np.array([x])
         elif x.ndim!=1:
                 raise Exception("Multi-dimensional array entered for x: " + str(x))
         else :
@@ -190,6 +191,7 @@ class Element:
     def basisSecondDeriv(self,x):
         if type(x)!=np.ndarray:
             basisSecondDeriv=np.empty((self.nCollocation+2,1))
+            x = np.array([x])
         elif x.ndim!=1:
                 raise Exception("Multi-dimensional array entered for x: " + str(x))
         else :
