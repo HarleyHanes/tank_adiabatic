@@ -1,25 +1,37 @@
 import numpy as np
 from TankModel import TankModel
+import scipy
 
 nCollocation=1
 nElements=2
-params={"PeM": 1, "PeT": 1, "f": 1, "Le": 0, "Da": 0, "Beta": 0, "gamma": 0, "delta": 0}
+params={"PeM": 1, "PeT": 1, "f": 1, "Le": 1, "Da": 1, "beta": 1, "gamma": 1,"delta": 1, "vH":1}
 model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[-2,2],params=params)
 
 #print(TankModel.firstOrderMat)
 #print(TankModel.secondOrderMat)
-print(TankModel.massBoundaryMatInv)
-print(TankModel.tempBoundaryMatInv)
 
-trueMassBoundaryMat=np.array([[-3/2*params["PeM"], -7/2, 0],
-                              [1/2, 3, 1/2],
-                              [0, 1/2, 3/2]])
+trueMassBoundaryMat=np.array([[-3/2-params["PeM"], 2 ,-1/2, 0 ,0],
+                              [0, 1, 0, 0, 0],
+                              [1/2, -2, 3, -2, 1/2],
+                              [0, 0, 0, 1, 0],
+                              [0, 0, 1/2, -2, 3/2]
+                              ])
+trueTempBoundaryMat=np.array([[-3/2-params["PeT"], 2 ,-1/2, 0 ,params["f"]],
+                              [0, 1, 0, 0, 0],
+                              [1/2, -2, 3, -2, 1/2],
+                              [0, 0, 0, 1, 0],
+                              [0, 0, 1/2, -2, 3/2]
+                              ])
 
-trueTempBoundaryMat=np.array([[-3/2*params["PeT"], -7/2, params["f"]],
-                              [1/2, 3, 1/2],
-                              [0, 1/2, 3/2]])
+# print(model.tempBoundaryMat)
+# print(np.round(model.tempBoundaryMatInv*100000000)/10000000)
+# print(model.tempRHSmat)
+assert(np.isclose(trueMassBoundaryMat, model.massBoundaryMat).all())
+assert(np.isclose(trueTempBoundaryMat, model.tempBoundaryMat).all())
 
-print(np.linalg.inv(trueMassBoundaryMat))
-print(np.linalg.inv(trueTempBoundaryMat))
-assert(np.isclose(np.linalg.inv(trueMassBoundaryMat), TankModel.massBoundaryMatInv).all())
-assert(np.isclose(np.linalg.inv(trueTempBoundaryMat), TankModel.tempBoundaryMatInv).all())
+print(np.round(model.dydt(np.array([1/2,1/2,1/2,1/2]),0)*100000000)/10000000)
+
+#Check Stability???
+y=scipy.integrate.odeint(model.dydt,np.array([1,2,3,4]),np.linspace(0,20,10))
+print(model.integrate(model.computeFullCoeff(y)[:,0:5]))
+print(model.integrate(model.computeFullCoeff(y)[:,5:]))
