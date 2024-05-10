@@ -156,6 +156,12 @@ class Element:
     def basisFunctions(self,x):
         if type(x)!=np.ndarray:
             basisFunctions=np.empty((self.nCollocation+2,1))
+            if type(x)==list:
+                x=np.array(x)
+            elif type(x)==float or type(x)==int or type(x)==np.float64 or type(x)==np.int64  :
+                x=np.array([x])
+            else:
+                raise Exception("Invalid type entered x: "+str(type(x)))
         elif x.ndim!=1:
                 raise Exception("Multi-dimensional array entered for x: " + str(x))
         else :
@@ -172,7 +178,7 @@ class Element:
     
     def basisFirstDeriv(self,x):
         if type(x)!=np.ndarray:
-            basisFirstDeriv=np.empty((self.nCollocation+2,1))
+            basisFirstDeriv=np.empty((self.nCollocation+2,))
             x = np.array([x])
         elif x.ndim!=1:
                 raise Exception("Multi-dimensional array entered for x: " + str(x))
@@ -222,9 +228,14 @@ class Element:
         else:
             raise(Exception("Invalid collocation spacing used"))
         
-        integral =0
+        if type(f(0))==np.ndarray:
+            integral=np.zeros(f(0).shape)
+        else:
+            integral = 0
+            
         for iPoint in range(self.nCollocation):
             integral+= f(self.collocationPoints[iPoint])*weights[iPoint]
+            
             
         return integral
             
