@@ -14,11 +14,13 @@ import numpy as np
 from CollocationElement import Element
 
 class TankModel:
+    _verbosity=""
     _nElements=""
     _spacing=""
     _nCollocation=""
     _bounds=""
     _elements=""
+    _collocationPoints=""
     _firstOrderMat=""
     _secondOrderMat=" "
     _massBoundaryMat=" "
@@ -28,11 +30,24 @@ class TankModel:
     _params=" "
     _massRHSmat=""
     _tempRHSmat=""
-    _jointRHSmat=""
     
     
     
     #===============================Getters and Setters======================================
+    @property
+    def verbosity(self):
+        return self._verbosity
+    @verbosity.setter
+    def verbosity(self,value):
+        if value in (0,"n","N"):
+            self._verbosity=0
+        elif value in (1,"m","M"):
+            self._verbosity=1
+        elif value in (2,"h","H"):
+            self._verbosity=2
+        else:
+            raise Exception("Invalid verbosity, use 0/n/N (none), 1/m/M (medium), 2/h/H (high)")
+ 
     @property
     def nElements(self):
         return self._nElements
@@ -95,6 +110,24 @@ class TankModel:
                 if not isinstance(value[iElement],Element):
                     raise Exception("Non-Element object entered for elements[" + str(iElement)+"]: " + str(value[iElement]))
         self._elements=value
+
+    @property
+    def collocationPoints(self):
+        return self._collocationPoints
+    @collocationPoints.setter
+    def collocationPoints(self,value):
+        if not isinstance(value,list) and not isinstance(value,np.ndarray):
+            raise Exception("Non-list/ array value entered for elements: " + str(value))
+        else:
+            if isinstance(value,list):
+                if len(value)!=self.nCollocation*self.nElements:
+                    raise Exception("Collocation points of incorrect length entered: " + str(value))
+            elif isinstance(value,np.ndarray):
+                if value.ndim!=1:
+                    raise Exception("Non-1D array entered for collocation points: " + str(value))
+                elif value.size!=self.nCollocation*self.nElements:
+                    raise Exception("Array with incorrect number of collocation points entered:" + str(value))
+        self._collocationPoints=value
 
     @property 
     def firstOrderMat(self):
@@ -270,7 +303,8 @@ class TankModel:
     #================================Object Formation Functions=============================================
         
     def __init__(self,nElements=5, nCollocation=7, bounds=[0,1], spacing = "uniform",
-                 params={"PeM": 0, "PeT": 0, "f": 0, "Le": 0, "Da": 0, "beta": 0, "gamma": 0, "delta": 0}):
+                 params={"PeM": 0, "PeT": 0, "f": 0, "Le": 0, "Da": 0, "beta": 0, "gamma": 0, "delta": 0},verbosity=0):
+        self.verbosity=verbosity
         self.nElements=nElements
         self.nCollocation=nCollocation
         self.bounds=bounds
@@ -284,11 +318,18 @@ class TankModel:
         elements=[]
         bounds = np.linspace(self.bounds[0],self.bounds[1],num=self.nElements+1)
         for iElement in range(self.nElements):
-            elements.append(Element(nCollocation = self.nCollocation,
+            element = Element(nCollocation = self.nCollocation,
                                    bounds=[bounds[iElement],bounds[iElement+1]],
                                    spacing=self.spacing
-                                ))
+                                )
+            elements.append(element)
+            if iElement==0:
+                collocationPoints = element.collocationPoints
+            else :
+                collocationPoints = np.concatenate((collocationPoints,element.collocationPoints),axis=0)
         self.elements=elements
+        self.collocationPoints=collocationPoints
+
         
     def __computeCollocationMatrices__(self):
         firstOrderMat=np.zeros([self.nCollocation*self.nElements, (self.nCollocation+1)*self.nElements+1])
@@ -345,8 +386,14 @@ class TankModel:
         
         self.massFullCoeffMat=np.matmul(np.linalg.inv(massBoundaryMat),pointExpansionMat)
         self.tempFullCoeffMat=np.matmul(np.linalg.inv(tempBoundaryMat),pointExpansionMat)
+        if self.verbosity>2:
+            print("Mass Closure Condition Number: " + str(np.linalg.cond(self.massFullCoeffMat)))
+            print("Temp Closure Condition Number: " + str(np.linalg.cond(self.tempFullCoeffMat)))
         self.massRHSmat = np.matmul(self.firstOrderMat+1/self.params["PeM"]*self.secondOrderMat,self.massFullCoeffMat)
         self.tempRHSmat = np.matmul((self.firstOrderMat+1/self.params["PeT"]*self.secondOrderMat)/self.params["Le"],self.tempFullCoeffMat)
+        if self.verbosity>2:
+            print("Mass RHS Condition Number: " + str(np.linalg.cond(self.massRHSmat)))
+            print("Temp RHS Condition Number: " + str(np.linalg.cond(self.tempRHSmat)))
         
         # jointRHSmat = np.zeros((2*self.nElements*self.nCollocation,2*(self.nElements*(self.nCollocation+1)+1)))
         # jointRHSmat[0:(self.nElements*self.nCollocation),0:(self.nElements*(self.nCollocation+1)+1)]=self.massRHSmat
@@ -362,23 +409,51 @@ class TankModel:
         v=y[self.nElements*self.nCollocation:]
         dydt=np.append(
                 np.dot(self.massRHSmat,u)+self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v)),
-                np.dot(self.tempRHSmat,v)+self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))+self.params["delta"]*(self.params["vH"]-v))
+                np.dot(self.tempRHSmat,v)+(self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))
+                                           +self.params["delta"]*(self.params["vH"]-v))/self.params["Le"])
         
         return dydt
-
     
-    def computeFullCoeff(self,collocationCoeff):
+    def dydtSource(self,y,t,source):
+        return self.dydt(y,t) + source(t)
+    
+    def eval(self,xEval,modelCoeff, seperated=False):
+        #ComputeFullCoeff
+        if seperated:
+            uFull,vFull = self.computeFullCoeff(modelCoeff,seperated=True)
+            if modelCoeff.ndim==1:
+                uEval=np.empty(xEval.shape)
+                vEval=np.empty(xEval.shape)
+            elif modelCoeff.ndim==2:
+                uEval=np.empty((modelCoeff.shape[0])+xEval.shape)
+                vEval=np.empty((modelCoeff.shape[0])+xEval.shape)
+            for element in self.elements:
+                xElementIndices = np.round(.4*(element.bounds[0]< xEval) + .4* (element.bounds[1] > xEval))
+                xElement=xEval[xElementIndices]
+                basisValues = element.basisFunctions(xElement)
+                if modalCoeff.ndim==1:
+                    uEval[xElementIndices]=np.dot(uFull[])
+        else:
+            fullCoeff = self.computeFullCoeff(modelCoeff,seperated=False)
+    
+    def computeFullCoeff(self,collocationCoeff,seperated=False):
         if collocationCoeff.ndim == 2:
             u=collocationCoeff[:,0:self.nElements*self.nCollocation]
             v=collocationCoeff[:,self.nElements*self.nCollocation:]
             uFull=np.matmul(self.massFullCoeffMat,u.transpose()).transpose()
             vFull=np.matmul(self.tempFullCoeffMat,v.transpose()).transpose()
-            return np.concatenate((uFull,vFull),axis=1)
+            if seperated:
+                return uFull,vFull
+            else:
+                return np.concatenate((uFull,vFull),axis=1)
             
         elif collocationCoeff.ndim ==1:
             u=collocationCoeff[0:self.nElements*self.nCollocation]
             v=collocationCoeff[self.nElements*self.nCollocation:]
-            return np.append(np.dot(self.massFullCoeffMat,u),np.dot(self.tempFullCoeffMat,v))
+            if seperated:
+                return np.dot(self.massFullCoeffMat,u),np.dot(self.tempFullCoeffMat,v)
+            else: 
+                return np.append(np.dot(self.massFullCoeffMat,u),np.dot(self.tempFullCoeffMat,v))
         else:
             raise Exception("Invalid dimension entered for collocationCoeff: " + str(collocationCoeff.ndim))
         
@@ -400,3 +475,4 @@ class TankModel:
                 lambda x: np.dot(collocationCoeff[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],self.elements[iElement].basisFunctions(x))
                 ))
         return integral
+    

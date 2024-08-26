@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 testElement = CollocationElement.Element(bounds=[0,3],nCollocation=2,spacing="uniform")
 
 x=np.linspace(testElement.bounds[0],testElement.bounds[1],10)
-
 assert(np.isclose(testElement.interpolationPoints,np.array([0,1,2,3])).all())
 
 trueBasis=np.array([-1/6*(x**3-6*x**2+11*x-6),
