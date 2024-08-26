@@ -1,8 +1,8 @@
-import CollocationElement 
+import collocationElement.CollocationElement as CollocationElement 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from TankModel import TankModel
+from tankModel.TankModel import TankModel
 
 
 nCollocation=1
