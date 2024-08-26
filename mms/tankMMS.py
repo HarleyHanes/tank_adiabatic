@@ -1,7 +1,6 @@
 import numpy as np
 import scipy
 from tankModel.TankModel import TankModel
-from collocationElement.CollocationElement import Element
 
 
 def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 0):

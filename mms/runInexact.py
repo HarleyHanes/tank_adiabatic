@@ -1,3 +1,10 @@
+import sys
+import os
+current_script_dir = os.path.dirname(os.path.abspath(__file__))
+grandparent_dir = os.path.abspath(os.path.join(current_script_dir,'..',))
+sys.path.append(grandparent_dir)
+print(sys.path)
+
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
