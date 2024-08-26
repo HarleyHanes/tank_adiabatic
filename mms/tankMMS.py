@@ -1,17 +1,17 @@
 import numpy as np
 import scipy
-from TankModel import TankModel
-from CollocationElement import Element
+from tankModel.TankModel import TankModel
+from collocationElement.CollocationElement import Element
 
 
-def runMMStest(spatialOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 0):
+def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 0):
     temporals=[lambda t: 1+0*t,lambda t: t]
     temporalsdt=[lambda t: 0*t,lambda t: 1+0*t]
     #temporals = [lambda t: 1+0*t, lambda t: t, lambda t: t**2, lambda t: np.sin(t)]
     #temporalsdt = [lambda t: 0*t, lambda t: 1+0*t, lambda t: 2*t, lambda t: np.cos(t)]
-    error= np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialOrders),2,2))
-    solutions= np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialOrders),2,2,tEval.size,xEval.size))
-    convergenceRates = np.empty((len(nCollocations),len(nElems)-1,len(temporals),len(spatialOrders),2,2))
+    error= np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2))
+    solutions= np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2,tEval.size,xEval.size))
+    convergenceRates = np.empty((len(nCollocations),len(nElems)-1,len(temporals),len(spatialSolOrders),2,2))
     for iColl in range(len(nCollocations)):
         for iElem in range(len(nElems)):
             if verbosity > 0 :
@@ -23,18 +23,22 @@ def runMMStest(spatialOrders,nCollocations,nElems,xEval,tEval,params,verbosity =
             #Loop through exact monomial cases
             #Loop through temporal functions
             for itemporal in range(len(temporals)):
-                for iorder in range(len(spatialOrders)):
-                    order=spatialOrders[iorder]
-                    #Construct solutions that are sum of monomials up to order 
-                    if order < 2:
-                        raise Exception("Error, order less than 2 entered. Only 2+ order polynomials can satisfy BC")
-                    u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructMMSsolutionFunction(x,order,params,temporals[itemporal],temporalsdt[itemporal])
+                if verbosity > 0:
+                    print("iTemporal: ", itemporal)
+                for iorder in range(len(spatialSolOrders)):
+                    spatialOrder=spatialSolOrders[iorder]
+                    if verbosity > 0:
+                        print("Order: ", spatialOrder)
+                    #Construct solutions that are sum of monomials up to spatialOrder 
+                    if spatialOrder < 2:
+                        raise Exception("Error, spatialOrder less than 2 entered. Only 2+ spatialOrder polynomials can satisfy BC")
+                    u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructMMSsolutionFunction(x,spatialOrder,params,temporals[itemporal],temporalsdt[itemporal])
                     sourceFunction = constructSourceTermFunction(u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2,params)
                     y0=np.append(u(tEval[0]),v(tEval[0]))
                     #Compute Model Coeff
                     modelCoeff = scipy.integrate.odeint(lambda y,t: model.dydtSource(y,t,sourceFunction),y0,tEval)
                     #Evalue manufactured solution at integration points
-                    u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructMMSsolutionFunction(xEval,order,params,temporals[itemporal],temporalsdt[itemporal])
+                    u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructMMSsolutionFunction(xEval,spatialOrder,params,temporals[itemporal],temporalsdt[itemporal])
                     uMMSsol=u(tEval)
                     vMMSsol=v(tEval)
                     #Evaluate model at integration points
@@ -61,17 +65,17 @@ def runMMStest(spatialOrders,nCollocations,nElems,xEval,tEval,params,verbosity =
 
 
 
-def constructMMSsolutionFunction(x,order,params,temporal,temporaldt):
+def constructMMSsolutionFunction(x,spatialOrder,params,temporal,temporaldt):
 
-    #Construct sums of monomials of order 2+ (assuming coeffecients of -1 for now)
-    monomialSum = np.sum(x**(np.arange(2,order+1)*np.ones(x.shape+(order-1,))).transpose(),axis=0)
-    dmonomialSumdx = np.sum(((x**((np.arange(1,order)*np.ones(x.shape+(order-1,)))).transpose()).transpose()*np.arange(2,order+1)).transpose(),axis=0)
-    dmonomialSumdx2 = np.sum(((x**((np.arange(order-1)*np.ones(x.shape+(order-1,)))).transpose()).transpose()*np.arange(2,order+1)*np.arange(1,order)).transpose(),axis=0)
+    #Construct sums of monomials of spatialOrder 2+ (assuming coeffecients of -1 for now)
+    monomialSum = np.sum(x**(np.arange(2,spatialOrder+1)*np.ones(x.shape+(spatialOrder-1,))).transpose(),axis=0)
+    dmonomialSumdx = np.sum(((x**((np.arange(1,spatialOrder)*np.ones(x.shape+(spatialOrder-1,)))).transpose()).transpose()*np.arange(2,spatialOrder+1)).transpose(),axis=0)
+    dmonomialSumdx2 = np.sum(((x**((np.arange(spatialOrder-1)*np.ones(x.shape+(spatialOrder-1,)))).transpose()).transpose()*np.arange(2,spatialOrder+1)*np.arange(1,spatialOrder)).transpose(),axis=0)
                 
-    #Apply corrects to first order coeffecients so that solutions satisfy BC
-    linearCoeff=-np.dot(np.arange(2,order+1),np.ones((order-1)))
+    #Apply corrects to first spatialOrder coeffecients so that solutions satisfy BC
+    linearCoeff=-np.dot(np.arange(2,spatialOrder+1),np.ones((spatialOrder-1)))
     uConstantCoeff=linearCoeff/params["PeM"]
-    vConstantCoeff=(params["f"]*(order-1)+linearCoeff*(params["f"]+1/params["PeT"]))/(1-params["f"])
+    vConstantCoeff=(params["f"]*(spatialOrder-1)+linearCoeff*(params["f"]+1/params["PeT"]))/(1-params["f"])
 
     uSpatialComponent = monomialSum + uConstantCoeff + linearCoeff*x
     vSpatialComponent = monomialSum + vConstantCoeff + linearCoeff*x

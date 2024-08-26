@@ -8,8 +8,9 @@ import collocationElement.CollocationElement as CollocationElement
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Test correct entering
 
+print("Running testCollocationElement.py")
+# Test correct entering
 testElement = CollocationElement.Element(bounds=[0,3],nCollocation=2,spacing="uniform")
 
 x=np.linspace(testElement.bounds[0],testElement.bounds[1],10)

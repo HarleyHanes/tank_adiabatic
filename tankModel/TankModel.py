@@ -11,7 +11,7 @@
 '''
 
 import numpy as np
-from CollocationElement import Element
+from collocationElement.CollocationElement import Element
 
 class TankModel:
     _verbosity=""
@@ -417,27 +417,58 @@ class TankModel:
     def dydtSource(self,y,t,source):
         return self.dydt(y,t) + source(t)
     
-    def eval(self,xEval,modelCoeff, seperated=False):
-        #ComputeFullCoeff
-        if seperated:
-            uFull,vFull = self.computeFullCoeff(modelCoeff,seperated=True)
+
+    def eval(self,xEval,modelCoeff, seperated=False,verbosity=0):
+        """eval computes the value of u and v at every point in xEval given the collocation element expression provided by modelCoeff"""
+       
+        #Get model coeff including the boundary coeffeceints
+        uFull,vFull = self.computeFullCoeff(modelCoeff,seperated=True)
+
+        #Initialize u and v values at each x point and snapshot
+        if modelCoeff.ndim==1:
+            uEval=np.empty(xEval.shape)
+            vEval=np.empty(xEval.shape)
+        elif modelCoeff.ndim==2:
+            uEval=np.empty((modelCoeff.shape[0],)+xEval.shape)
+            vEval=np.empty((modelCoeff.shape[0],)+xEval.shape)
+
+        if verbosity > 1:
+            print("uFull shape: ", uFull.shape)
+            print("basisValues shape: ", basisValues.shape)
+        #Compute u and v values within each element
+        for iElement in range(self.nElements):
+            element=self.elements[iElement]
+            #Get x values for just the selected element
+            #CONCERN: why is there this .4 here??
+            xElementIndices =  np.round(.4*(element.bounds[0]< xEval) + .4* (element.bounds[1] > xEval)).astype(int)
+            xElement=xEval[xElementIndices]
+            #Compute the values of the basis polynomials at each x location
+            basisValues = element.basisFunctions(xElement)
+            if verbosity >1 :
+                print("uFull start: ", iElement*(self.nCollocation+2))
+                print("uFull end (non-inclusive): ", (iElement+1)*(self.nCollocation+2))
+
+
             if modelCoeff.ndim==1:
-                uEval=np.empty(xEval.shape)
-                vEval=np.empty(xEval.shape)
-            elif modelCoeff.ndim==2:
-                uEval=np.empty((modelCoeff.shape[0])+xEval.shape)
-                vEval=np.empty((modelCoeff.shape[0])+xEval.shape)
-            for element in self.elements:
-                xElementIndices = np.round(.4*(element.bounds[0]< xEval) + .4* (element.bounds[1] > xEval))
-                xElement=xEval[xElementIndices]
-                basisValues = element.basisFunctions(xElement)
-                if modalCoeff.ndim==1:
-                    uEval[xElementIndices]=np.dot(uFull[])
+                uEval[xElementIndices]=np.dot(uFull[iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
+                vEval[xElementIndices]=np.dot(vFull[iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
+            #Don't need to check that uFull and vFull have only 1 or 2 dimensions since check occurs in computeFullCoeff
+            else :
+                uEval[xElementIndices]=np.dot(uFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
+                vEval[xElementIndices]=np.dot(vFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
+        if seperated:
+            return uEval, vEval
         else:
-            fullCoeff = self.computeFullCoeff(modelCoeff,seperated=False)
+            #Recombine uEval and vEval into a single set
+            return np.concatenate((uEval,vEval),axis=-1)
+
     
     def computeFullCoeff(self,collocationCoeff,seperated=False):
+        """computeFullCoeff computes the coeffecients including the boundary coeff for each element from the interior coeffecients.
+                This is done by applying the closure relations encoded in the *FullCoeffMat"""
+        #Multiple snapshot case, snapshots must be in first-dimension
         if collocationCoeff.ndim == 2:
+            #Seperate collocation coeff into the u and v components
             u=collocationCoeff[:,0:self.nElements*self.nCollocation]
             v=collocationCoeff[:,self.nElements*self.nCollocation:]
             uFull=np.matmul(self.massFullCoeffMat,u.transpose()).transpose()
@@ -446,7 +477,7 @@ class TankModel:
                 return uFull,vFull
             else:
                 return np.concatenate((uFull,vFull),axis=1)
-            
+        #Sinlge snapshot case
         elif collocationCoeff.ndim ==1:
             u=collocationCoeff[0:self.nElements*self.nCollocation]
             v=collocationCoeff[self.nElements*self.nCollocation:]
