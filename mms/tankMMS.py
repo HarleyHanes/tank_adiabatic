@@ -5,7 +5,7 @@ from tankModel.TankModel import TankModel
 
 def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 0):
     #Parse inputs
-    temporals=[lambda t: 1+0*t,lambda t: t]
+    temporals=[lambda t: 1+0*t,lambda t: 1+1*t]
     temporalsdt=[lambda t: 0*t,lambda t: 1+0*t]
     #temporals = [lambda t: 1+0*t, lambda t: t, lambda t: t**2, lambda t: np.sin(t)]
     #temporalsdt = [lambda t: 0*t, lambda t: 1+0*t, lambda t: 2*t, lambda t: np.cos(t)]
