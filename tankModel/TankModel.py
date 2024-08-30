@@ -444,7 +444,7 @@ class TankModel:
         for iElement in range(self.nElements):
             element=self.elements[iElement]
             #Get x values for just the interior points of selected element. Use .4 here (but any number between .25 and .5 would work) to mark points that are strickly 
-            xElementIndices =  (element.bounds[0]< xEval)&(element.bounds[1] > xEval)
+            xElementIndices =  (element.bounds[0]<= xEval)&(element.bounds[1] >= xEval)
             # print(xElementIndices)
             xElement=xEval[xElementIndices]
             #Compute the values of the basis polynomials at each x location
@@ -464,7 +464,7 @@ class TankModel:
                 uEval[:,xElementIndices]=np.dot(uFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
                 vEval[:,xElementIndices]=np.dot(vFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
             # print("Computed uEval values for element ", iElement, ": ", np.dot(uFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)[0,:])
-            # print("uEval at after element ", iElement, ": ", uEval[0,:])
+            print("uEval at after element ", iElement, ": ", uEval[-1,:])
         if seperated:
             return uEval, vEval
         else:

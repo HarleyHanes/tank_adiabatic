@@ -14,7 +14,7 @@ verbosity = 0
 
 #I think there's an error with the higher
 spatialOrders=[2]  #Must be greater than 2 to satisfy BC
-nElems = [2,4]  #Cant use nElems=1 due to some dimensionality issues with squeeze
+nElems = [2,4,8,16,32]  #Cant use nElems=1 due to some dimensionality issues with squeeze
 #Parameter limitations:
 # Non-negative: Da, gamma, beta, delta
 # Positive: Le, PeM,
@@ -44,7 +44,7 @@ for iOrder in range(len(spatialOrders)):
             print("            v Linf Convergence: " + str(convergence[iColl,:,itemporal,iOrder,1,1]))
     #Compare expected and computed results for u in the time-constant case
     plt.figure()
-    plt.plot(xEval,xEval**2-2*xEval-2)
+    plt.plot(xEval,-xEval**2+2*xEval-2)
     plt.title("True manufactured solution for u")
     
     plt.figure()
@@ -62,18 +62,18 @@ for iOrder in range(len(spatialOrders)):
         for iOrder in range(len(spatialOrders)):
             plt.figure()
             for iElem in range(len(nElems)):
-                plt.plot(xEval,solutions[iCol,iElem,0,iOrder,0,1,0]-solutions[iCol,iElem,0,iOrder,0,0,:,0])
-            plt.title("Error of uMMS at t=0 for each discretization")
+                plt.semilogy(xEval,np.abs(solutions[iCol,iElem,0,iOrder,0,1,0,:]-solutions[iCol,iElem,0,iOrder,0,0,0,:]))
+            plt.title("Error of uMMS at t start for each discretization")
             plt.legend(['nElem='+str(element) for element in nElems])
             plt.xlabel('x')
-            plt.ylabel('u_{Model}-u_{Computed}')
+            plt.ylabel('|u_{Model}-u_{Computed}|')
             plt.figure()
             for iElem in range(len(nElems)):
-                plt.plot(xEval,solutions[iCol,iElem,0,iOrder,0,1,-1]-solutions[iCol,iElem,0,iOrder,0,0,:,-1])
-            plt.title("Error of uMMS at t=0 for each discretization")
+                plt.semilogy(xEval,np.abs(solutions[iCol,iElem,0,iOrder,0,1,-1,:]-solutions[iCol,iElem,0,iOrder,0,0,-1,:]))
+            plt.title("Error of uMMS at t end for each discretization")
             plt.legend(['nElem='+str(element) for element in nElems])
             plt.xlabel('x')
-            plt.ylabel('u_{Model}-u_{Computed}')
+            plt.ylabel('|u_{Model}-u_{Computed}|')
     plt.show()
 
 ## List of likely identified errors

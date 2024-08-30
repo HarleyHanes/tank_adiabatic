@@ -31,7 +31,7 @@ print("     Convergence Rate Test passes")
 
 
 #Test 2: Check MMS Solutions for 2nd and 3rd order cases are computed correctly
-nCollocations = [1]
+nCollocations = [2]
 #I think there's an error with the higher
 spatialOrders=[2,3]  #Must be greater than or equal to 2 to satisfy BC
 nElems = [2,]  #Cant use nElems=1 due to some dimensionality issues with squeeze
