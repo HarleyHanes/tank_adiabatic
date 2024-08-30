@@ -4,6 +4,7 @@ from tankModel.TankModel import TankModel
 
 
 def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 0):
+    #Parse inputs
     temporals=[lambda t: 1+0*t,lambda t: t]
     temporalsdt=[lambda t: 0*t,lambda t: 1+0*t]
     #temporals = [lambda t: 1+0*t, lambda t: t, lambda t: t**2, lambda t: np.sin(t)]
@@ -55,13 +56,22 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
                     solutions[iColl,iElem,itemporal,iorder,0,1]=uModelSol
                     solutions[iColl,iElem,itemporal,iorder,1,0]=vMMSsol
                     solutions[iColl,iElem,itemporal,iorder,0,1]=uModelSol
-            if iElem!=0:
-                convergenceRates[iColl,iElem-1,:,:,:,:]=(error[iColl,iElem-1,:,:,:,:]/error[iColl,iElem,:,:,:,:])*(nElems[iElem-1]/nElems[iElem])
+                    
+        convergenceRates[iColl]=computeConvergenceRates(1/np.array(nElems),error[iColl])
 
 
     return error, solutions, convergenceRates
 
 
+def computeConvergenceRates(discretizations,errors):
+    #Check discretizations and errors have the same dimensions or that discretizations is 1D
+    if discretizations.ndim==1:
+        assert(discretizations.shape[0]==errors.shape[0])
+    else:
+        assert(discretizations.shape==errors.shape)
+    #Define convergence rates as having the same shape as discretizations but with 1 less in the first dimension
+    convergenceRates=np.log(errors[0:-1].T/errors[1:].T)/np.log(discretizations[0:-1]/discretizations[1:])
+    return convergenceRates.T
 
 
 def constructMMSsolutionFunction(x,spatialOrder,params,temporal,temporaldt):
@@ -71,7 +81,7 @@ def constructMMSsolutionFunction(x,spatialOrder,params,temporal,temporaldt):
     dmonomialSumdx = np.sum(((x**((np.arange(1,spatialOrder)*np.ones(x.shape+(spatialOrder-1,)))).transpose()).transpose()*np.arange(2,spatialOrder+1)).transpose(),axis=0)
     dmonomialSumdx2 = np.sum(((x**((np.arange(spatialOrder-1)*np.ones(x.shape+(spatialOrder-1,)))).transpose()).transpose()*np.arange(2,spatialOrder+1)*np.arange(1,spatialOrder)).transpose(),axis=0)
                 
-    #Apply corrects to first spatialOrder coeffecients so that solutions satisfy BC
+    #Apply corrections to linear spatialOrder coeffecients so that solutions satisfy BC
     linearCoeff=-np.dot(np.arange(2,spatialOrder+1),np.ones((spatialOrder-1)))
     uConstantCoeff=linearCoeff/params["PeM"]
     vConstantCoeff=(params["f"]*(spatialOrder-1)+linearCoeff*(params["f"]+1/params["PeT"]))/(1-params["f"])

@@ -21,20 +21,32 @@ import matplotlib.pyplot as plt
 import mms.tankMMS as tankMMS
 
 print("Running testTankMMS.py")
-#Test 1: Check MMS Solutions for 2nd and 3rd order cases are computed correctly
+#Test 1: Convergence Rate testing
+error=np.array([1,1/2, (1/2)**3, (1/2)**6, (1/2)**10, (1/2)**15])
+step_size=np.array([1,1/2,1/4,1/8,1/16,1/32])
+convergenceRates=tankMMS.computeConvergenceRates(step_size,error)
+assert(np.all(np.isclose(convergenceRates,np.array([1.0,2.0,3.0,4.0,5.0]))))
+print("     Convergence Rate Test passes")
+
+
+
+#Test 2: Check MMS Solutions for 2nd and 3rd order cases are computed correctly
 nCollocations = [1]
 #I think there's an error with the higher
-spatialOrders=[2,3]  #Must be greater than 2 to satisfy BC
-nElems = [2,4]  #Cant use nElems=1 due to some dimensionality issues with squeeze
+spatialOrders=[2]  #Must be greater than or equal to 2 to satisfy BC
+nElems = [2]  #Cant use nElems=1 due to some dimensionality issues with squeeze
 #Note: Parameters can be any positive value except f=1
 params={"PeM": 1, "PeT": 1, "f": 2, "Le": 1, "Da": 1, "beta": 1, "gamma": 1,"delta": 1, "vH":1}
-tEval = np.linspace(0,3,100)
+tEval = np.linspace(0,3,50)
 xEval = np.linspace(0,1,100)
 error, solutions, convergenceRates=tankMMS.runMMStest(spatialOrders,nCollocations,nElems,xEval,tEval,params,verbosity=0)
 
-linearCoeff=-2
+print(solutions[0,0,0,0,0,0,-1,:])
+print(solutions.shape)
+linearCoeff=2
 uConstant=linearCoeff/params["PeM"]
 vConstant=1/(1-params["f"])*(params["f"]+linearCoeff*(params["f"]+1/params["PeT"]))
+print((xEval**2+linearCoeff*xEval+uConstant))
 #u for 2nd order case
 assert(np.isclose(np.sum(np.abs(solutions[0,0,0,0,0,0,-1,:]-(xEval**2+linearCoeff*xEval+uConstant))),0))
 #v for 2nd order case

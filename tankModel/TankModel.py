@@ -420,27 +420,32 @@ class TankModel:
 
     def eval(self,xEval,modelCoeff, seperated=False,verbosity=0):
         """eval computes the value of u and v at every point in xEval given the collocation element expression provided by modelCoeff"""
-       
+        
+        #Convert xEval to numpy array if not already so logical operators will work on its indices
+        if type(xEval)!=np.ndarray:
+            xEval=np.array(xEval)
         #Get model coeff including the boundary coeffeceints
         uFull,vFull = self.computeFullCoeff(modelCoeff,seperated=True)
 
         #Initialize u and v values at each x point and snapshot
         if modelCoeff.ndim==1:
-            uEval=np.empty(xEval.shape)
-            vEval=np.empty(xEval.shape)
+            uEval=np.zeros(xEval.shape)
+            vEval=np.zeros(xEval.shape)
         elif modelCoeff.ndim==2:
-            uEval=np.empty((modelCoeff.shape[0],)+xEval.shape)
-            vEval=np.empty((modelCoeff.shape[0],)+xEval.shape)
+            uEval=np.zeros((modelCoeff.shape[0],)+xEval.shape)
+            vEval=np.zeros((modelCoeff.shape[0],)+xEval.shape)
 
         if verbosity > 1:
             print("uFull shape: ", uFull.shape)
             print("basisValues shape: ", basisValues.shape)
         #Compute u and v values within each element
+        print("uFull shape: ", uFull.shape)
+        print("uEval shape: ", uEval.shape)
         for iElement in range(self.nElements):
             element=self.elements[iElement]
-            #Get x values for just the selected element
-            #CONCERN: why is there this .4 here??
-            xElementIndices =  np.round(.4*(element.bounds[0]< xEval) + .4* (element.bounds[1] > xEval)).astype(int)
+            #Get x values for just the interior points of selected element. Use .4 here (but any number between .25 and .5 would work) to mark points that are strickly 
+            xElementIndices =  (element.bounds[0]< xEval)&(element.bounds[1] > xEval)
+            print(xElementIndices)
             xElement=xEval[xElementIndices]
             #Compute the values of the basis polynomials at each x location
             basisValues = element.basisFunctions(xElement)
@@ -448,14 +453,18 @@ class TankModel:
                 print("uFull start: ", iElement*(self.nCollocation+2))
                 print("uFull end (non-inclusive): ", (iElement+1)*(self.nCollocation+2))
 
-
+            
             if modelCoeff.ndim==1:
                 uEval[xElementIndices]=np.dot(uFull[iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
                 vEval[xElementIndices]=np.dot(vFull[iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
             #Don't need to check that uFull and vFull have only 1 or 2 dimensions since check occurs in computeFullCoeff
             else :
-                uEval[xElementIndices]=np.dot(uFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
-                vEval[xElementIndices]=np.dot(vFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
+                print("uFull for Element " , iElement, ": ", uFull[0,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1])
+                print("basisValues for Element " , iElement, ": ", basisValues)
+                uEval[:,xElementIndices]=np.dot(uFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
+                vEval[:,xElementIndices]=np.dot(vFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
+            print("Computed uEval values for element ", iElement, ": ", np.dot(uFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)[0,:])
+            print("uEval at after element ", iElement, ": ", uEval[0,:])
         if seperated:
             return uEval, vEval
         else:

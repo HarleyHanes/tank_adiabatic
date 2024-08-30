@@ -10,15 +10,22 @@ import matplotlib.pyplot as plt
 import scipy
 import tankMMS
 nCollocations = [2]
-verbosity = 2
+verbosity = 0
 
 #I think there's an error with the higher
-spatialOrders=[2,3,4]  #Must be greater than 2 to satisfy BC
-nElems = [2,4,8,16]  #Cant use nElems=1 due to some dimensionality issues with squeeze
-#Note: Parameters can be any positive value except f=1
-params={"PeM": 1, "PeT": 1, "f": 2, "Le": 1, "Da": 1, "beta": 1, "gamma": 1,"delta": 1, "vH":1}
-tEval = np.linspace(0,3,200)
-xEval = np.linspace(0,1,200)
+spatialOrders=[2]  #Must be greater than 2 to satisfy BC
+nElems = [2,4]  #Cant use nElems=1 due to some dimensionality issues with squeeze
+#Parameter limitations:
+# Non-negative: Da, gamma, beta, delta
+# Positive: Le, PeM,
+# Other: f can be any number except 1
+# Parameter Relations
+# If delta=0: then vH has no effect 
+# If Da=0: then beta and gamma have no effect
+# If Da=0 and delta=0: then Le has no effect
+params={"PeM": 1, "PeT": 1, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
+tEval = np.linspace(0,3,50)
+xEval = np.linspace(0,1,20)
 error, solutions, convergence=tankMMS.runMMStest(spatialOrders,nCollocations,nElems,xEval,tEval,params,verbosity=verbosity)
 
 for iOrder in range(len(spatialOrders)):
@@ -36,17 +43,37 @@ for iOrder in range(len(spatialOrders)):
             print("            v L2 Convergence: " + str(convergence[iColl,:,itemporal,iOrder,1,0]))
             print("            v Linf Convergence: " + str(convergence[iColl,:,itemporal,iOrder,1,1]))
     #Compare expected and computed results for u in the time-constant case
+    plt.figure()
     plt.plot(xEval,xEval**2-2*xEval-2)
     plt.title("True manufactured solution for u")
-    plt.show()
-
+    
+    plt.figure()
     plt.plot(xEval,solutions[iColl,:,0,iOrder,0,0,-1,:].transpose())
     plt.title("Computed manufactured Solutions for u")
-    plt.show()
+    
 
     #Plot the computed solution for each element
+    plt.figure()
     plt.plot(xEval,solutions[iColl,:,0,iOrder,0,1,-1,:].transpose())
     plt.title("Computed Solutions for u")
+
+    #Plot the error of each as elements are refined
+    for iCol in range(len(nCollocations)):
+        for iOrder in range(len(spatialOrders)):
+            plt.figure()
+            for iElem in range(len(nElems)):
+                plt.plot(xEval,solutions[iCol,iElem,0,iOrder,0,1,0]-solutions[iCol,iElem,0,iOrder,0,0,:,0])
+            plt.title("Error of uMMS at t=0 for each discretization")
+            plt.legend(['nElem='+str(element) for element in nElems])
+            plt.xlabel('x')
+            plt.ylabel('u_{Model}-u_{Computed}')
+            plt.figure()
+            for iElem in range(len(nElems)):
+                plt.plot(xEval,solutions[iCol,iElem,0,iOrder,0,1,-1]-solutions[iCol,iElem,0,iOrder,0,0,:,-1])
+            plt.title("Error of uMMS at t=0 for each discretization")
+            plt.legend(['nElem='+str(element) for element in nElems])
+            plt.xlabel('x')
+            plt.ylabel('u_{Model}-u_{Computed}')
     plt.show()
 
 ## List of likely identified errors
@@ -60,5 +87,5 @@ for iOrder in range(len(spatialOrders)):
 #    Candidate Causes
 #       Poor conditioning: RHS matrices often 1,000-10,000 cond numbers, however this also occurs for nCollocation=2
 # 4) Incorrect ODE implemented (FIXED)
-#    Forgot to divide whole temp equation by Le, doesn't effect current cases since Le=1
+#    Forgot to divide whole temp equation by Le, doesn't affect current cases since Le=1
     
