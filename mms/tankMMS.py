@@ -10,6 +10,7 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
     #temporals = [lambda t: 1+0*t, lambda t: t, lambda t: t**2, lambda t: np.sin(t)]
     #temporalsdt = [lambda t: 0*t, lambda t: 1+0*t, lambda t: 2*t, lambda t: np.cos(t)]
     error= np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2))
+    #Pre allocate solutions, the (2,2) indices are for (u,v) and then (MMS,Model) where MMS is true value and Model is computed value
     solutions= np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2,tEval.size,xEval.size))
     convergenceRates = np.empty((len(nCollocations),len(nElems)-1,len(temporals),len(spatialSolOrders),2,2))
     for iColl in range(len(nCollocations)):
@@ -77,12 +78,12 @@ def computeConvergenceRates(discretizations,errors):
 def constructMMSsolutionFunction(x,spatialOrder,params,temporal,temporaldt):
 
     #Construct sums of monomials of spatialOrder 2+ (assuming coeffecients of -1 for now)
-    monomialSum = np.sum(x**(np.arange(2,spatialOrder+1)*np.ones(x.shape+(spatialOrder-1,))).transpose(),axis=0)
-    dmonomialSumdx = np.sum(((x**((np.arange(1,spatialOrder)*np.ones(x.shape+(spatialOrder-1,)))).transpose()).transpose()*np.arange(2,spatialOrder+1)).transpose(),axis=0)
-    dmonomialSumdx2 = np.sum(((x**((np.arange(spatialOrder-1)*np.ones(x.shape+(spatialOrder-1,)))).transpose()).transpose()*np.arange(2,spatialOrder+1)*np.arange(1,spatialOrder)).transpose(),axis=0)
+    monomialSum = np.sum(-x**(np.arange(2,spatialOrder+1)*np.ones(x.shape+(spatialOrder-1,))).transpose(),axis=0)
+    dmonomialSumdx = np.sum(((-x**((np.arange(1,spatialOrder)*np.ones(x.shape+(spatialOrder-1,)))).transpose()).transpose()*np.arange(2,spatialOrder+1)).transpose(),axis=0)
+    dmonomialSumdx2 = np.sum((-(x**((np.arange(spatialOrder-1)*np.ones(x.shape+(spatialOrder-1,)))).transpose()).transpose()*np.arange(2,spatialOrder+1)*np.arange(1,spatialOrder)).transpose(),axis=0)
                 
     #Apply corrections to linear spatialOrder coeffecients so that solutions satisfy BC
-    linearCoeff=-np.dot(np.arange(2,spatialOrder+1),np.ones((spatialOrder-1)))
+    linearCoeff=np.dot(np.arange(2,spatialOrder+1),np.ones((spatialOrder-1)))
     uConstantCoeff=linearCoeff/params["PeM"]
     vConstantCoeff=(params["f"]*(spatialOrder-1)+linearCoeff*(params["f"]+1/params["PeT"]))/(1-params["f"])
 

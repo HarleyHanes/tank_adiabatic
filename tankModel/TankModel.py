@@ -439,13 +439,13 @@ class TankModel:
             print("uFull shape: ", uFull.shape)
             print("basisValues shape: ", basisValues.shape)
         #Compute u and v values within each element
-        print("uFull shape: ", uFull.shape)
-        print("uEval shape: ", uEval.shape)
+        # print("uFull shape: ", uFull.shape)
+        # print("uEval shape: ", uEval.shape)
         for iElement in range(self.nElements):
             element=self.elements[iElement]
             #Get x values for just the interior points of selected element. Use .4 here (but any number between .25 and .5 would work) to mark points that are strickly 
             xElementIndices =  (element.bounds[0]< xEval)&(element.bounds[1] > xEval)
-            print(xElementIndices)
+            # print(xElementIndices)
             xElement=xEval[xElementIndices]
             #Compute the values of the basis polynomials at each x location
             basisValues = element.basisFunctions(xElement)
@@ -459,12 +459,12 @@ class TankModel:
                 vEval[xElementIndices]=np.dot(vFull[iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
             #Don't need to check that uFull and vFull have only 1 or 2 dimensions since check occurs in computeFullCoeff
             else :
-                print("uFull for Element " , iElement, ": ", uFull[0,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1])
-                print("basisValues for Element " , iElement, ": ", basisValues)
+                # print("uFull for Element " , iElement, ": ", uFull[0,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1])
+                # print("basisValues for Element " , iElement, ": ", basisValues)
                 uEval[:,xElementIndices]=np.dot(uFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
                 vEval[:,xElementIndices]=np.dot(vFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
-            print("Computed uEval values for element ", iElement, ": ", np.dot(uFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)[0,:])
-            print("uEval at after element ", iElement, ": ", uEval[0,:])
+            # print("Computed uEval values for element ", iElement, ": ", np.dot(uFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)[0,:])
+            # print("uEval at after element ", iElement, ": ", uEval[0,:])
         if seperated:
             return uEval, vEval
         else:
