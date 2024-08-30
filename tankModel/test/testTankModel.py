@@ -34,10 +34,15 @@ trueTempBoundaryMat=np.array([[-3/2-params["PeT"], 2 ,-1/2, 0 ,params["f"]],
 # print(model.tempBoundaryMat)
 # print(np.round(model.tempBoundaryMatInv*100000000)/10000000)
 # print(model.tempRHSmat)
+#Check Boundary matrices
 assert(np.isclose(trueMassBoundaryMat, model.massBoundaryMat).all())
 assert(np.isclose(trueTempBoundaryMat, model.tempBoundaryMat).all())
+#Check first and 2nd order matrices
+
+#Check Closure matrices
 
 print(np.round(model.dydt(np.array([1/2,1/2,1/2,1/2]),0)*100000000)/10000000)
+
 
 #Check Stability???
 #y=scipy.integrate.odeint(model.dydt,np.array([1,2,3,4]),np.linspace(0,20,10))

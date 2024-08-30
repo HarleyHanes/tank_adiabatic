@@ -9,12 +9,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 import tankMMS
-nCollocations = [2]
-verbosity = 0
+nCollocations = [1]
+verbosity = 3
 
 #I think there's an error with the higher
 spatialOrders=[2]  #Must be greater than 2 to satisfy BC
-nElems = [2,4,8,16,32]  #Cant use nElems=1 due to some dimensionality issues with squeeze
+nElems = [2]  #Cant use nElems=1 due to some dimensionality issues with squeeze
 #Parameter limitations:
 # Non-negative: Da, gamma, beta, delta
 # Positive: Le, PeM,
@@ -23,7 +23,14 @@ nElems = [2,4,8,16,32]  #Cant use nElems=1 due to some dimensionality issues wit
 # If delta=0: then vH has no effect 
 # If Da=0: then beta and gamma have no effect
 # If Da=0 and delta=0: then Le has no effect
-params={"PeM": 1, "PeT": 1, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
+
+#Bizon2012 Parameters for  a stable domain
+#params={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.2}
+#Bizon2012 Parameters with just diffusion/advection
+#params={"PeM": 300, "PeT": 300, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH": 0}
+#Unit parameters with just diffusion/advection
+params={"PeM": 10, "PeT": 10, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH": 0}
+
 tEval = np.linspace(0,3,50)
 xEval = np.linspace(0,1,20)
 error, solutions, convergence=tankMMS.runMMStest(spatialOrders,nCollocations,nElems,xEval,tEval,params,verbosity=verbosity)
@@ -44,7 +51,7 @@ for iOrder in range(len(spatialOrders)):
             print("            v Linf Convergence: " + str(convergence[iColl,:,itemporal,iOrder,1,1]))
     #Compare expected and computed results for u in the time-constant case
     plt.figure()
-    plt.plot(xEval,-xEval**2+2*xEval-2)
+    plt.plot(xEval,-xEval**2+2*xEval+2)
     plt.title("True manufactured solution for u")
     
     plt.figure()

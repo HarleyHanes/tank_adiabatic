@@ -45,8 +45,10 @@ class TankModel:
             self._verbosity=1
         elif value in (2,"h","H"):
             self._verbosity=2
+        elif value ==3:
+            self._verbosity=3
         else:
-            raise Exception("Invalid verbosity, use 0/n/N (none), 1/m/M (medium), 2/h/H (high)")
+            raise Exception("Invalid verbosity, use 0/n/N (none), 1/m/M (medium), 2/h/H (high), 3 (very high)")
  
     @property
     def nElements(self):
@@ -295,8 +297,7 @@ class TankModel:
             raise Exception("vH not in params dictionary")
         elif type(value["vH"])!= float and type(value["vH"])!= int:
             raise Exception("Non-numerical value entered for vH: " + str(value["vH"]))
-        elif value["vH"] < 0:
-            raise Exception("Negative value entered for vH: " + str(value["vH"]))
+        
         self._params=value
     
         
@@ -351,11 +352,16 @@ class TankModel:
         for iRow in np.arange(0,self.nElements*(self.nCollocation+1)+1,self.nCollocation+1):
             #Left BC
             if iRow==0:
-                massBoundaryMat[iRow,0:self.nCollocation+2]=self.elements[0].basisFirstDeriv(self.bounds[0])
-                massBoundaryMat[iRow,0]-=self.params["PeM"]
-                tempBoundaryMat[iRow,0:self.nCollocation+2]=self.elements[0].basisFirstDeriv(self.bounds[0])
-                tempBoundaryMat[iRow,0]-=self.params["PeT"]
-                tempBoundaryMat[iRow,-1]=self.params["f"]
+                massBoundaryMat[iRow,0:self.nCollocation+2]=-1/self.params["PeM"]*self.elements[0].basisFirstDeriv(self.bounds[0])
+                massBoundaryMat[iRow,0]+=1
+                tempBoundaryMat[iRow,0:self.nCollocation+2]=-1/self.params["PeT"]*self.elements[0].basisFirstDeriv(self.bounds[0])
+                tempBoundaryMat[iRow,0]+=1
+                tempBoundaryMat[iRow,-1]=-self.params["f"]
+                #massBoundaryMat[iRow,0:self.nCollocation+2]=self.elements[0].basisFirstDeriv(self.bounds[0])
+                #massBoundaryMat[iRow,0]-=self.params["PeM"]
+                #tempBoundaryMat[iRow,0:self.nCollocation+2]=self.elements[0].basisFirstDeriv(self.bounds[0])
+                #tempBoundaryMat[iRow,0]-=self.params["PeT"]
+                #tempBoundaryMat[iRow,-1]=self.params["f"]
             #Right BC
             elif iRow==self.nElements*(self.nCollocation+1):
                 massBoundaryMat[iRow,-(self.nCollocation+2):]=self.elements[-1].basisFirstDeriv(self.bounds[1])
@@ -384,16 +390,50 @@ class TankModel:
             colStart=i*self.nCollocation
             pointExpansionMat[rowStart:rowStart+self.nCollocation,colStart:colStart+self.nCollocation]=np.eye(self.nCollocation)
         
-        self.massFullCoeffMat=np.matmul(np.linalg.inv(massBoundaryMat),pointExpansionMat)
-        self.tempFullCoeffMat=np.matmul(np.linalg.inv(tempBoundaryMat),pointExpansionMat)
-        if self.verbosity>2:
+        self.massFullCoeffMat=np.linalg.solve(massBoundaryMat,pointExpansionMat)
+        self.tempFullCoeffMat=np.linalg.solve(tempBoundaryMat,pointExpansionMat)
+        if self.verbosity>1:
+            if self.verbosity>2:
+                print("Point Expansion Matrix")
+                print(pointExpansionMat)
+            print("Mass Boundary Condition Number: ", np.linalg.cond(massBoundaryMat))
+            print("Temp Boundary Condition Number: ", np.linalg.cond(tempBoundaryMat))
+            if self.verbosity >2:
+                print("Mass Boundary Matrix")
+                print(massBoundaryMat)
+                print("Temp Boundary Matrix")
+                print(tempBoundaryMat)
             print("Mass Closure Condition Number: " + str(np.linalg.cond(self.massFullCoeffMat)))
             print("Temp Closure Condition Number: " + str(np.linalg.cond(self.tempFullCoeffMat)))
+            if self.verbosity >2:
+                print("Mass Closure  Matrix")
+                print(self.massFullCoeffMat)
+                print("Temp Closure Matrix")
+                print(self.tempFullCoeffMat)
+            print("1st Order Matrix Condition Number: " + str(np.linalg.cond(self.firstOrderMat)))
+            print("2nd Order Matrix Condition Number: " + str(np.linalg.cond(self.secondOrderMat)))
+            if self.verbosity >2:
+                print("1st Order Matrix")
+                print(self.firstOrderMat)
+                print("2nd Order Matrix")
+                print(self.secondOrderMat)
+            print("Mass Full Domain Condition Number: " + str(np.linalg.cond(self.firstOrderMat+1/self.params["PeM"]*self.secondOrderMat)))
+            print("Temp Full Domain Condition Number: " + str(np.linalg.cond((self.firstOrderMat+1/self.params["PeT"]*self.secondOrderMat)/self.params["Le"])))
+            if self.verbosity >2:
+                print("Mass Full Domain  Matrix")
+                print(self.firstOrderMat+1/self.params["PeM"]*self.secondOrderMat)
+                print("Temp Full Domain Matrix")
+                print((self.firstOrderMat+1/self.params["PeT"]*self.secondOrderMat)/self.params["Le"])
         self.massRHSmat = np.matmul(self.firstOrderMat+1/self.params["PeM"]*self.secondOrderMat,self.massFullCoeffMat)
         self.tempRHSmat = np.matmul((self.firstOrderMat+1/self.params["PeT"]*self.secondOrderMat)/self.params["Le"],self.tempFullCoeffMat)
-        if self.verbosity>2:
+        if self.verbosity>1:
             print("Mass RHS Condition Number: " + str(np.linalg.cond(self.massRHSmat)))
             print("Temp RHS Condition Number: " + str(np.linalg.cond(self.tempRHSmat)))
+            if self.verbosity >2:
+                print("Mass RHS  Matrix")
+                print(self.massRHSmat)
+                print("Temp RHS Matrix")
+                print(self.tempRHSmat)
         
         # jointRHSmat = np.zeros((2*self.nElements*self.nCollocation,2*(self.nElements*(self.nCollocation+1)+1)))
         # jointRHSmat[0:(self.nElements*self.nCollocation),0:(self.nElements*(self.nCollocation+1)+1)]=self.massRHSmat
@@ -418,7 +458,7 @@ class TankModel:
         return self.dydt(y,t) + source(t)
     
 
-    def eval(self,xEval,modelCoeff, seperated=False,verbosity=0):
+    def eval(self,xEval,modelCoeff, seperated=False):
         """eval computes the value of u and v at every point in xEval given the collocation element expression provided by modelCoeff"""
         
         #Convert xEval to numpy array if not already so logical operators will work on its indices
@@ -435,9 +475,8 @@ class TankModel:
             uEval=np.zeros((modelCoeff.shape[0],)+xEval.shape)
             vEval=np.zeros((modelCoeff.shape[0],)+xEval.shape)
 
-        if verbosity > 1:
+        if self.verbosity > 1:
             print("uFull shape: ", uFull.shape)
-            print("basisValues shape: ", basisValues.shape)
         #Compute u and v values within each element
         # print("uFull shape: ", uFull.shape)
         # print("uEval shape: ", uEval.shape)
@@ -449,9 +488,6 @@ class TankModel:
             xElement=xEval[xElementIndices]
             #Compute the values of the basis polynomials at each x location
             basisValues = element.basisFunctions(xElement)
-            if verbosity >1 :
-                print("uFull start: ", iElement*(self.nCollocation+2))
-                print("uFull end (non-inclusive): ", (iElement+1)*(self.nCollocation+2))
 
             
             if modelCoeff.ndim==1:
@@ -464,7 +500,7 @@ class TankModel:
                 uEval[:,xElementIndices]=np.dot(uFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
                 vEval[:,xElementIndices]=np.dot(vFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
             # print("Computed uEval values for element ", iElement, ": ", np.dot(uFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)[0,:])
-            print("uEval at after element ", iElement, ": ", uEval[-1,:])
+            # print("uEval at after element ", iElement, ": ", uEval[-1,:])
         if seperated:
             return uEval, vEval
         else:
