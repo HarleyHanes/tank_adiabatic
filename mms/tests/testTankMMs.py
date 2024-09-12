@@ -30,7 +30,7 @@ print("     Convergence Rate Test passes")
 
 
 
-#Test 2: Check MMS Solutions for 2nd and 3rd order cases are computed correctly
+#Test 2: Check manufactued solutions for 2nd and 3rd order cases are computed correctly
 nCollocations = [2]
 #I think there's an error with the higher
 spatialOrders=[2,3]  #Must be greater than or equal to 2 to satisfy BC
@@ -48,9 +48,9 @@ uConstant=linearCoeff/params["PeM"]
 vConstant=1/(1-params["f"])*(params["f"]+linearCoeff*(params["f"]+1/params["PeT"]))
 #print((-xEval**2+linearCoeff*xEval+uConstant))
 #u for 2nd order case
-assert(np.isclose(np.sum(np.abs(solutions[0,0,0,0,0,0,-1,:]-(-xEval**2+linearCoeff*xEval+uConstant))),0))
+assert(np.isclose(np.sum(np.abs(solutions[0,0,0,0,0,0,0,:]-(-xEval**2+linearCoeff*xEval+uConstant))),0))
 #v for 2nd order case
-assert(np.isclose(np.sum(np.abs(solutions[0,0,0,0,1,0,-1,:]-(-xEval**2+linearCoeff*xEval+vConstant))),0))
+assert(np.isclose(np.sum(np.abs(solutions[0,0,0,0,1,0,0,:]-(-xEval**2+linearCoeff*xEval+vConstant))),0))
 print("     2nd Order case passing")
 
 linearCoeff=5
@@ -61,5 +61,7 @@ assert(np.isclose(np.sum(np.abs(solutions[0,0,0,1,0,0,-1,:]-(-xEval**3-xEval**2+
 #v for 3nd order case
 assert(np.isclose(np.sum(np.abs(solutions[0,0,0,1,1,0,-1,:]-(-xEval**3-xEval**2+linearCoeff*xEval+vConstant))),0))
 print("     3nd Order case passing")
+
+#Test 3: Check source term is computed correctly
 
 print("testTankMMS.py passes")

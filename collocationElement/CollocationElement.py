@@ -141,16 +141,17 @@ class Element:
         interpolationPoints[-1]=self.bounds[1]
         self.interpolationPoints=interpolationPoints
             
+    #Compute the coeffecients for the basis so that they interpolate 1 at their collocation point and 0 at all others
     def __solveBasisCoeff__(self):
         basisCoeff=np.empty((self.nCollocation+2,self.nCollocation+2))
         massMatrix=np.empty((self.nCollocation+2,self.nCollocation+2))
         for iOrder in np.arange(self.nCollocation+2):
             massMatrix[:,iOrder]=self.interpolationPoints**iOrder
-        invertedMass = np.linalg.inv(massMatrix)
+ 
         for iBasis in np.arange(self.nCollocation+2):
             b=np.zeros((self.nCollocation+2))
             b[iBasis]=1
-            basisCoeff[iBasis]=np.dot(invertedMass,b)
+            basisCoeff[iBasis]=np.linalg.solve(massMatrix,b)
         self.basisCoeff=basisCoeff
         
     def basisFunctions(self,x):
@@ -165,12 +166,15 @@ class Element:
         elif x.ndim!=1:
                 raise Exception("Multi-dimensional array entered for x: " + str(x))
         else :
+            #Initialize values for every interpolating polynomial at each point in x
             basisFunctions=np.empty((self.nCollocation+2,x.size))
         
+        #Setup matrix of every x value to every power up to the order of the interpolating polynomial
         xExpanded = np.ones((self.nCollocation+2,)+x.shape)
         for iOrder in np.arange(self.nCollocation+2):
             xExpanded[iOrder]=x**iOrder
             
+        #Set the value of each interpolating basis to be the 
         for iBasis in np.arange(self.nCollocation+2):
             basisFunctions[iBasis] = np.sum(xExpanded.transpose()*self.basisCoeff[iBasis],axis=-1)
                     

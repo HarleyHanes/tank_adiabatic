@@ -9,10 +9,12 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
     temporalsdt=[lambda t: 0*t,lambda t: 1+0*t]
     #temporals = [lambda t: 1+0*t, lambda t: t, lambda t: t**2, lambda t: np.sin(t)]
     #temporalsdt = [lambda t: 0*t, lambda t: 1+0*t, lambda t: 2*t, lambda t: np.cos(t)]
-    error= np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2))
+    error = np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2))
+    errorSpace = np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2,tEval.size))
     #Pre allocate solutions, the (2,2) indices are for (u,v) and then (MMS,Model) where MMS is true value and Model is computed value
     solutions= np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2,tEval.size,xEval.size))
-    convergenceRates = np.empty((len(nCollocations),len(nElems)-1,len(temporals),len(spatialSolOrders),2,2))
+    jointConvergenceRates = np.empty((len(nCollocations),len(nElems)-1,len(temporals),len(spatialSolOrders),2,2))
+    spatialConvergenceRates = np.empty((len(nCollocations),len(nElems)-1,len(temporals),len(spatialSolOrders),2,2,tEval.size))
     for iColl in range(len(nCollocations)):
         for iElem in range(len(nElems)):
             if verbosity > 0 :
@@ -38,30 +40,48 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
                     y0=np.append(u(tEval[0]),v(tEval[0]))
                     #Compute Model Coeff
                     modelCoeff = scipy.integrate.odeint(lambda y,t: model.dydtSource(y,t,sourceFunction),y0,tEval)
+                    #Check for error between model coeffecients at t=0 as outputed by ODE function and the true
+                    y0error=np.sqrt(np.sum((modelCoeff[0,:]-y0)**2))
+                    if y0error>10**(-14):
+                        print("Warning: odeint has non-zero error in y0")
+                        print("y0 error: %03e" % (y0error,))
                     #Evalue manufactured solution at integration points
                     u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructMMSsolutionFunction(xEval,spatialOrder,params,temporals[itemporal],temporalsdt[itemporal])
                     uMMSsol=u(tEval)
                     vMMSsol=v(tEval)
                     #Evaluate model at integration points
                     uModelSol, vModelSol = model.eval(xEval,modelCoeff, seperated=True)
+                    #Confirm that for exact spatial cases, the error at first step is near-zero
+                    # if spatialOrder<=(nCollocations[iColl]+1):
+                    #     uInitialError = np.max(np.abs((uMMSsol[0]-uModelSol[0])/uMMSsol[0]))
+                    #     vInitialError = np.max(np.abs((vMMSsol[0]-vModelSol[0])/vMMSsol[0]))
+                    #     if uInitialError>1e-13 or vInitialError>1e-13:
+                    #         print("Warning: error at start of solve for exact problem")
+                    #         print("u Linf error at t=0: ", uInitialError)
+                    #         print("v Linf error at t=0: ", vInitialError)
+
                     #Compute Error
-                    uErrorL2, uErrorLinf = computeMMSerror(uModelSol,uMMSsol,tEval[-1],tEval[0])
-                    vErrorL2, vErrorLinf = computeMMSerror(vModelSol,vMMSsol,tEval[-1],tEval[0])
+                    uErrorL2, uErrorLinf, uErrorL2space, uErrorLinfSpace = computeMMSerror(uModelSol,uMMSsol,tEval[-1],tEval[0])
+                    vErrorL2, vErrorLinf, vErrorL2space, vErrorLinfSpace = computeMMSerror(vModelSol,vMMSsol,tEval[-1],tEval[0])
                     #Save Error
                     error[iColl,iElem,itemporal,iorder,0,0]=uErrorL2
                     error[iColl,iElem,itemporal,iorder,0,1]=uErrorLinf
                     error[iColl,iElem,itemporal,iorder,1,0]=vErrorL2
                     error[iColl,iElem,itemporal,iorder,1,1]=vErrorLinf
+                    errorSpace[iColl,iElem,itemporal,iorder,0,0,:]=uErrorL2space
+                    errorSpace[iColl,iElem,itemporal,iorder,0,1,:]=uErrorLinfSpace
+                    errorSpace[iColl,iElem,itemporal,iorder,1,0,:]=vErrorL2space
+                    errorSpace[iColl,iElem,itemporal,iorder,1,1,:]=vErrorLinfSpace
 
                     solutions[iColl,iElem,itemporal,iorder,0,0]=uMMSsol
                     solutions[iColl,iElem,itemporal,iorder,0,1]=uModelSol
                     solutions[iColl,iElem,itemporal,iorder,1,0]=vMMSsol
-                    solutions[iColl,iElem,itemporal,iorder,0,1]=uModelSol
-                    
-        convergenceRates[iColl]=computeConvergenceRates(1/np.array(nElems),error[iColl])
+                    solutions[iColl,iElem,itemporal,iorder,1,1]=vModelSol
+        spatialConvergenceRates[iColl]=computeConvergenceRates(1/np.array(nElems),errorSpace[iColl])
+        jointConvergenceRates[iColl]=computeConvergenceRates(1/np.array(nElems),error[iColl])
 
 
-    return error, solutions, convergenceRates
+    return error, solutions, jointConvergenceRates, errorSpace, spatialConvergenceRates
 
 
 def computeConvergenceRates(discretizations,errors):
@@ -114,6 +134,8 @@ def constructSourceTermFunction(u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2,param
     return lambda t: np.concatenate((sourceU(t),sourceV(t)),axis=-1)
 
 
+    
+
 def computeMMSerror(computedSolution,mmsSolution,tMax,tMin,rule="trapezoid"):
     if rule=="trapezoid":
         difference = (mmsSolution-computedSolution)
@@ -121,5 +143,6 @@ def computeMMSerror(computedSolution,mmsSolution,tMax,tMin,rule="trapezoid"):
         errorL2=np.sqrt((np.sum(2*(errorL2space**2))-errorL2space[0]**2-errorL2space[-1]**2)/2*(tMax-tMin))
         mmsNormSpace = np.sqrt((np.sum(2*(mmsSolution**2),axis=1)-mmsSolution[:,0]**2-mmsSolution[:,-1]**2)/2)
         mmsNorm=np.sqrt((np.sum(2*(mmsNormSpace**2))-mmsNormSpace[0]**2-mmsNormSpace[-1]**2)/2*(tMax-tMin))
+    errorLinfSpace=np.max(np.abs(difference),axis=1)/np.max(np.abs(mmsSolution),axis=1)
     errorLinf=np.max(np.abs(difference))/np.max(np.abs(mmsSolution))
-    return errorL2/mmsNorm, errorLinf
+    return errorL2/mmsNorm, errorLinf, errorL2space/mmsNormSpace, errorLinfSpace
