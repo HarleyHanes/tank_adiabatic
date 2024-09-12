@@ -9,12 +9,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 import tankMMS
-nCollocations = [1]
+nCollocations = [5]
 verbosity = 3
 
 #I think there's an error with the higher
 spatialOrders=[2]  #Must be greater than 2 to satisfy BC
-nElems = [2]  #Cant use nElems=1 due to some dimensionality issues with squeeze
+nElems = [2,4,8,16]  #Cant use nElems=1 due to some dimensionality issues with squeeze
 #Parameter limitations:
 # Non-negative: Da, gamma, beta, delta
 # Positive: Le, PeM,
@@ -29,7 +29,7 @@ nElems = [2]  #Cant use nElems=1 due to some dimensionality issues with squeeze
 #Bizon2012 Parameters with just diffusion/advection
 #params={"PeM": 300, "PeT": 300, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH": 0}
 #Unit parameters with just diffusion/advection
-params={"PeM": 10, "PeT": 10, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH": 0}
+params={"PeM": 1000, "PeT": 1000, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH": 0}
 
 tEval = np.linspace(0,3,50)
 xEval = np.linspace(0,1,20)
@@ -63,6 +63,7 @@ for iOrder in range(len(spatialOrders)):
     plt.figure()
     plt.plot(xEval,solutions[iColl,:,0,iOrder,0,1,-1,:].transpose())
     plt.title("Computed Solutions for u")
+    plt.legend(['nElem='+str(element) for element in nElems])
 
     #Plot the error of each as elements are refined
     for iCol in range(len(nCollocations)):

@@ -108,8 +108,8 @@ def constructMMSsolutionFunction(x,spatialOrder,params,temporal,temporaldt):
 
 def constructSourceTermFunction(u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2,params):
     #Construct Source term
-    sourceU = lambda t:  dudt(t)-(dudx2(t)+params["PeM"]*dudx(t)+params["Da"]*(1-u(t))*np.exp(params["gamma"]*params["beta"]*v(t)/(1+params["beta"]*v(t))))
-    sourceV = lambda t:  params["Le"]*dvdt(t)-(dvdx2(t)+params["PeT"]*dvdx(t)+params["Da"]*(1-u(t))*np.exp(params["gamma"]*params["beta"]*v(t)/(1+params["beta"]*v(t)))+params["delta"]*(params["vH"]-v(t)))
+    sourceU = lambda t:  dudt(t)+dudx(t)-(dudx2(t)/params["PeM"]+params["Da"]*(1-u(t))*np.exp(params["gamma"]*params["beta"]*v(t)/(1+params["beta"]*v(t))))
+    sourceV = lambda t:  params["Le"]*dvdt(t)+dvdx(t)-(dvdx2(t)/params["PeT"]+params["Da"]*(1-u(t))*np.exp(params["gamma"]*params["beta"]*v(t)/(1+params["beta"]*v(t)))+params["delta"]*(params["vH"]-v(t)))
 
     return lambda t: np.concatenate((sourceU(t),sourceV(t)),axis=-1)
 
