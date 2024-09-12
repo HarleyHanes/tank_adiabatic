@@ -103,10 +103,10 @@ def constructMMSsolutionFunction(x,spatialOrder,params,temporal,temporaldt):
     dmonomialSumdx2 = np.sum((-(x**((np.arange(spatialOrder-1)*np.ones(x.shape+(spatialOrder-1,)))).transpose()).transpose()*np.arange(2,spatialOrder+1)*np.arange(1,spatialOrder)).transpose(),axis=0)
                 
     #Apply corrections to linear spatialOrder coeffecients so that solutions satisfy BC
-    linearCoeff=np.dot(np.arange(2,spatialOrder+1),np.ones((spatialOrder-1)))
+    linearCoeff=np.dot(np.arange(2,spatialOrder+1),np.ones((spatialOrder-1)))  #Note that - sign in sum and -1 coeffecients on monomial terms cancel
     uConstantCoeff=linearCoeff/params["PeM"]
-    vConstantCoeff=(params["f"]*(spatialOrder-1)+linearCoeff*(params["f"]+1/params["PeT"]))/(1-params["f"])
-
+    vConstantCoeff=(linearCoeff/params["PeT"]+params["f"]*(linearCoeff-(spatialOrder-1)))/(1-params["f"])
+ 
     uSpatialComponent = monomialSum + uConstantCoeff + linearCoeff*x
     vSpatialComponent = monomialSum + vConstantCoeff + linearCoeff*x
     dudxSpatialComponent = dmonomialSumdx+ linearCoeff

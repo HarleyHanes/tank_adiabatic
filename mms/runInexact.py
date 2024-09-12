@@ -10,11 +10,11 @@ import matplotlib.pyplot as plt
 import scipy
 import tankMMS
 nCollocations = [2]
-verbosity = 2
+verbosity = 0
 
 #I think there's an error with the higher
-spatialOrders=[3]  #Must be greater than 2 to satisfy BC
-nElems = [2,4,8,16]  #Cant use nElems=1 due to some dimensionality issues with squeeze
+spatialOrders=[7]  #Must be greater than 2 to satisfy BC
+nElems = np.array([2,4,8,16])  #Cant use nElems=1 due to some dimensionality issues with squeeze
 #Parameter limitations:
 # Non-negative: Da, gamma, beta, delta
 # Positive: Le, PeM,
@@ -25,13 +25,13 @@ nElems = [2,4,8,16]  #Cant use nElems=1 due to some dimensionality issues with s
 # If Da=0 and delta=0: then Le has no effect
 
 #Bizon2012 Parameters for  a stable domain
-#params={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.2}
+params={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.2}
 #Bizon2012 Parameters without nonlinear effects
-params={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0, "delta": 2, "vH": -.2}
+#params={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0, "delta": 2, "vH": -.2}
 #Bizon2012 Parameters with just diffusion/advection
 #params={"PeM": 300, "PeT": 300, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0, "delta": 0, "vH": 0}
 #Unit parameters with just diffusion/advection
-#params={"PeM": 1, "PeT": 1, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH": 0}
+#params={"PeM": 1, "PeT": 1, "f": .5, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH": 0}
 
 tEval = np.linspace(0,3,50)
 xEval = np.linspace(0,1,20)
@@ -82,29 +82,41 @@ for iOrder in range(len(spatialOrders)):
     plt.legend(['nElem='+str(nElement) for nElement in nElems])
     #print(solutions[iColl,:,0,iOrder,1,1,0,:].transpose())
 
+    #Plot the error and expected convergence rate
+    expectedRate=nCollocations[iColl]+2
+    convergenceExampleStartValue=np.min(errorSpace[iColl,0,0,iOrder,:,:,0])*.35
+    convergenceExample=convergenceExampleStartValue*(nElems[0]/nElems)**(expectedRate)
+    plt.figure()
+    plt.loglog(nElems, errorSpace[iColl,:,0,iOrder,0,0,0])
+    plt.loglog(nElems, errorSpace[iColl,:,0,iOrder,0,1,0])
+    plt.loglog(nElems, errorSpace[iColl,:,0,iOrder,1,0,0])
+    plt.loglog(nElems, errorSpace[iColl,:,0,iOrder,1,1,0])
+    plt.loglog(nElems, convergenceExample)
+    plt.xlabel(r"$N_E$")
+    plt.ylabel("Relative Error")
+    plt.legend([r"u, $L^2$ Error", r"u, $L^\inf$ Error",r"v, $L^2$ Error", r"v, $L^\inf$ Error", r"Order " +str(expectedRate)+ r" Convergence"])
+    plt.title("Solution Convergence of Spatial Discretization")
+    # #Plot the pointwise error of each as discretization is refined
+    # for iCol in range(len(nCollocations)):
+    #     for iOrder in range(len(spatialOrders)):
+    #         plt.figure()
+    #         for iElem in range(len(nElems)):
+    #             plt.semilogy(xEval,np.abs((solutions[iCol,iElem,0,iOrder,0,1,0,:]-solutions[iCol,iElem,0,iOrder,0,0,0,:])/solutions[iCol,iElem,0,iOrder,0,0,0,:]))
+    #         plt.title("Error of uMMS at t start for each discretization")
+    #         plt.legend(['nElem='+str(nElement) for nElement in nElems])
+    #         plt.xlabel('x')
+    #         plt.ylabel(r"$\frac{|u_{Model}-u_{Computed}|}{|u_{Model}|}$")
 
-
-    #Plot the error of each as discretization is refined
-    for iCol in range(len(nCollocations)):
-        for iOrder in range(len(spatialOrders)):
-            plt.figure()
-            for iElem in range(len(nElems)):
-                plt.semilogy(xEval,np.abs((solutions[iCol,iElem,0,iOrder,0,1,0,:]-solutions[iCol,iElem,0,iOrder,0,0,0,:])/solutions[iCol,iElem,0,iOrder,0,0,0,:]))
-            plt.title("Error of uMMS at t start for each discretization")
-            plt.legend(['nElem='+str(nElement) for nElement in nElems])
-            plt.xlabel('x')
-            plt.ylabel(r"$\frac{|u_{Model}-u_{Computed}|}{|u_{Model}|}$")
-
-    #Plot the error of each as discretization is refined
-    for iCol in range(len(nCollocations)):
-        for iOrder in range(len(spatialOrders)):
-            plt.figure()
-            for iElem in range(len(nElems)):
-                plt.semilogy(xEval,np.abs((solutions[iCol,iElem,0,iOrder,1,1,0,:]-solutions[iCol,iElem,0,iOrder,1,0,0,:])/solutions[iCol,iElem,0,iOrder,1,0,0,:]))
-            plt.title("Error of vMMS at t start for each discretization")
-            plt.legend(['nElem='+str(nElement) for nElement in nElems])
-            plt.xlabel('x')
-            plt.ylabel(r"$\frac{|v_{Model}-u_{Computed}|}{|v_{Model}|}$")
+    # #Plot the pointwise error of each as discretization is refined
+    # for iCol in range(len(nCollocations)):
+    #     for iOrder in range(len(spatialOrders)):
+    #         plt.figure()
+    #         for iElem in range(len(nElems)):
+    #             plt.semilogy(xEval,np.abs((solutions[iCol,iElem,0,iOrder,1,1,0,:]-solutions[iCol,iElem,0,iOrder,1,0,0,:])/solutions[iCol,iElem,0,iOrder,1,0,0,:]))
+    #         plt.title("Error of vMMS at t start for each discretization")
+    #         plt.legend(['nElem='+str(nElement) for nElement in nElems])
+    #         plt.xlabel('x')
+    #         plt.ylabel(r"$\frac{|v_{Model}-u_{Computed}|}{|v_{Model}|}$")
     plt.show()
     #Assess time-variant results
     #Plot the computed solution for each discretization level at t=end
