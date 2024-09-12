@@ -55,12 +55,28 @@ class TankModel:
         return self._nElements
     @nElements.setter
     def nElements(self,value):
-        if not isinstance(value,int):
-            raise Exception("Non-int value entered for nElements")
-        elif value <= 0:
-            raise Exception("Non-positive integer entered for nElements")
+        if type(value)==np.ndarray:
+            #Check that it's a 1D with size 1
+            if value.size!=1:
+                raise Exception("numpy array entered for nElements size: ", value.size)
+            elif type(value[0])!=np.int64:
+                raise Exception("Non-integer numpy array entered for nElements: ", value)
+            elif value[0] <= 0:
+                raise Exception("Non-positive integer entered for nElements: ",value)   
+            else:
+                self._nElements=int(value[0])
+        elif type(value)==np.int64:
+            if value <= 0:
+                raise Exception("Non-positive integer entered for nElements: ",value) 
+            else:
+                self._nElements=int(value)
+        elif isinstance(value,int):
+            if value <= 0:
+                raise Exception("Non-positive integer entered for nElements: ",value)
+            else:
+                self._nElements=value
         else:
-            self._nElements=value
+            raise Exception("Unrecognized type entered for nElements: ", type(value))
  
     @property
     def nCollocation(self):
