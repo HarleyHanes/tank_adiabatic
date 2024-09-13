@@ -39,7 +39,13 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
                     sourceFunction = constructSourceTermFunction(u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2,params)
                     y0=np.append(u(tEval[0]),v(tEval[0]))
                     #Compute Model Coeff
-                    modelCoeff = scipy.integrate.odeint(lambda y,t: model.dydtSource(y,t,sourceFunction),y0,tEval)
+                    modelCoeff=np.empty((tEval.size,y0.size))
+                    modelCoeff[0]=y0
+                    for i in range(modelCoeff.shape[0]-1):
+                        odeOut= scipy.integrate.solve_ivp(lambda t,y: model.dydtSource(y,t,sourceFunction),(tEval[i],tEval[i+1]),modelCoeff[i], method='BDF',atol=1e-15,rtol=1e-15)
+                        modelCoeff[i+1] = odeOut.y[:,-1]
+                        if odeOut.status!=0:
+                            print("Warning: ode solver terminated prematurely")
                     #Check for error between model coeffecients at t=0 as outputed by ODE function and the true
                     y0error=np.sqrt(np.sum((modelCoeff[0,:]-y0)**2))
                     if y0error>10**(-14):
