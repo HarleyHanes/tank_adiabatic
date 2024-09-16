@@ -5,8 +5,8 @@ from tankModel.TankModel import TankModel
 
 def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 0):
     #Parse inputs
-    temporals=[lambda t: 1+0*t,lambda t: 1+1*t]
-    temporalsdt=[lambda t: 0*t,lambda t: 1+0*t]
+    temporals=[lambda t: 1+0*t,lambda t: 1+1*t, lambda t: 1+t*np.exp(2*t)]
+    temporalsdt=[lambda t: 0*t,lambda t: 1+0*t, lambda t: np.exp(2*t)+2*t*np.exp(2*t)]
     #temporals = [lambda t: 1+0*t, lambda t: t, lambda t: t**2, lambda t: np.sin(t)]
     #temporalsdt = [lambda t: 0*t, lambda t: 1+0*t, lambda t: 2*t, lambda t: np.cos(t)]
     error = np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2))
@@ -42,7 +42,7 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
                     modelCoeff=np.empty((tEval.size,y0.size))
                     modelCoeff[0]=y0
                     for i in range(modelCoeff.shape[0]-1):
-                        odeOut= scipy.integrate.solve_ivp(lambda t,y: model.dydtSource(y,t,sourceFunction),(tEval[i],tEval[i+1]),modelCoeff[i], method='BDF',atol=1e-15,rtol=1e-15)
+                        odeOut= scipy.integrate.solve_ivp(lambda t,y: model.dydtSource(y,t,sourceFunction),(tEval[i],tEval[i+1]),modelCoeff[i], method='BDF',atol=1e-14,rtol=1e-14)
                         modelCoeff[i+1] = odeOut.y[:,-1]
                         if odeOut.status!=0:
                             print("Warning: ode solver terminated prematurely")

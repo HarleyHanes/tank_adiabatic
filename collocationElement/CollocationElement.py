@@ -216,6 +216,9 @@ class Element:
         
         return basisSecondDeriv
     
+
+
+    #===============================Utility Functions===================================================
     def integrate(self,f):
         #element.integrate: Approximates integral of callable f using quadrature rule of collocation points
         #  Inputs:
@@ -242,4 +245,3 @@ class Element:
             
             
         return integral
-            
