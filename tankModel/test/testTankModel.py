@@ -15,38 +15,51 @@ nElements=2
 params={"PeM": 1, "PeT": 1, "f": 1, "Le": 1, "Da": 1, "beta": 1, "gamma": 1,"delta": 1, "vH":1}
 model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[-2,2],params=params)
 
-#print(TankModel.firstOrderMat)
-#print(TankModel.secondOrderMat)
-
-trueMassBoundaryMat=np.array([[-3/2-params["PeM"], 2 ,-1/2, 0 ,0],
+trueMassBoundaryMat=np.array([[1+(3/2)/params["PeM"], -2/params["PeM"], 1/2/params["PeM"], 0 ,0],
                               [0, 1, 0, 0, 0],
                               [1/2, -2, 3, -2, 1/2],
                               [0, 0, 0, 1, 0],
                               [0, 0, 1/2, -2, 3/2]
                               ])
-trueTempBoundaryMat=np.array([[-3/2-params["PeT"], 2 ,-1/2, 0 ,params["f"]],
+trueTempBoundaryMat=np.array([[1+(3/2)/params["PeT"], -2/params["PeT"], 1/2/params["PeT"], 0 ,-params["f"]],
                               [0, 1, 0, 0, 0],
                               [1/2, -2, 3, -2, 1/2],
                               [0, 0, 0, 1, 0],
                               [0, 0, 1/2, -2, 3/2]
                               ])
 
-# print(model.tempBoundaryMat)
-# print(np.round(model.tempBoundaryMatInv*100000000)/10000000)
-# print(model.tempRHSmat)
 #Check Boundary matrices
+
 assert(np.isclose(trueMassBoundaryMat, model.massBoundaryMat).all())
 assert(np.isclose(trueTempBoundaryMat, model.tempBoundaryMat).all())
 #Check first and 2nd order matrices
 
-#Check Closure matrices
+#Check Integration: Spatial Integration Only
+nCollocation=2
+nElements=2
+model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[-2,2],params=params)
+f=lambda x: x**2+x+1
+fint = 9+1/3
+integral=model.integrateSpace(f)
 
-print(np.round(model.dydt(np.array([1/2,1/2,1/2,1/2]),0)*100000000)/10000000)
+nCollocation=3
+nElements=2
+model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[0,2],params=params)
+f=lambda x: x**3+x**2+x+1
+fint = 10+2/3
+integral=model.integrateSpace(f)
+assert(np.isclose(fint,integral))
 
+#Check Integration: Spatial at multiple points and temporal
+nCollocation=2
+nElements=2
+model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[-2,2],params=params)
+f=lambda x: np.outer(np.array([0,1,2]),x**2+x+1).flatten()
+fint = np.array([0,9+1/3, 18+2/3])
+fTempint = 18+2/3
+integral,integralSpace=model.integrate(f,np.array([0,1,2]))
+assert(np.isclose(fTempint,integral))
+assert(np.isclose(fint,integralSpace).all())
 
-#Check Stability???
-#y=scipy.integrate.odeint(model.dydt,np.array([1,2,3,4]),np.linspace(0,20,10))
-#print(model.integrate(model.computeFullCoeff(y)[:,0:5]))
-#print(model.integrate(model.computeFullCoeff(y)[:,5:]))
-
+#Check Integration: Spatial and Temporal Integration
 print("testTankModely.py passes")

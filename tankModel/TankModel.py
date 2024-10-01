@@ -549,22 +549,35 @@ class TankModel:
         else:
             raise Exception("Invalid dimension entered for collocationCoeff: " + str(collocationCoeff.ndim))
         
-    def integrate(self,collocationCoeff):
-        print(collocationCoeff)
-        if collocationCoeff.ndim==1:
-            if collocationCoeff.size != self.nElements*(self.nCollocation+1)+1:
-                raise Exception("Invalid number of coefficients entered, full points and single variable needed: " + str(self.nElements*(self.nCollocation+1)+1))
-            integral=0
-        elif collocationCoeff.ndim ==2:
-            if collocationCoeff.shape[1] != self.nElements*(self.nCollocation+1)+1:
-                raise Exception("Invalid number of coefficients entered, full points and single variable needed: " + str(self.nElements*(self.nCollocation+1)+1))
-            integral =np.zeros((collocationCoeff.shape[0]))
-        else:
-            raise Exception("Invalid dimension entered for collocationCoeff: " + str(collocationCoeff.ndim))
-        
-        for iElement in range(self.nElements):
-            integral+=np.squeeze(self.elements[iElement].integrate(
-                lambda x: np.dot(collocationCoeff[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],self.elements[iElement].basisFunctions(x))
-                ))
-        return integral
+    def integrateSpace(self,f):
+        integralSpace=self.elements[0].integrate(f)
+        for i in range(1,self.nElements):
+            #print(self.elements[i].integrate(f))
+            integralSpace+= self.elements[i].integrate(f)
+        return integralSpace
     
+    def integrate(self,f,tValues,integrateTime=True):
+        #SHould implement check that tValues are equally spaced
+        #Use the Legendre quadrature methods to compute the spatial integrals at each time value
+        #integralSpace=np.zeros(tValues.shape)
+        # for iT in range(tValues.size):
+        #     fT=lambda x:f(x)[iT]
+        #     for i in range(self.nElements):
+        #         print(self.elements[i].integrate(fT))
+        #         integralSpace[iT]+= self.elements[i].integrate(fT)
+        integralSpace = self.integrateSpace(f)
+
+        if integrateTime:
+            #Use a trapezoid method to compute the integrals in time
+            #Note: Using adjustment to rule that doesn't require equally spaced points
+            deltaT=tValues[1:]-tValues[:-1]
+            weights=np.zeros(tValues.shape)
+            weights[0]=deltaT[0]/2
+            weights[-1]=deltaT[-1]/2
+            weights[1:-1]=(deltaT[:-1]+deltaT[1:])/2
+            integral = np.sum(integralSpace*weights)
+            return integral, integralSpace
+        else:
+            return integralSpace
+    
+
