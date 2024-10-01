@@ -234,13 +234,10 @@ class Element:
             weights = np.polynomial.legendre.leggauss(self.nCollocation)[1]*(self.bounds[1]-self.bounds[0])/2
         else:
             raise(Exception("Invalid collocation spacing used"))
-        
-        if type(f(0))==np.ndarray:
-            integral=np.zeros(f(0).shape)
-        else:
-            integral = 0
-            
-        for iPoint in range(self.nCollocation):
+
+        integral=f(self.collocationPoints[0])*weights[0]
+        #integral=0.0
+        for iPoint in range(1,self.nCollocation):
             integral+= f(self.collocationPoints[iPoint])*weights[iPoint]
             
             
