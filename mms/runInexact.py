@@ -9,12 +9,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 import tankMMS
-nCollocations = [4]
-verbosity = 2
+nCollocations = [2]
+verbosity = 1
 
 #I think there's an error with the higher
 spatialOrders=[7]  #Must be greater than 2 to satisfy BC
-nElems = np.array([2,3,4,5,6,7,8])  #Cant use nElems=1 due to some dimensionality issues with squeeze
+nElems = np.array([2,3,4,5])  #Cant use nElems=1 due to some dimensionality issues with squeeze
 parameterSet="Bizon2012_stable"
 #Parameter limitations:
 # Non-negative: Da, gamma, beta, delta
@@ -41,8 +41,8 @@ elif parameterSet=="Bizon2012_diffAdvec":
 #params={"PeM": 1, "PeT": 1, "f": .5, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH": 0}
 
 resultsFolder = "../../results/verification/"
-tEval = np.linspace(0,3,100)
-xEval = np.linspace(0,1,100)
+tEval = np.linspace(0,3,20)
+xEval = np.linspace(0,1,30)
 error, solutions, convergence, errorSpace, convergenceSpace=tankMMS.runMMStest(spatialOrders,nCollocations,nElems,xEval,tEval,params,verbosity=verbosity)
 
 for iOrder in range(len(spatialOrders)):

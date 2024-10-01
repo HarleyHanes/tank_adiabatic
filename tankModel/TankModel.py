@@ -474,14 +474,15 @@ class TankModel:
         return self.dydt(y,t) + source(t)
     
 
-    def eval(self,xEval,modelCoeff, seperated=False):
+    def eval(self,xEval,modelCoeff, output="full"):
         """eval computes the value of u and v at every point in xEval given the collocation element expression provided by modelCoeff"""
-        
+        if output not in ("full","seperated","u","v"):
+            raise(Exception("Invalid entry for output used, must be full, seperated, u, or v"))
         #Convert xEval to numpy array if not already so logical operators will work on its indices
         if type(xEval)!=np.ndarray:
             xEval=np.array(xEval)
         #Get model coeff including the boundary coeffeceints
-        uFull,vFull = self.computeFullCoeff(modelCoeff,seperated=True)
+        uFull,vFull = self.computeFullCoeff(modelCoeff,output="seperated")
 
         #Initialize u and v values at each x point and snapshot
         if modelCoeff.ndim==1:
@@ -517,14 +518,18 @@ class TankModel:
                 vEval[:,xElementIndices]=np.dot(vFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)
             # print("Computed uEval values for element ", iElement, ": ", np.dot(uFull[:,iElement*(self.nCollocation+1):(iElement+1)*(self.nCollocation+1)+1],basisValues)[0,:])
             # print("uEval at after element ", iElement, ": ", uEval[-1,:])
-        if seperated:
+        if output=="seperated":
             return uEval, vEval
+        elif output =="u":
+            return uEval
+        elif output =="v":
+            return vEval
         else:
             #Recombine uEval and vEval into a single set
             return np.concatenate((uEval,vEval),axis=-1)
 
     
-    def computeFullCoeff(self,collocationCoeff,seperated=False):
+    def computeFullCoeff(self,collocationCoeff,output="full"):
         """computeFullCoeff computes the coeffecients including the boundary coeff for each element from the interior coeffecients.
                 This is done by applying the closure relations encoded in the *FullCoeffMat"""
         #Multiple snapshot case, snapshots must be in first-dimension
@@ -534,17 +539,27 @@ class TankModel:
             v=collocationCoeff[:,self.nElements*self.nCollocation:]
             uFull=np.matmul(self.massFullCoeffMat,u.transpose()).transpose()
             vFull=np.matmul(self.tempFullCoeffMat,v.transpose()).transpose()
-            if seperated:
+            if output=="seperated":
                 return uFull,vFull
-            else:
+            elif output == "u":
+                return uFull
+            elif output == "v":
+                return vFull
+            elif output == "full":
                 return np.concatenate((uFull,vFull),axis=1)
+            else:
+                raise Exception("Invalid output return option entered")
         #Sinlge snapshot case
         elif collocationCoeff.ndim ==1:
             u=collocationCoeff[0:self.nElements*self.nCollocation]
             v=collocationCoeff[self.nElements*self.nCollocation:]
-            if seperated:
+            if output=="seperated":
                 return np.dot(self.massFullCoeffMat,u),np.dot(self.tempFullCoeffMat,v)
-            else: 
+            elif output=="u":
+                return np.dot(self.massFullCoeffMat,u)
+            elif output=="v":
+                return np.dot(self.tempfullCoeffMat,v)
+            elif output=="full": 
                 return np.append(np.dot(self.massFullCoeffMat,u),np.dot(self.tempFullCoeffMat,v))
         else:
             raise Exception("Invalid dimension entered for collocationCoeff: " + str(collocationCoeff.ndim))
