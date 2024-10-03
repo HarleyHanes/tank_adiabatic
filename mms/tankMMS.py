@@ -60,33 +60,29 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
                         print("Warning: odeint has non-zero error in y0")
                         print("y0 error: %03e" % (y0error,))
                         
+                    #Evalute MMS and model at plot points
                     uMMSsol=u(tEval,xEval)
                     vMMSsol=v(tEval,xEval)
-                    #Evaluate model at integration points
                     uModelSol, vModelSol = model.eval(xEval,modelCoeff, output="seperated")
-                    #Confirm that for exact spatial cases, the error at first step is near-zero
-                    # if spatialOrder<=(nCollocations[iColl]+1):
-                    #     uInitialError = np.max(np.abs((uMMSsol[0]-uModelSol[0])/uMMSsol[0]))
-                    #     vInitialError = np.max(np.abs((vMMSsol[0]-vModelSol[0])/vMMSsol[0]))
-                    #     if uInitialError>1e-13 or vInitialError>1e-13:
-                    #         print("Warning: error at start of solve for exact problem")
-                    #         print("u Linf error at t=0: ", uInitialError)
-                    #         print("v Linf error at t=0: ", vInitialError)
+                    solutions[iColl,iElem,itemporal,iorder,0,0]=uMMSsol
+                    solutions[iColl,iElem,itemporal,iorder,0,1]=uModelSol
+                    solutions[iColl,iElem,itemporal,iorder,1,0]=vMMSsol
+                    solutions[iColl,iElem,itemporal,iorder,1,1]=vModelSol
+
 
                     #Compute Error
-
                     uErrorFunction = lambda x: model.eval(x,modelCoeff,output="u") - u(tEval,x)
                     vErrorFunction = lambda x: model.eval(x,modelCoeff,output="v")- v(tEval,x)
                     uSquaredErrorFunction = lambda x: uErrorFunction(x)**2
                     vSquaredErrorFunction = lambda x: vErrorFunction(x)**2
                     uSquaredReferenceFunction = lambda x: u(tEval,x)**2
                     vSquaredReferenceFunction = lambda x: v(tEval,x)**2
+
                     uErrorL2,uErrorL2space = computeL2error(model,uSquaredErrorFunction,uSquaredReferenceFunction,tEval)
                     vErrorL2,vErrorL2space = computeL2error(model,vSquaredErrorFunction,vSquaredReferenceFunction,tEval)
                     uErrorLinf,uErrorLinfSpace = computeLinfError(uErrorFunction(xEval),u(tEval,xEval))
                     vErrorLinf,vErrorLinfSpace = computeLinfError(vErrorFunction(xEval),u(tEval,xEval))
 
-                    #Save Error
                     error[iColl,iElem,itemporal,iorder,0,0]=uErrorL2
                     error[iColl,iElem,itemporal,iorder,0,1]=uErrorLinf
                     error[iColl,iElem,itemporal,iorder,1,0]=vErrorL2
@@ -96,10 +92,6 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
                     errorSpace[iColl,iElem,itemporal,iorder,1,0,:]=vErrorL2space
                     errorSpace[iColl,iElem,itemporal,iorder,1,1,:]=vErrorLinfSpace
 
-                    solutions[iColl,iElem,itemporal,iorder,0,0]=uMMSsol
-                    solutions[iColl,iElem,itemporal,iorder,0,1]=uModelSol
-                    solutions[iColl,iElem,itemporal,iorder,1,0]=vMMSsol
-                    solutions[iColl,iElem,itemporal,iorder,1,1]=vModelSol
         spatialConvergenceRates[iColl]=computeConvergenceRates(1/np.array(nElems),errorSpace[iColl])
         jointConvergenceRates[iColl]=computeConvergenceRates(1/np.array(nElems),error[iColl])
 
@@ -127,7 +119,7 @@ def constructMMSsolutionFunction(spatialOrder,params,temporal,temporaldt):
     uSpatialCoeff[1]=np.dot(np.arange(2,spatialOrder+1),np.ones((spatialOrder-1)))
     vSpatialCoeff[1]=np.dot(np.arange(2,spatialOrder+1),np.ones((spatialOrder-1)))
     uSpatialCoeff[0]=uSpatialCoeff[1]/params["PeM"]
-    uSpatialCoeff[0]=(uSpatialCoeff[1]/params["PeT"]+params["f"]*(uSpatialCoeff[1]-(spatialOrder-1)))/(1-params["f"])
+    vSpatialCoeff[0]=(vSpatialCoeff[1]/params["PeT"]+params["f"]*(vSpatialCoeff[1]-(spatialOrder-1)))/(1-params["f"])
     
     dudxSpatialCoeff=uSpatialCoeff[1:]*np.arange(1,spatialOrder+1)
     dvdxSpatialCoeff=vSpatialCoeff[1:]*np.arange(1,spatialOrder+1)

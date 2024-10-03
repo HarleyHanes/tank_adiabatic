@@ -320,7 +320,7 @@ class TankModel:
     #================================Object Formation Functions=============================================
         
     def __init__(self,nElements=5, nCollocation=7, bounds=[0,1], spacing = "uniform",
-                 params={"PeM": 0, "PeT": 0, "f": 0, "Le": 0, "Da": 0, "beta": 0, "gamma": 0, "delta": 0},verbosity=0):
+                 params={"PeM": 1, "PeT": 1, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0, "delta": 0, "vH": 0},verbosity=0):
         self.verbosity=verbosity
         self.nElements=nElements
         self.nCollocation=nCollocation

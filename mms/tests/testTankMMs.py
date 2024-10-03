@@ -19,6 +19,7 @@ print(sys.path)
 import numpy as np
 import matplotlib.pyplot as plt
 import mms.tankMMS as tankMMS
+from tankModel.TankModel import TankModel
 
 print("Running testTankMMS.py")
 #Test 1: Convergence Rate testing
@@ -28,40 +29,77 @@ convergenceRates=tankMMS.computeConvergenceRates(step_size,error)
 assert(np.all(np.isclose(convergenceRates,np.array([1.0,2.0,3.0,4.0,5.0]))))
 print("     Convergence Rate Test passes")
 
+#Test 2: Check MMS functions are generated correclty
+spatialOrder = 2
+params = {"PeM": 1, "PeT": 1, "f": 5, "Le": 0, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
+temporal = lambda t: 1+1*t
+temporaldt = lambda t: 1+0*t
+u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = tankMMS.constructMMSsolutionFunction(spatialOrder,params,temporal,temporaldt)
 
+#Nominal Value tests
+uExpected= lambda t,x:temporal(t)*(-x**2+2*x+2/params["PeM"])
+vExpected= lambda t,x:temporal(t)*(-x**2+2*x+(2/params["PeT"]+params["f"])/(1-params["f"]))
+assert(uExpected(0,0)==u(0,0))
+assert(vExpected(0,0)==v(0,0))
+assert(uExpected(0,1)==u(0,1))
+assert(vExpected(0,1)==v(0,1))
+assert(uExpected(0,2)==u(0,2))
+assert(vExpected(0,2)==v(0,2))
+assert(uExpected(1,0)==u(1,0))
+assert(vExpected(1,0)==v(1,0))
 
-#Test 2: Check manufactued solutions for 2nd and 3rd order cases are computed correctly
-nCollocations = [2]
-#I think there's an error with the higher
-spatialOrders=[2,3]  #Must be greater than or equal to 2 to satisfy BC
-nElems = [2,]  #Cant use nElems=1 due to some dimensionality issues with squeeze
-#Note: Parameters can be any positive value except f=1
-params={"PeM": 1, "PeT": 1, "f": 2, "Le": 1, "Da": 1, "beta": 1, "gamma": 1,"delta": 1, "vH":1}
-tEval = np.linspace(0,3,50)
-xEval = np.linspace(0,1,100)
-error, solutions, convergenceRates=tankMMS.runMMStest(spatialOrders,nCollocations,nElems,xEval,tEval,params,verbosity=0)
+#x-derivative tests
+dudxExpected= lambda t,x:temporal(t)*(-2*x+2)
+dvdxExpected= lambda t,x:temporal(t)*(-2*x+2)
+assert(dudxExpected(0,0)==dudx(0,0))
+assert(dvdxExpected(0,0)==dvdx(0,0))
+assert(dudxExpected(0,1)==dudx(0,1))
+assert(dvdxExpected(0,1)==dvdx(0,1))
+assert(dudxExpected(1,0)==dudx(1,0))
+assert(dvdxExpected(1,0)==dvdx(1,0))
 
-#print(solutions[0,0,0,0,0,0,-1,:])
-# print(solutions.shape)
-linearCoeff=2
-uConstant=linearCoeff/params["PeM"]
-vConstant=1/(1-params["f"])*(params["f"]+linearCoeff*(params["f"]+1/params["PeT"]))
-#print((-xEval**2+linearCoeff*xEval+uConstant))
-#u for 2nd order case
-assert(np.isclose(np.sum(np.abs(solutions[0,0,0,0,0,0,0,:]-(-xEval**2+linearCoeff*xEval+uConstant))),0))
-#v for 2nd order case
-assert(np.isclose(np.sum(np.abs(solutions[0,0,0,0,1,0,0,:]-(-xEval**2+linearCoeff*xEval+vConstant))),0))
-print("     2nd Order case passing")
+#dx2 tests
+dudx2Expected= lambda t,x:temporal(t)*(-2+0*x)
+dvdx2Expected= lambda t,x:temporal(t)*(-2+0*x)
+assert(dudx2Expected(0,0)==dudx2(0,0))
+assert(dvdx2Expected(0,0)==dvdx2(0,0))
+assert(dudx2Expected(0,1)==dudx2(0,1))
+assert(dvdx2Expected(0,1)==dvdx2(0,1))
+assert(dudx2Expected(1,0)==dudx2(1,0))
+assert(dvdx2Expected(1,0)==dvdx2(1,0))
 
-linearCoeff=5
-uConstant=linearCoeff/params["PeM"]
-vConstant=1/(1-params["f"])*(2*params["f"]+linearCoeff*(params["f"]+1/params["PeT"]))
-#u for 3nd order case
-assert(np.isclose(np.sum(np.abs(solutions[0,0,0,1,0,0,-1,:]-(-xEval**3-xEval**2+linearCoeff*xEval+uConstant))),0))
-#v for 3nd order case
-assert(np.isclose(np.sum(np.abs(solutions[0,0,0,1,1,0,-1,:]-(-xEval**3-xEval**2+linearCoeff*xEval+vConstant))),0))
-print("     3nd Order case passing")
+#dt tests
+dudtExpected= lambda t,x:temporaldt(t)*(-x**2+2*x+2/params["PeM"])
+dvdtExpected= lambda t,x:temporaldt(t)*(-x**2+2*x+(2/params["PeT"]+params["f"])/(1-params["f"]))
+assert(dudtExpected(0,0)==dudt(0,0))
+assert(dvdtExpected(0,0)==dvdt(0,0))
+assert(dudtExpected(0,1)==dudt(0,1))
+assert(dvdtExpected(0,1)==dvdt(0,1))
+assert(dudtExpected(0,2)==dudt(0,2))
+assert(dvdtExpected(0,2)==dvdt(0,2))
+assert(dudtExpected(1,0)==dudt(1,0))
+assert(dvdtExpected(1,0)==dvdt(1,0))
+print("     MMS Solution Test passes")
 
-#Test 3: Check source term is computed correctly
+#Test 3: Check errors are computed correctly
+model = TankModel(nCollocation=3,nElements=2,spacing="legendre",bounds=[0,1])
+f1=lambda x: np.outer(np.array([1,2,3]),x**2).squeeze()
+f2=lambda x: np.outer(np.array([1,2,3]),x).squeeze()
+errorFunction = lambda x: f1(x)-f2(x)
+squaredErrorFunction = lambda x: (f1(x)-f2(x))**2
+squaredReferenceFunction = lambda x: f2(x)**2
+errorL2, errorL2space = tankMMS.computeL2error(model,squaredErrorFunction,squaredReferenceFunction,np.array([1,2,3]))
+
+expectedErrorL2space = np.array([1/np.sqrt(10),1/np.sqrt(10),1/np.sqrt(10)])
+expectedErrorL2 = 1/np.sqrt(10)
+
+assert(np.isclose(expectedErrorL2space,errorL2space).all())
+assert(np.isclose(expectedErrorL2,errorL2))
+
+errorLinf, errorLinfSpace = tankMMS.computeLinfError(errorFunction(np.linspace(0,1,101)),f2(np.linspace(0,1,101)))
+print(errorLinfSpace)
+assert(np.isclose(errorLinfSpace,np.array([1/4, 1/4, 1/4])).all())
+assert(np.isclose(errorLinf,1/4))
+
 
 print("testTankMMS.py passes")
