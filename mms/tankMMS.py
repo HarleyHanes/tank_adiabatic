@@ -78,11 +78,11 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
                     uSquaredReferenceFunction = lambda x: u(tEval,x)**2
                     vSquaredReferenceFunction = lambda x: v(tEval,x)**2
 
-                    uErrorL2,uErrorL2space = computeL2error(model,uSquaredErrorFunction,uSquaredReferenceFunction,tEval)
-                    vErrorL2,vErrorL2space = computeL2error(model,vSquaredErrorFunction,vSquaredReferenceFunction,tEval)
+                    uErrorL2,uErrorL2space = computeL2error(model,uSquaredErrorFunction,uSquaredReferenceFunction,tEval,order=spatialOrder*2)
+                    vErrorL2,vErrorL2space = computeL2error(model,vSquaredErrorFunction,vSquaredReferenceFunction,tEval,order=spatialOrder*2)
                     uErrorLinf,uErrorLinfSpace = computeLinfError(uErrorFunction(xEval),u(tEval,xEval))
                     vErrorLinf,vErrorLinfSpace = computeLinfError(vErrorFunction(xEval),u(tEval,xEval))
-
+                    print(uErrorL2space)
                     error[iColl,iElem,itemporal,iorder,0,0]=uErrorL2
                     error[iColl,iElem,itemporal,iorder,0,1]=uErrorLinf
                     error[iColl,iElem,itemporal,iorder,1,0]=vErrorL2
@@ -151,9 +151,9 @@ def constructSourceTermFunction(u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2,param
 
 
 #!!!!!!!!!Change all of these to be (time,space) for consistency elsewhere in code
-def computeL2error(model,squaredErrorFunction,squaredReferenceFunction,tPoints):
-    errorL2Squared, errorL2SpaceSquared = model.integrate(squaredErrorFunction,tPoints,integrateTime=True)
-    referenceL2Squared,referenceL2SpaceSquared=model.integrate(squaredReferenceFunction,tPoints,integrateTime=True)
+def computeL2error(model,squaredErrorFunction,squaredReferenceFunction,tPoints,order="auto"):
+    errorL2Squared, errorL2SpaceSquared = model.integrate(squaredErrorFunction,tPoints,integrateTime=True,order="auto")
+    referenceL2Squared,referenceL2SpaceSquared=model.integrate(squaredReferenceFunction,tPoints,integrateTime=True,order="auto")
     errorL2=np.sqrt(errorL2Squared/referenceL2Squared)
     errorL2Space=np.sqrt(errorL2SpaceSquared/referenceL2SpaceSquared)
     return errorL2, errorL2Space

@@ -564,14 +564,14 @@ class TankModel:
         else:
             raise Exception("Invalid dimension entered for collocationCoeff: " + str(collocationCoeff.ndim))
         
-    def integrateSpace(self,f):
-        integralSpace=self.elements[0].integrate(f)
+    def integrateSpace(self,f,order="auto"):
+        integralSpace=self.elements[0].integrate(f, order =order)
         for i in range(1,self.nElements):
             #print(self.elements[i].integrate(f))
-            integralSpace+= self.elements[i].integrate(f)
+            integralSpace+= self.elements[i].integrate(f, order=order)
         return integralSpace
     
-    def integrate(self,f,tValues,integrateTime=True):
+    def integrate(self,f,tValues,integrateTime=True,order="auto"):
         #SHould implement check that tValues are equally spaced
         #Use the Legendre quadrature methods to compute the spatial integrals at each time value
         #integralSpace=np.zeros(tValues.shape)
@@ -580,7 +580,7 @@ class TankModel:
         #     for i in range(self.nElements):
         #         print(self.elements[i].integrate(fT))
         #         integralSpace[iT]+= self.elements[i].integrate(fT)
-        integralSpace = self.integrateSpace(f)
+        integralSpace = self.integrateSpace(f, order=order)
 
         if integrateTime:
             #Use a trapezoid method to compute the integrals in time

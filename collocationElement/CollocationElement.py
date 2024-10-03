@@ -219,11 +219,13 @@ class Element:
 
 
     #===============================Utility Functions===================================================
-    def integrate(self,f):
+    def integrate(self,f, order="auto"):
         #element.integrate: Approximates integral of callable f using quadrature rule of collocation points
         #  Inputs:
         
         #  Outputs:
+        if order == "auto":
+            order =self.nCollocation
     
         
         #use midpoint rule if uniform weighting
@@ -231,7 +233,7 @@ class Element:
             weights = np.ones(self.collocationPoints.shape)*(self.bounds[1]-self.bounds[0])/self.nCollocation
         elif self.spacing == "legendre":
             # Note that leggaus output tuple where first is sampling points and second is sampling weights
-            weights = np.polynomial.legendre.leggauss(self.nCollocation)[1]*(self.bounds[1]-self.bounds[0])/2
+            weights = np.polynomial.legendre.leggauss(order)[1]*(self.bounds[1]-self.bounds[0])/2
         else:
             raise(Exception("Invalid collocation spacing used"))
     
