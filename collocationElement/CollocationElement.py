@@ -224,23 +224,27 @@ class Element:
         #  Inputs:
         
         #  Outputs:
+        #print("Order: ", order)
         if order == "auto":
             order =self.nCollocation
     
-        
         #use midpoint rule if uniform weighting
         if self.spacing == "uniform":
             weights = np.ones(self.collocationPoints.shape)*(self.bounds[1]-self.bounds[0])/self.nCollocation
         elif self.spacing == "legendre":
             # Note that leggaus output tuple where first is sampling points and second is sampling weights
+            points = (np.polynomial.legendre.leggauss(order)[0]+1)*(self.bounds[1]-self.bounds[0])/2+self.bounds[0]
             weights = np.polynomial.legendre.leggauss(order)[1]*(self.bounds[1]-self.bounds[0])/2
         else:
             raise(Exception("Invalid collocation spacing used"))
-    
-        integral=f(self.collocationPoints[0])*weights[0]
+
+        integral=f(points[0])*weights[0]
+
+        #print("         Integral up to point ",0, ": ", integral)
         #integral=0.0
-        for iPoint in range(1,self.nCollocation):
-            integral+= f(self.collocationPoints[iPoint])*weights[iPoint]
+        for iPoint in range(1,points.size):
+            integral+= f(points[iPoint])*weights[iPoint]
+            #print("         Integral up to point ",iPoint, ": ", integral)
             
             
         return integral

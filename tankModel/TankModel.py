@@ -566,9 +566,11 @@ class TankModel:
         
     def integrateSpace(self,f,order="auto"):
         integralSpace=self.elements[0].integrate(f, order =order)
+        #print("     Integral up to element 0: ", integralSpace)
         for i in range(1,self.nElements):
             #print(self.elements[i].integrate(f))
             integralSpace+= self.elements[i].integrate(f, order=order)
+            #print("     Integral up to element ",i, ": ", integralSpace)
         return integralSpace
     
     def integrate(self,f,tValues,integrateTime=True,order="auto"):

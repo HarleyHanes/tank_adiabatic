@@ -40,6 +40,8 @@ testElement = CollocationElement.Element(bounds=[1,2],nCollocation=1,spacing="le
 
 f = lambda x: 3*x+2
 fint = 6.5
+print(testElement.integrate(f))
+print(fint)
 assert(np.isclose(testElement.integrate(f),fint))
 
 
@@ -63,7 +65,6 @@ testElement = CollocationElement.Element(bounds=[.5,4.5],nCollocation=2,spacing=
 
 f = lambda x: np.array([4*x+3, 2*(x**3)+3.4*(x**2)+12*x+5])
 fint = np.array([52,448.133356])
-
 
 assert(np.isclose(testElement.integrate(f),fint).all())
 

@@ -1,6 +1,7 @@
 import numpy as np
 import scipy
 from tankModel.TankModel import TankModel
+import matplotlib.pyplot as plt
 
 
 def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 0):
@@ -9,9 +10,9 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
     temporalsdt=[lambda t: 0*t,lambda t: 1+0*t, lambda t: np.exp(2*t)+2*t*np.exp(2*t)]
     #temporals = [lambda t: 1+0*t, lambda t: t, lambda t: t**2, lambda t: np.sin(t)]
     #temporalsdt = [lambda t: 0*t, lambda t: 1+0*t, lambda t: 2*t, lambda t: np.cos(t)]
+    #Pre allocate solution and error arrays, the (2,2) indices are for (u,v) and then (MMS,Model) where MMS is true value and Model is computed value
     error = np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2))
     errorSpace = np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2,tEval.size))
-    #Pre allocate solutions, the (2,2) indices are for (u,v) and then (MMS,Model) where MMS is true value and Model is computed value
     solutions= np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2,tEval.size,xEval.size))
     jointConvergenceRates = np.empty((len(nCollocations),len(nElems)-1,len(temporals),len(spatialSolOrders),2,2))
     spatialConvergenceRates = np.empty((len(nCollocations),len(nElems)-1,len(temporals),len(spatialSolOrders),2,2,tEval.size))
@@ -46,6 +47,15 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
                                                                  lambda t: dvdx2(t,model.collocationPoints),params)
                     
                     y0=np.append(u(tEval[0],model.collocationPoints),v(tEval[0],model.collocationPoints))
+                    uErrorFunction = lambda x: model.eval(x,y0,output="u") - u(0,x)
+                    vErrorFunction = lambda x: model.eval(x,y0,output="v")- v(0,x)
+                    uSquaredErrorFunction = lambda x: uErrorFunction(x)**2
+                    vSquaredErrorFunction = lambda x: vErrorFunction(x)**2
+                    uSquaredReferenceFunction = lambda x: u(0,x)**2
+                    vSquaredReferenceFunction = lambda x: v(0,x)**2
+                    if itemporal==0:
+                        plt.semilogy(xEval,np.sqrt(uSquaredErrorFunction(xEval)/uSquaredReferenceFunction(xEval)))
+                        plt.legend()
                     #Compute Model Coeff
                     modelCoeff=np.empty((tEval.size,y0.size))
                     modelCoeff[0]=y0
@@ -55,20 +65,16 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
                         if odeOut.status!=0:
                             print("Warning: ode solver terminated prematurely")
                     #Check for error between model coeffecients at t=0 as outputed by ODE function and the true
-                    y0error=np.sqrt(np.sum((modelCoeff[0,:]-y0)**2))
+                    y0error=np.max(modelCoeff[0,:]-y0)
                     if y0error>10**(-14):
                         print("Warning: odeint has non-zero error in y0")
                         print("y0 error: %03e" % (y0error,))
                         
                     #Evalute MMS and model at plot points
-                    uMMSsol=u(tEval,xEval)
-                    vMMSsol=v(tEval,xEval)
-                    uModelSol, vModelSol = model.eval(xEval,modelCoeff, output="seperated")
-                    solutions[iColl,iElem,itemporal,iorder,0,0]=uMMSsol
-                    solutions[iColl,iElem,itemporal,iorder,0,1]=uModelSol
-                    solutions[iColl,iElem,itemporal,iorder,1,0]=vMMSsol
-                    solutions[iColl,iElem,itemporal,iorder,1,1]=vModelSol
-
+                    solutions[iColl,iElem,itemporal,iorder,0,0]=u(tEval,xEval)
+                    solutions[iColl,iElem,itemporal,iorder,0,1]=model.eval(xEval,modelCoeff, output="u")
+                    solutions[iColl,iElem,itemporal,iorder,1,0]=v(tEval,xEval)
+                    solutions[iColl,iElem,itemporal,iorder,1,1]=model.eval(xEval,modelCoeff, output="v")
 
                     #Compute Error
                     uErrorFunction = lambda x: model.eval(x,modelCoeff,output="u") - u(tEval,x)
@@ -77,12 +83,17 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
                     vSquaredErrorFunction = lambda x: vErrorFunction(x)**2
                     uSquaredReferenceFunction = lambda x: u(tEval,x)**2
                     vSquaredReferenceFunction = lambda x: v(tEval,x)**2
-
-                    uErrorL2,uErrorL2space = computeL2error(model,uSquaredErrorFunction,uSquaredReferenceFunction,tEval,order=spatialOrder*2)
-                    vErrorL2,vErrorL2space = computeL2error(model,vSquaredErrorFunction,vSquaredReferenceFunction,tEval,order=spatialOrder*2)
+                    # print(uSquaredErrorFunction(xEval).shape)
+                    # print(uErrorFunction(xEval)[0,:])
+                    # print(uSquaredReferenceFunction(xEval)[0,:])
+                    quadOrder=spatialOrder*2
+                    #print("quadOrder: ", quadOrder)
+                    uErrorL2,uErrorL2space = computeL2error(model,uSquaredErrorFunction,uSquaredReferenceFunction,tEval,order=quadOrder)
+                    vErrorL2,vErrorL2space = computeL2error(model,vSquaredErrorFunction,vSquaredReferenceFunction,tEval,order=quadOrder)
                     uErrorLinf,uErrorLinfSpace = computeLinfError(uErrorFunction(xEval),u(tEval,xEval))
                     vErrorLinf,vErrorLinfSpace = computeLinfError(vErrorFunction(xEval),u(tEval,xEval))
-                    print(uErrorL2space)
+                    #print(np.mean(np.sqrt(uSquaredErrorFunction(xEval)[0,:]/uSquaredReferenceFunction(xEval)[0,:])))
+                    #print(uErrorL2space[0])
                     error[iColl,iElem,itemporal,iorder,0,0]=uErrorL2
                     error[iColl,iElem,itemporal,iorder,0,1]=uErrorLinf
                     error[iColl,iElem,itemporal,iorder,1,0]=vErrorL2
@@ -152,8 +163,9 @@ def constructSourceTermFunction(u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2,param
 
 #!!!!!!!!!Change all of these to be (time,space) for consistency elsewhere in code
 def computeL2error(model,squaredErrorFunction,squaredReferenceFunction,tPoints,order="auto"):
-    errorL2Squared, errorL2SpaceSquared = model.integrate(squaredErrorFunction,tPoints,integrateTime=True,order="auto")
-    referenceL2Squared,referenceL2SpaceSquared=model.integrate(squaredReferenceFunction,tPoints,integrateTime=True,order="auto")
+    errorL2Squared, errorL2SpaceSquared = model.integrate(squaredErrorFunction,tPoints,integrateTime=True,order=order)
+    #print("Pre-relatives L2 error: ", errorL2SpaceSquared)
+    referenceL2Squared,referenceL2SpaceSquared=model.integrate(squaredReferenceFunction,tPoints,integrateTime=True,order=order)
     errorL2=np.sqrt(errorL2Squared/referenceL2Squared)
     errorL2Space=np.sqrt(errorL2SpaceSquared/referenceL2SpaceSquared)
     return errorL2, errorL2Space
