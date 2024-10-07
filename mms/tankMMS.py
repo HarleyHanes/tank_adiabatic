@@ -4,18 +4,18 @@ from tankModel.TankModel import TankModel
 import matplotlib.pyplot as plt
 
 
-def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 0):
+def runMMStest(higherOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 0):
     #Parse inputs
     temporals=[lambda t: 1+0*t,lambda t: 1+1*t, lambda t: 1+t*np.exp(2*t)]
     temporalsdt=[lambda t: 0*t,lambda t: 1+0*t, lambda t: np.exp(2*t)+2*t*np.exp(2*t)]
     #temporals = [lambda t: 1+0*t, lambda t: t, lambda t: t**2, lambda t: np.sin(t)]
     #temporalsdt = [lambda t: 0*t, lambda t: 1+0*t, lambda t: 2*t, lambda t: np.cos(t)]
     #Pre allocate solution and error arrays, the (2,2) indices are for (u,v) and then (MMS,Model) where MMS is true value and Model is computed value
-    error = np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2))
-    errorSpace = np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2,tEval.size))
-    solutions= np.empty((len(nCollocations),len(nElems),len(temporals),len(spatialSolOrders),2,2,tEval.size,xEval.size))
-    jointConvergenceRates = np.empty((len(nCollocations),len(nElems)-1,len(temporals),len(spatialSolOrders),2,2))
-    spatialConvergenceRates = np.empty((len(nCollocations),len(nElems)-1,len(temporals),len(spatialSolOrders),2,2,tEval.size))
+    error = np.empty((len(nCollocations),len(nElems),len(temporals),len(higherOrders),2,2))
+    errorSpace = np.empty((len(nCollocations),len(nElems),len(temporals),len(higherOrders),2,2,tEval.size))
+    solutions= np.empty((len(nCollocations),len(nElems),len(temporals),len(higherOrders),2,2,tEval.size,xEval.size))
+    jointConvergenceRates = np.empty((len(nCollocations),len(nElems)-1,len(temporals),len(higherOrders),2,2))
+    spatialConvergenceRates = np.empty((len(nCollocations),len(nElems)-1,len(temporals),len(higherOrders),2,2,tEval.size))
     for iColl in range(len(nCollocations)):
         for iElem in range(len(nElems)):
             if verbosity > 0 :
@@ -29,14 +29,16 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
             for itemporal in range(len(temporals)):
                 if verbosity > 0:
                     print("iTemporal: ", itemporal)
-                for iorder in range(len(spatialSolOrders)):
-                    spatialOrder=spatialSolOrders[iorder]
-                    if verbosity > 0:
-                        print("Order: ", spatialOrder)
-                    #Construct solutions that are sum of monomials up to spatialOrder 
-                    if spatialOrder < 2:
-                        raise Exception("Error, spatialOrder less than 2 entered. Only 2+ spatialOrder polynomials can satisfy BC")
-                    u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructMMSsolutionFunction(spatialOrder,params,temporals[itemporal],temporalsdt[itemporal])
+                for iorder in range(len(higherOrders)):
+                    if type(higherOrders[iorder])==int:
+                        spatialOrder=higherOrders[iorder]
+                        if verbosity > 0:
+                            print("Order: ", spatialOrder)
+                        #Construct solutions that are sum of monomials up to spatialOrder 
+                        u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructPolynomialMMSsolutionFunction(spatialOrder,params,temporals[itemporal],temporalsdt[itemporal])
+                    if type(higherOrders[iorder])==str:
+                        if higherOrders[iorder]=="sin":
+                            u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructSinMMssolutionFunction(params,temporals[itemporal],temporalsdt[itemporal])
                     sourceFunction = constructSourceTermFunction(lambda t: u(t,model.collocationPoints), 
                                                                  lambda t: dudt(t,model.collocationPoints), 
                                                                  lambda t: dudx(t,model.collocationPoints), 
@@ -86,7 +88,7 @@ def runMMStest(spatialSolOrders,nCollocations,nElems,xEval,tEval,params,verbosit
                     # print(uSquaredErrorFunction(xEval).shape)
                     # print(uErrorFunction(xEval)[0,:])
                     # print(uSquaredReferenceFunction(xEval)[0,:])
-                    quadOrder=spatialOrder*2
+                    quadOrder=30
                     #print("quadOrder: ", quadOrder)
                     uErrorL2,uErrorL2space = computeL2error(model,uSquaredErrorFunction,uSquaredReferenceFunction,tEval,order=quadOrder)
                     vErrorL2,vErrorL2space = computeL2error(model,vSquaredErrorFunction,vSquaredReferenceFunction,tEval,order=quadOrder)
@@ -122,7 +124,7 @@ def computeConvergenceRates(discretizations,errors):
 
 
 
-def constructMMSsolutionFunction(spatialOrder,params,temporal,temporaldt):
+def constructPolynomialMMSsolutionFunction(spatialOrder,params,temporal,temporaldt):
 
     uSpatialCoeff=-np.ones((spatialOrder+1,))
     vSpatialCoeff=-np.ones((spatialOrder+1,))
@@ -147,6 +149,26 @@ def constructMMSsolutionFunction(spatialOrder,params,temporal,temporaldt):
     dudt = lambda t,x: np.outer(temporaldt(t),np.sum(np.power.outer(x,np.arange(0,spatialOrder+1))*uSpatialCoeff,axis=-1)).squeeze()
     dvdt = lambda t,x: np.outer(temporaldt(t),np.sum(np.power.outer(x,np.arange(0,spatialOrder+1))*vSpatialCoeff,axis=-1)).squeeze()
 
+
+    return u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2
+
+def constructSinMMssolutionFunction(params,temporal,temporaldt):
+    freq=np.pi 
+    weight=1
+
+    linearCoeff = -freq*weight*np.cos(freq)
+    uConstCoeff = 1/params["PeM"]*(freq*weight+linearCoeff)
+    vConstCoeff = ((freq*weight+linearCoeff)/params["PeT"]+params["f"]*(weight*np.sin(freq)+linearCoeff))/(1-params["f"])
+
+
+    u= lambda t,x: np.outer(temporal(t),weight*np.sin(freq*x)+linearCoeff*x+uConstCoeff).squeeze()
+    v= lambda t,x: np.outer(temporal(t),weight*np.sin(freq*x)+linearCoeff*x+vConstCoeff).squeeze()
+    dudt= lambda t,x: np.outer(temporaldt(t),weight*np.sin(freq*x)+linearCoeff*x+uConstCoeff).squeeze()
+    dvdt= lambda t,x: np.outer(temporaldt(t),weight*np.sin(freq*x)+linearCoeff*x+vConstCoeff).squeeze()
+    dudx= lambda t,x: np.outer(temporal(t),freq*weight*np.cos(freq*x)+linearCoeff).squeeze()
+    dvdx= lambda t,x: np.outer(temporal(t),freq*weight*np.cos(freq*x)+linearCoeff).squeeze()
+    dudx2= lambda t,x: np.outer(temporal(t),-(freq**2)*weight*np.sin(freq*x)).squeeze()
+    dvdx2= lambda t,x: np.outer(temporal(t),-(freq**2)*weight*np.sin(freq*x)).squeeze()
 
     return u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2
 

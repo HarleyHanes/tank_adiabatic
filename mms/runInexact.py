@@ -9,12 +9,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 import tankMMS
-nCollocations = [6]
+nCollocations = [3]
 verbosity = 1
 
 #I think there's an error with the higher
-spatialOrders=[14]  #Must be greater than 2 to satisfy BC
-nElems = np.array([2,4,8,16,32,64])  #Cant use nElems=1 due to some dimensionality issues with squeeze
+higherOrderTerms=["sin"]  #Must be greater than 2 to satisfy BC
+nElems = np.array([2,4,8,16,32,64,128])  #Cant use nElems=1 due to some dimensionality issues with squeeze
 parameterSet="Bizon2012_stable"
 #Parameter limitations:
 # Non-negative: Da, gamma, beta, delta
@@ -43,10 +43,10 @@ elif parameterSet=="Bizon2012_diffAdvec":
 resultsFolder = "../../results/verification/"
 tEval = np.linspace(0,3,5)
 xEval = np.linspace(0,1,100)
-error, solutions, convergence, errorSpace, convergenceSpace=tankMMS.runMMStest(spatialOrders,nCollocations,nElems,xEval,tEval,params,verbosity=verbosity)
+error, solutions, convergence, errorSpace, convergenceSpace=tankMMS.runMMStest(higherOrderTerms,nCollocations,nElems,xEval,tEval,params,verbosity=verbosity)
 
-for iOrder in range(len(spatialOrders)):
-    print("Spatial Order: " + str(spatialOrders[iOrder]))
+for iOrder in range(len(higherOrderTerms)):
+    print("Spatial Order: " + str(higherOrderTerms[iOrder]))
     for iColl in range(len(nCollocations)):
         print("    Collocation Points: " + str(nCollocations[iColl]))
         print("        Time Constant Discretiziation")
@@ -72,7 +72,7 @@ for iOrder in range(len(spatialOrders)):
     # Assess results at t=0 (no time variation considered, just spatial discretization)
     #Compare expected and computed results in the time-constant case
 
-    saveLocation = resultsFolder+"/"+parameterSet+"/nCol_"+str(nCollocations[iColl])+"_order"+str(spatialOrders[iOrder])
+    saveLocation = resultsFolder+"/"+parameterSet+"/nCol_"+str(nCollocations[iColl])+"_order"+str(higherOrderTerms[iOrder])
     plt.figure()
     plt.plot(xEval,solutions[iColl,0,0,iOrder,0,0,0,:])
     plt.plot(xEval,solutions[iColl,0,0,iOrder,1,0,0,:])
@@ -146,7 +146,7 @@ for iOrder in range(len(spatialOrders)):
     plt.show()
     # #Plot the pointwise error of each as discretization is refined
     # for iCol in range(len(nCollocations)):
-    #     for iOrder in range(len(spatialOrders)):
+    #     for iOrder in range(len(higherOrderTerms)):
     #         plt.figure()
     #         for iElem in range(len(nElems)):
     #             plt.semilogy(xEval,np.abs((solutions[iCol,iElem,0,iOrder,0,1,0,:]-solutions[iCol,iElem,0,iOrder,0,0,0,:])/solutions[iCol,iElem,0,iOrder,0,0,0,:]))
@@ -157,7 +157,7 @@ for iOrder in range(len(spatialOrders)):
 
     # #Plot the pointwise error of each as discretization is refined
     # for iCol in range(len(nCollocations)):
-    #     for iOrder in range(len(spatialOrders)):
+    #     for iOrder in range(len(higherOrderTerms)):
     #         plt.figure()
     #         for iElem in range(len(nElems)):
     #             plt.semilogy(xEval,np.abs((solutions[iCol,iElem,0,iOrder,1,1,0,:]-solutions[iCol,iElem,0,iOrder,1,0,0,:])/solutions[iCol,iElem,0,iOrder,1,0,0,:]))
@@ -174,7 +174,7 @@ for iOrder in range(len(spatialOrders)):
 
     #Plot the error of each as discretization is refined
     for iCol in range(len(nCollocations)):
-        for iOrder in range(len(spatialOrders)):
+        for iOrder in range(len(higherOrderTerms)):
             plt.figure()
             for iElem in range(len(nElems)):
                 plt.semilogy(xEval,np.abs((solutions[iCol,iElem,0,iOrder,0,1,-1,:]-solutions[iCol,iElem,0,iOrder,0,0,-1,:])/solutions[iCol,iElem,0,iOrder,0,1,-1,:]))
