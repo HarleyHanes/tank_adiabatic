@@ -13,7 +13,7 @@ nCollocations = [3]
 verbosity = 1
 
 #I think there's an error with the higher
-higherOrderTerms=["sin"]  #Must be greater than 2 to satisfy BC
+higherOrderTerms=[7]  #Must be greater than 2 to satisfy BC
 nElems = np.array([2,4,8,16,32,64,128])  #Cant use nElems=1 due to some dimensionality issues with squeeze
 parameterSet="Bizon2012_stable"
 #Parameter limitations:
@@ -41,7 +41,7 @@ elif parameterSet=="Bizon2012_diffAdvec":
 #params={"PeM": 1, "PeT": 1, "f": .5, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH": 0}
 
 resultsFolder = "../../results/verification/"
-tEval = np.linspace(0,3,5)
+tEval = np.linspace(0,5,4)
 xEval = np.linspace(0,1,100)
 error, solutions, convergence, errorSpace, convergenceSpace=tankMMS.runMMStest(higherOrderTerms,nCollocations,nElems,xEval,tEval,params,verbosity=verbosity)
 
@@ -69,131 +69,119 @@ for iOrder in range(len(higherOrderTerms)):
             print("            v L2 Convergence: " + str(convergence[iColl,:,itemporal,iOrder,1,0]))
             print("            v Linf Convergence: " + str(convergence[iColl,:,itemporal,iOrder,1,1]))
 
-    # Assess results at t=0 (no time variation considered, just spatial discretization)
-    #Compare expected and computed results in the time-constant case
+        # Assess results at t=0 (no time variation considered, just spatial discretization)
+        #Compare expected and computed results in the time-constant case
 
-    saveLocation = resultsFolder+"/"+parameterSet+"/nCol_"+str(nCollocations[iColl])+"_order"+str(higherOrderTerms[iOrder])
-    plt.figure()
-    plt.plot(xEval,solutions[iColl,0,0,iOrder,0,0,0,:])
-    plt.plot(xEval,solutions[iColl,0,0,iOrder,1,0,0,:])
-    plt.legend(["u","v"])
-    plt.title("Manufactured solution for u and v at t=0")
+        saveLocation = resultsFolder+"/"+parameterSet+"/nCol_"+str(nCollocations[iColl])+"_order"+str(higherOrderTerms[iOrder])
+        
+        plt.figure(figsize=(5.12,3.84))
+        plt.plot(xEval,solutions[iColl,0,0,iOrder,0,0,0,:])
+        plt.plot(xEval,solutions[iColl,0,0,iOrder,1,0,0,:])
+        plt.legend(["u","v"])
+        plt.title("Manufactured solution for u and v at t=0")
+        plt.tight_layout() 
 
-    #Plot the computed solution for each discretization level at t=0
-    plt.figure()
-    plt.plot(xEval,solutions[iColl,:,0,iOrder,0,1,0,:].transpose())
-    plt.title("Computed Solutions for u at t=0")
-    plt.legend(['nElem='+str(nElement) for nElement in nElems])
+        #Plot the computed solution for each discretization level at t=0
+        plt.figure(figsize=(5.12,3.84))
+        plt.plot(xEval,solutions[iColl,:,0,iOrder,0,1,0,:].transpose())
+        plt.title("Computed Solutions for u at t=0")
+        plt.legend(['nElem='+str(nElement) for nElement in nElems])
+        plt.tight_layout() 
 
-    
-    plt.figure()
-    plt.plot(xEval,solutions[iColl,:,0,iOrder,1,1,0,:].transpose())
-    plt.title("Computed Solutions for v at t=0")
-    plt.legend(['nElem='+str(nElement) for nElement in nElems])
-    #print(solutions[iColl,:,0,iOrder,1,1,0,:].transpose())
+        
+        plt.figure(figsize=(5.12,3.84))
+        plt.plot(xEval,solutions[iColl,:,0,iOrder,1,1,0,:].transpose())
+        plt.title("Computed Solutions for v at t=0")
+        plt.legend(['nElem='+str(nElement) for nElement in nElems])
+        plt.tight_layout() 
+        #print(solutions[iColl,:,0,iOrder,1,1,0,:].transpose())
 
-    #Plot the error and expected convergence rate of the spatial discretization
-    expectedRate=nCollocations[iColl]+2
-    convergenceExampleStartValue=np.min(errorSpace[iColl,0,0,iOrder,:,:,0])*.35
-    convergenceExample=convergenceExampleStartValue*(nElems[0]/nElems)**(expectedRate)
-    plt.figure()
-    plt.loglog(nElems, errorSpace[iColl,:,0,iOrder,0,0,0])
-    plt.loglog(nElems, errorSpace[iColl,:,0,iOrder,0,1,0])
-    plt.loglog(nElems, errorSpace[iColl,:,0,iOrder,1,0,0])
-    plt.loglog(nElems, errorSpace[iColl,:,0,iOrder,1,1,0])
-    plt.loglog(nElems, convergenceExample)
-    plt.xlabel(r"$N_E$")
-    plt.ylabel("Relative Error")
-    plt.legend([r"u, $L^2$ Error", r"u, $L^\inf$ Error",r"v, $L^2$ Error", r"v, $L^\inf$ Error", r"Order " +str(expectedRate)+ r" Convergence"])
-    plt.title("Solution Convergence of Spatial Discretization")
-    if not os.path.exists(saveLocation):
-        os.makedirs(saveLocation)
-    plt.savefig(saveLocation+"/spatialConvergence.pdf",format='pdf')
-    plt.savefig(saveLocation+"/spatialConvergence.png",format='png')
-
-
-    #Plot the error and expected convergence rate of the joint space/temporal discretization
-
-    for itemporal in range(3):
+        #Get an example of the expected convergence rate of the spatial discretization
         expectedRate=nCollocations[iColl]+2
-        convergenceExampleStartValue=np.min(error[iColl,0,itemporal,iOrder,:,:])*.35
+        convergenceExampleStartValue=np.min(errorSpace[iColl,0,-1,iOrder,:,:,0])*.35
         convergenceExample=convergenceExampleStartValue*(nElems[0]/nElems)**(expectedRate)
-        plt.figure()
-        plt.loglog(nElems, error[iColl,:,itemporal,iOrder,0,0])
-        plt.loglog(nElems, error[iColl,:,itemporal,iOrder,0,1])
-        plt.loglog(nElems, error[iColl,:,itemporal,iOrder,1,0])
-        plt.loglog(nElems, error[iColl,:,itemporal,iOrder,1,1])
-        plt.loglog(nElems, convergenceExample)
+        #Trim the expected convergence line to the minimum of the observed error
+        nElems_example = nElems[convergenceExample>=(np.min(errorSpace[iColl,:,-1,iOrder,:,:,0]))*.1]
+        convergenceExample = convergenceExample[convergenceExample>=(np.min(errorSpace[iColl,:,-1,iOrder,:,:,0]))*.1]
+        plt.figure(figsize=(5.12,3.84))
+        plt.loglog(nElems, errorSpace[iColl,:,-1,iOrder,0,0,0])
+        plt.loglog(nElems, errorSpace[iColl,:,-1,iOrder,0,1,0])
+        plt.loglog(nElems, errorSpace[iColl,:,-1,iOrder,1,0,0])
+        plt.loglog(nElems, errorSpace[iColl,:,-1,iOrder,1,1,0])
+        plt.loglog(nElems_example, convergenceExample)
         plt.xlabel(r"$N_E$")
         plt.ylabel("Relative Error")
-        plt.legend([r"u, $L^2$ Error", r"u, $L^\inf$ Error",r"v, $L^2$ Error", r"v, $L^\inf$ Error", r"Order " +str(expectedRate)+ r" Convergence"])
-        if itemporal==0:
-            plt.title(r"Solution Convergence for $g(t)=1$")
-        elif itemporal==1:
-            plt.title(r"Solution Convergence for $g(t)=1+t$")
-        elif itemporal==2:
-            plt.title(r"Solution Convergence for $g(t)=1+te^{2t}$")
-    
-        plt.savefig(saveLocation+"/convergence_temporal"+str(itemporal)+".pdf",format='pdf')
-        plt.savefig(saveLocation+"/convergence_temporal"+str(itemporal)+".png",format='png')
-    
-    plt.figure()
-    plt.plot(xEval,solutions[iColl,0,0,iOrder,0,0,0,:]-solutions[iColl,0,0,iOrder,0,1,0,:])
-    plt.plot(xEval,solutions[iColl,0,0,iOrder,1,0,0,:]-solutions[iColl,0,0,iOrder,1,1,0,:])
-    plt.legend(["u","v"])
-    plt.title("Pointwise Error for u and v at t=0")
-    
-    plt.show()
-    # #Plot the pointwise error of each as discretization is refined
-    # for iCol in range(len(nCollocations)):
-    #     for iOrder in range(len(higherOrderTerms)):
-    #         plt.figure()
-    #         for iElem in range(len(nElems)):
-    #             plt.semilogy(xEval,np.abs((solutions[iCol,iElem,0,iOrder,0,1,0,:]-solutions[iCol,iElem,0,iOrder,0,0,0,:])/solutions[iCol,iElem,0,iOrder,0,0,0,:]))
-    #         plt.title("Error of uMMS at t start for each discretization")
-    #         plt.legend(['nElem='+str(nElement) for nElement in nElems])
-    #         plt.xlabel('x')
-    #         plt.ylabel(r"$\frac{|u_{Model}-u_{Computed}|}{|u_{Model}|}$")
+        plt.legend([r"u, $L^2$ Error", r"u, $L^\inf$ Error",r"v, $L^2$ Error", r"v, $L^\inf$ Error", r"$\mathcal{O}((1/N_E)^" +str(expectedRate)+ r")$"])
+        plt.title("Solution Convergence of Spatial Discretization")
+        if not os.path.exists(saveLocation):
+            os.makedirs(saveLocation)
+        plt.tight_layout() 
+        plt.savefig(saveLocation+"/spatialConvergence.pdf",format='pdf')
+        plt.savefig(saveLocation+"/spatialConvergence.png",format='png')
+        
 
-    # #Plot the pointwise error of each as discretization is refined
-    # for iCol in range(len(nCollocations)):
-    #     for iOrder in range(len(higherOrderTerms)):
-    #         plt.figure()
-    #         for iElem in range(len(nElems)):
-    #             plt.semilogy(xEval,np.abs((solutions[iCol,iElem,0,iOrder,1,1,0,:]-solutions[iCol,iElem,0,iOrder,1,0,0,:])/solutions[iCol,iElem,0,iOrder,1,0,0,:]))
-    #         plt.title("Error of vMMS at t start for each discretization")
-    #         plt.legend(['nElem='+str(nElement) for nElement in nElems])
-    #         plt.xlabel('x')
-    #         plt.ylabel(r"$\frac{|v_{Model}-u_{Computed}|}{|v_{Model}|}$")
-    #Assess time-variant results
-    #Plot the computed solution for each discretization level at t=end
-    plt.figure()
-    plt.plot(xEval,solutions[iColl,:,0,iOrder,0,1,-1,:].transpose())
-    plt.title("Computed Solutions for u at t end")
-    plt.legend(['nElem='+str(nElement) for nElement in nElems])
-
-    #Plot the error of each as discretization is refined
-    for iCol in range(len(nCollocations)):
-        for iOrder in range(len(higherOrderTerms)):
-            plt.figure()
-            for iElem in range(len(nElems)):
-                plt.semilogy(xEval,np.abs((solutions[iCol,iElem,0,iOrder,0,1,-1,:]-solutions[iCol,iElem,0,iOrder,0,0,-1,:])/solutions[iCol,iElem,0,iOrder,0,1,-1,:]))
-            plt.title("Error of uMMS at t end for each discretization")
-            plt.legend(['nElem='+str(nElement) for nElement in nElems])
-            plt.xlabel('x')
-            plt.ylabel(r"$\frac{|u_{Model}-u_{Computed}|}{|u_{Model}|}$")
+        #Get an example of the expected convergence rate of the spatial discretization
+        expectedRate=nCollocations[iColl]+2
+        convergenceExampleStartValue=np.min(errorSpace[iColl,0,-1,iOrder,:,:,-1])*.35
+        convergenceExample=convergenceExampleStartValue*(nElems[0]/nElems)**(expectedRate)
+        #Trim the expected convergence line to the minimum of the observed error
+        nElems_example = nElems[convergenceExample>=(np.min(errorSpace[iColl,:,-1,iOrder,:,:,-1]))*.1]
+        convergenceExample = convergenceExample[convergenceExample>=(np.min(errorSpace[iColl,:,-1,iOrder,:,:,-1]))*.1]
+        
+        plt.figure(figsize=(5.12,3.84))
+        plt.loglog(nElems, errorSpace[iColl,:,-1,iOrder,0,0,-1])
+        plt.loglog(nElems, errorSpace[iColl,:,-1,iOrder,0,1,-1])
+        plt.loglog(nElems, errorSpace[iColl,:,-1,iOrder,1,0,-1])
+        plt.loglog(nElems, errorSpace[iColl,:,-1,iOrder,1,1,-1])
+        plt.loglog(nElems_example, convergenceExample)
+        plt.xlabel(r"$N_E$")
+        plt.ylabel("Relative Error")
+        plt.legend([r"u, $L^2$ Error", r"u, $L^\inf$ Error",r"v, $L^2$ Error", r"v, $L^\inf$ Error", r"$\mathcal{O}((1/N_E)^" +str(expectedRate)+ r")$"])
+        plt.title(r"Solution Convergence of Spatial Discretization at $t_{final}$")
+        if not os.path.exists(saveLocation):
+            os.makedirs(saveLocation)
+        plt.tight_layout() 
+        plt.savefig(saveLocation+"/spatialConvergence_tFinal.pdf",format='pdf')
+        plt.savefig(saveLocation+"/spatialConvergence_tFinal.png",format='png')
 
 
-## List of likely identified errors
-# 1) Manufactured Solutions seem incorrect. 
-#    They're not at all like the computed solutions but they also don't seem to satisfy BC (2nd order has non-zero deriv at x=1)
-#    Higher order polynomials don't look like higher order polynomials
-#    Comptued solutions do satisfy both these optical checks
-# 2) Quadrature Rules are incorrect
-#    Something's wrong with the trapezoid rule
-# 3) Instability for nCollocation >2
-#    Candidate Causes
-#       Poor conditioning: RHS matrices often 1,000-10,000 cond numbers, however this also occurs for nCollocation=2
-# 4) Incorrect ODE implemented (FIXED)
-#    Forgot to divide whole temp equation by Le, doesn't affect current cases since Le=1
-    
+        #Plot the error and expected convergence rate of the joint space/temporal discretization
+
+        for itemporal in range(3):
+            expectedRate=nCollocations[iColl]+2
+            convergenceExampleStartValue=np.min(error[iColl,0,itemporal,iOrder,:,:])*.35
+            convergenceExample=convergenceExampleStartValue*(nElems[0]/nElems)**(expectedRate)
+            nElems_example = nElems[convergenceExample>=(np.min(error[iColl,:,itemporal,iOrder,:,:])*.1)]
+            convergenceExample = convergenceExample[convergenceExample>=(np.min(error[iColl,:,itemporal,iOrder,:,:])*.1)]
+            
+            plt.figure(figsize=(5.12,3.84))
+            plt.loglog(nElems, error[iColl,:,itemporal,iOrder,0,0])
+            plt.loglog(nElems, error[iColl,:,itemporal,iOrder,0,1])
+            plt.loglog(nElems, error[iColl,:,itemporal,iOrder,1,0])
+            plt.loglog(nElems, error[iColl,:,itemporal,iOrder,1,1])
+            plt.loglog(nElems_example, convergenceExample)
+            plt.xlabel(r"$N_E$")
+            plt.ylabel("Relative Error")
+            plt.legend([r"u, $L^2$ Error", r"u, $L^\inf$ Error",r"v, $L^2$ Error", r"v, $L^\inf$ Error", r"$\mathcal{O}((1/N_E)^" +str(expectedRate)+ r")$"])
+            if itemporal==0:
+                plt.title(r"Solution Convergence for $g(t)=1$")
+            elif itemporal==1:
+                plt.title(r"Solution Convergence for $g(t)=1+t$")
+            elif itemporal==2:
+                plt.title(r"Solution Convergence for $g(t)=1+te^{2t}$")
+            plt.tight_layout() 
+            plt.savefig(saveLocation+"/convergence_temporal"+str(itemporal)+".pdf",format='pdf')
+            plt.savefig(saveLocation+"/convergence_temporal"+str(itemporal)+".png",format='png')
+        
+        
+        plt.figure(figsize=(5.12,3.84))
+        plt.plot(xEval,solutions[iColl,0,0,iOrder,0,0,0,:]-solutions[iColl,0,0,iOrder,0,1,0,:])
+        plt.plot(xEval,solutions[iColl,0,0,iOrder,1,0,0,:]-solutions[iColl,0,0,iOrder,1,1,0,:])
+        plt.legend(["u","v"])
+        plt.title("Pointwise Error for u and v at t=0")
+        plt.tight_layout() 
+
+
+
+plt.show()
+

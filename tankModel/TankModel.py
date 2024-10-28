@@ -84,9 +84,9 @@ class TankModel:
     @nCollocation.setter
     def nCollocation(self,value):
         if not isinstance(value,int):
-            raise Exception("Non-int value entered for nCollocation")
+            raise Exception("Non-int value entered for nCollocation: ", value)
         elif value <= 0:
-            raise Exception("Non-positive integer entered for nCollocation")
+            raise Exception("Non-positive integer entered for nCollocation: ", value)
         else:
             self._nCollocation=value
     
@@ -225,8 +225,8 @@ class TankModel:
     def massRHSmat(self,value):
         if type(value)!=np.ndarray:
             raise Exception("Non-numpy array enetered for tempRHSmat: " +str(value))
-        elif value.shape!=(self.nElements*(self.nCollocation),self.nElements*(self.nCollocation)):
-            raise Exception("Matrix of incorrect size entered for massRHSmat: massRHSmat.size="+str(value.shape))
+       # elif value.shape!=(self.nElements*(self.nCollocation),self.nElements*(self.nCollocation)):
+            #raise Exception("Matrix of incorrect size entered for massRHSmat: massRHSmat.size="+str(value.shape))
         
         self._massRHSmat=value
             
@@ -237,8 +237,8 @@ class TankModel:
     def tempRHSmat(self,value):
         if type(value)!=np.ndarray:
             raise Exception("Non-numpy array enetered for tempRHSmat: " +str(value))
-        elif value.shape!=(self.nElements*(self.nCollocation),(self.nElements*(self.nCollocation))):
-            raise Exception("Matrix of incorrect size entered for tempRHSmat: tempRHSmat.size="+str(value.shape))
+        #elif value.shape!=(self.nElements*(self.nCollocation),(self.nElements*(self.nCollocation))):
+            #raise Exception("Matrix of incorrect size entered for tempRHSmat: tempRHSmat.size="+str(value.shape))
         
         self._tempRHSmat=value
         
@@ -405,9 +405,13 @@ class TankModel:
             rowStart=i*(self.nCollocation+1)+1
             colStart=i*self.nCollocation
             pointExpansionMat[rowStart:rowStart+self.nCollocation,colStart:colStart+self.nCollocation]=np.eye(self.nCollocation)
-        
+
         self.massFullCoeffMat=np.linalg.solve(massBoundaryMat,pointExpansionMat)
         self.tempFullCoeffMat=np.linalg.solve(tempBoundaryMat,pointExpansionMat)
+        massMatError=np.max(np.abs(pointExpansionMat-np.matmul(massBoundaryMat,self.massFullCoeffMat)))
+        tempMatError=np.max(np.abs(pointExpansionMat-np.matmul(tempBoundaryMat,self.tempFullCoeffMat)))
+        print(tempMatError)
+        print(massMatError)
         if self.verbosity>1:
             if self.verbosity>2:
                 print("Point Expansion Matrix")
@@ -440,6 +444,8 @@ class TankModel:
                 print(-self.firstOrderMat+1/self.params["PeM"]*self.secondOrderMat)
                 print("Temp Full Domain Matrix")
                 print((-self.firstOrderMat+1/self.params["PeT"]*self.secondOrderMat)/self.params["Le"])
+        #self.massRHSmat=-self.firstOrderMat+1/self.params["PeM"]*self.secondOrderMat
+        #self.tempRHSmat=(-self.firstOrderMat+1/self.params["PeT"]*self.secondOrderMat)/self.params["Le"]
         self.massRHSmat = np.matmul(-self.firstOrderMat+1/self.params["PeM"]*self.secondOrderMat,self.massFullCoeffMat)
         self.tempRHSmat = np.matmul((-self.firstOrderMat+1/self.params["PeT"]*self.secondOrderMat)/self.params["Le"],self.tempFullCoeffMat)
         if self.verbosity>1:
@@ -463,10 +469,14 @@ class TankModel:
         #Construct expanded y with boundary points
         u=y[0:self.nElements*self.nCollocation]
         v=y[self.nElements*self.nCollocation:]
+        # dydt=np.append(
+        #         np.dot(self.massRHSmat,np.linalg.solve(self.massBoundaryMat,np.dot(self.pointExpansionMat,u)))+self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v)),
+        #         np.dot(self.tempRHSmat,np.linalg.solve(self.tempBoundaryMat,np.dot(self.pointExpansionMat,v)))+(self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))
+        #                                    +self.params["delta"]*(self.params["vH"]-v))/self.params["Le"])
         dydt=np.append(
-                np.dot(self.massRHSmat,u)+self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v)),
-                np.dot(self.tempRHSmat,v)+(self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))
-                                           +self.params["delta"]*(self.params["vH"]-v))/self.params["Le"])
+                 np.dot(self.massRHSmat,u)+self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v)),
+                 np.dot(self.tempRHSmat,v)+(self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))
+                                            +self.params["delta"]*(self.params["vH"]-v))/self.params["Le"])
         
         return dydt
     

@@ -88,7 +88,8 @@ def runMMStest(higherOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 
                     # print(uSquaredErrorFunction(xEval).shape)
                     # print(uErrorFunction(xEval)[0,:])
                     # print(uSquaredReferenceFunction(xEval)[0,:])
-                    quadOrder=30
+                    quadOrder=spatialOrder**2
+                    #quadOrder="auto"
                     #print("quadOrder: ", quadOrder)
                     uErrorL2,uErrorL2space = computeL2error(model,uSquaredErrorFunction,uSquaredReferenceFunction,tEval,order=quadOrder)
                     vErrorL2,vErrorL2space = computeL2error(model,vSquaredErrorFunction,vSquaredReferenceFunction,tEval,order=quadOrder)
