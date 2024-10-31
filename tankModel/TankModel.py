@@ -357,8 +357,8 @@ class TankModel:
             # Update iCol to only search through the the relevant columns 
             for iCol in np.arange(element*(self.nCollocation+1),(element+1)*(self.nCollocation+2)-element):
                 basis = (iCol+element) % (self.nCollocation+2)
-                firstOrderMat[iRow,iCol] = self.elements[element].basisFirstDeriv(self.elements[element].interpolationPoints[collocation])[basis]
-                secondOrderMat[iRow,iCol] = self.elements[element].basisSecondDeriv(self.elements[element].interpolationPoints[collocation])[basis]
+                firstOrderMat[iRow,iCol] = self.elements[element].basisFirstDeriv(self.elements[element].collocationPoints[collocation])[basis]
+                secondOrderMat[iRow,iCol] = self.elements[element].basisSecondDeriv(self.elements[element].collocationPoints[collocation])[basis]
         self.firstOrderMat=firstOrderMat
         self.secondOrderMat=secondOrderMat
         

@@ -13,8 +13,8 @@ nCollocations = [3]
 verbosity = 1
 
 #I think there's an error with the higher
-higherOrderTerms=[7]  #Must be greater than 2 to satisfy BC
-nElems = np.array([2,4,8,16,32,64,128])  #Cant use nElems=1 due to some dimensionality issues with squeeze
+higherOrderTerms=[2]  #Must be greater than 2 to satisfy BC
+nElems = np.array([2,4,8,16])  #Cant use nElems=1 due to some dimensionality issues with squeeze
 parameterSet="Bizon2012_stable"
 #Parameter limitations:
 # Non-negative: Da, gamma, beta, delta
@@ -25,6 +25,7 @@ parameterSet="Bizon2012_stable"
 # If Da=0: then beta and gamma have no effect
 # If Da=0 and delta=0: then Le has no effect
 
+#Note: sometimes get issues with 2nd order if gamma not equal to 1 because then if v=1/beta then there's a singularity
 #Parameter set with improved conditioning
 if parameterSet=="Bizon2012_improvedConditioning":
     params={"PeM": 1000, "PeT": 1000, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.2}
@@ -38,7 +39,7 @@ elif parameterSet=="Bizon2012_linear":
 elif parameterSet=="Bizon2012_diffAdvec":
     params={"PeM": 300, "PeT": 300, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0, "delta": 0, "vH": 0}
 #Unit parameters with just diffusion/advection
-#params={"PeM": 1, "PeT": 1, "f": .5, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH": 0}
+params={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 1,"delta": 0, "vH": 0}
 
 resultsFolder = "../../results/verification/"
 tEval = np.linspace(0,5,4)
