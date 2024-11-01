@@ -9,12 +9,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 import tankMMS
-nCollocations = [3]
+nCollocations = [4]
 verbosity = 1
 
 #I think there's an error with the higher
-higherOrderTerms=[2]  #Must be greater than 2 to satisfy BC
-nElems = np.array([2,4,8,16])  #Cant use nElems=1 due to some dimensionality issues with squeeze
+higherOrderTerms=[7]  #Must be greater than 2 to satisfy BC
+nElems = np.array([2,4,8,16,32])  #Cant use nElems=1 due to some dimensionality issues with squeeze
 parameterSet="Bizon2012_stable"
 #Parameter limitations:
 # Non-negative: Da, gamma, beta, delta
@@ -39,10 +39,10 @@ elif parameterSet=="Bizon2012_linear":
 elif parameterSet=="Bizon2012_diffAdvec":
     params={"PeM": 300, "PeT": 300, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0, "delta": 0, "vH": 0}
 #Unit parameters with just diffusion/advection
-params={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 1,"delta": 0, "vH": 0}
+#params={"PeM": 1, "PeT": 1, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH": 0}
 
 resultsFolder = "../../results/verification/"
-tEval = np.linspace(0,5,4)
+tEval = np.linspace(0,5,20)
 xEval = np.linspace(0,1,100)
 error, solutions, convergence, errorSpace, convergenceSpace=tankMMS.runMMStest(higherOrderTerms,nCollocations,nElems,xEval,tEval,params,verbosity=verbosity)
 

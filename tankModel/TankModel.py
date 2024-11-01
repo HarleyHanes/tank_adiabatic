@@ -368,16 +368,11 @@ class TankModel:
         for iRow in np.arange(0,self.nElements*(self.nCollocation+1)+1,self.nCollocation+1):
             #Left BC
             if iRow==0:
-                massBoundaryMat[iRow,0:self.nCollocation+2]=-1/self.params["PeM"]*self.elements[0].basisFirstDeriv(self.bounds[0])
-                massBoundaryMat[iRow,0]+=1
-                tempBoundaryMat[iRow,0:self.nCollocation+2]=-1/self.params["PeT"]*self.elements[0].basisFirstDeriv(self.bounds[0])
-                tempBoundaryMat[iRow,0]+=1
-                tempBoundaryMat[iRow,-1]=-self.params["f"]
-                #massBoundaryMat[iRow,0:self.nCollocation+2]=self.elements[0].basisFirstDeriv(self.bounds[0])
-                #massBoundaryMat[iRow,0]-=self.params["PeM"]
-                #tempBoundaryMat[iRow,0:self.nCollocation+2]=self.elements[0].basisFirstDeriv(self.bounds[0])
-                #tempBoundaryMat[iRow,0]-=self.params["PeT"]
-                #tempBoundaryMat[iRow,-1]=self.params["f"]
+                massBoundaryMat[0,0:self.nCollocation+2]=self.elements[0].basisFirstDeriv(self.bounds[0])
+                massBoundaryMat[0,0]-=self.params["PeM"]
+                tempBoundaryMat[0,0:self.nCollocation+2]=self.elements[0].basisFirstDeriv(self.bounds[0])
+                tempBoundaryMat[0,0]-=self.params["PeT"]
+                tempBoundaryMat[0,-1]=self.params["f"]*self.params["PeT"]
             #Right BC
             elif iRow==self.nElements*(self.nCollocation+1):
                 massBoundaryMat[iRow,-(self.nCollocation+2):]=self.elements[-1].basisFirstDeriv(self.bounds[1])
@@ -410,8 +405,6 @@ class TankModel:
         self.tempFullCoeffMat=np.linalg.solve(tempBoundaryMat,pointExpansionMat)
         massMatError=np.max(np.abs(pointExpansionMat-np.matmul(massBoundaryMat,self.massFullCoeffMat)))
         tempMatError=np.max(np.abs(pointExpansionMat-np.matmul(tempBoundaryMat,self.tempFullCoeffMat)))
-        print(tempMatError)
-        print(massMatError)
         if self.verbosity>1:
             if self.verbosity>2:
                 print("Point Expansion Matrix")
@@ -444,10 +437,8 @@ class TankModel:
                 print(-self.firstOrderMat+1/self.params["PeM"]*self.secondOrderMat)
                 print("Temp Full Domain Matrix")
                 print((-self.firstOrderMat+1/self.params["PeT"]*self.secondOrderMat)/self.params["Le"])
-        #self.massRHSmat=-self.firstOrderMat+1/self.params["PeM"]*self.secondOrderMat
-        #self.tempRHSmat=(-self.firstOrderMat+1/self.params["PeT"]*self.secondOrderMat)/self.params["Le"]
         self.massRHSmat = np.matmul(-self.firstOrderMat+1/self.params["PeM"]*self.secondOrderMat,self.massFullCoeffMat)
-        self.tempRHSmat = np.matmul((-self.firstOrderMat+1/self.params["PeT"]*self.secondOrderMat)/self.params["Le"],self.tempFullCoeffMat)
+        self.tempRHSmat = np.matmul(-self.firstOrderMat+1/self.params["PeT"]*self.secondOrderMat,self.tempFullCoeffMat)
         if self.verbosity>1:
             print("Mass RHS Condition Number: " + str(np.linalg.cond(self.massRHSmat)))
             print("Temp RHS Condition Number: " + str(np.linalg.cond(self.tempRHSmat)))
@@ -475,7 +466,7 @@ class TankModel:
         #                                    +self.params["delta"]*(self.params["vH"]-v))/self.params["Le"])
         dydt=np.append(
                  np.dot(self.massRHSmat,u)+self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v)),
-                 np.dot(self.tempRHSmat,v)+(self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))
+                 (np.dot(self.tempRHSmat,v)+self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))
                                             +self.params["delta"]*(self.params["vH"]-v))/self.params["Le"])
         
         return dydt
