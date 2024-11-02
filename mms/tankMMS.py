@@ -129,7 +129,7 @@ def constructPolynomialMMSsolutionFunction(spatialOrder,params,temporal,temporal
 
     uSpatialCoeff=-np.ones((spatialOrder+1,))
     vSpatialCoeff=-np.ones((spatialOrder+1,))
-
+    
     uSpatialCoeff[1]=np.dot(np.arange(2,spatialOrder+1),np.ones((spatialOrder-1)))
     vSpatialCoeff[1]=np.dot(np.arange(2,spatialOrder+1),np.ones((spatialOrder-1)))
     uSpatialCoeff[0]=uSpatialCoeff[1]/params["PeM"]
@@ -141,6 +141,13 @@ def constructPolynomialMMSsolutionFunction(spatialOrder,params,temporal,temporal
     dudx2SpatialCoeff=dudxSpatialCoeff[1:]*np.arange(1,spatialOrder)
     dvdx2SpatialCoeff=dvdxSpatialCoeff[1:]*np.arange(1,spatialOrder)
 
+    # print("uSpatialCoeff: ", uSpatialCoeff)
+    # print("vSpatialCoeff: ", vSpatialCoeff)
+    # print("dudxSpatialCoeff: ", dudxSpatialCoeff)
+    # print("dudxSpatialCoeff: ", dvdxSpatialCoeff)
+    # print("dudx2SpatialCoeff: ", dudx2SpatialCoeff)
+    # print("dudx2SpatialCoeff: ", dvdx2SpatialCoeff)
+
     u = lambda t,x: np.outer(temporal(t),np.sum(np.power.outer(x,np.arange(0,spatialOrder+1))*uSpatialCoeff,axis=-1)).squeeze()
     v = lambda t,x: np.outer(temporal(t),np.sum(np.power.outer(x,np.arange(0,spatialOrder+1))*vSpatialCoeff,axis=-1)).squeeze()
     dudx = lambda t,x: np.outer(temporal(t),np.sum(np.power.outer(x,np.arange(0,spatialOrder))*dudxSpatialCoeff,axis=-1)).squeeze()
@@ -149,7 +156,8 @@ def constructPolynomialMMSsolutionFunction(spatialOrder,params,temporal,temporal
     dvdx2 = lambda t,x: np.outer(temporal(t),np.sum(np.power.outer(x,np.arange(0,spatialOrder-1))*dvdx2SpatialCoeff,axis=-1)).squeeze()
     dudt = lambda t,x: np.outer(temporaldt(t),np.sum(np.power.outer(x,np.arange(0,spatialOrder+1))*uSpatialCoeff,axis=-1)).squeeze()
     dvdt = lambda t,x: np.outer(temporaldt(t),np.sum(np.power.outer(x,np.arange(0,spatialOrder+1))*vSpatialCoeff,axis=-1)).squeeze()
-
+    t=np.array([0])
+    x=np.array([0,1/2,1])
 
     return u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2
 
