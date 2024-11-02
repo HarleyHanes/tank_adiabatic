@@ -401,6 +401,7 @@ class TankModel:
             colStart=i*self.nCollocation
             pointExpansionMat[rowStart:rowStart+self.nCollocation,colStart:colStart+self.nCollocation]=np.eye(self.nCollocation)
 
+        self.pointExpansionMat=pointExpansionMat
         self.massFullCoeffMat=np.linalg.solve(massBoundaryMat,pointExpansionMat)
         self.tempFullCoeffMat=np.linalg.solve(tempBoundaryMat,pointExpansionMat)
         massMatError=np.max(np.abs(pointExpansionMat-np.matmul(massBoundaryMat,self.massFullCoeffMat)))
@@ -473,6 +474,32 @@ class TankModel:
     
     def dydtSource(self,y,t,source):
         return self.dydt(y,t) + source(t)
+    
+    def dydtSens(self,y,t,paramSelect=["PeM", "PeT", "f", "Le", "Da", "beta", "gamma", "delta", "vH"]):
+        """Defines the differential equation for sensitivity equations"""
+        nPoints=self.nElements*self.nCollocation
+        u=y[0:nPoints]
+        v=y[nPoints:2*nPoints]
+        dudt=np.dot(self.massRHSmat,u)+self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))
+        dvdt=np.dot(self.tempRHSmat,v)+(self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))
+                                    +self.params["delta"]*(self.params["vH"]-v))/self.params["Le"]
+        dydt=np.append(dudt,dvdt)
+        eqCounter=2
+        for param in paramSelect:
+            dudParam = y[eqCounter*nPoints:(eqCounter+1)*nPoints]
+            dvdParam = y[(eqCounter+1)*nPoints:(eqCounter+2)*nPoints]
+            match param:
+                case "vH":
+                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam/(1+self.params["beta"]*v)**2))-dudParam)
+                    ddvdParamdt=np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam/(1+self.params["beta"]*v)**2))-dudParam)\
+                                +self.params["delta"]-self.params["vH"]*dvdParam
+                    dydt=np.append(dydt,ddudParamdt)
+                    dydt=np.append(dydt,ddvdParamdt)
+
+            eqCounter+=2
+        return dydt
     
 
     def eval(self,xEval,modelCoeff, output="full"):
