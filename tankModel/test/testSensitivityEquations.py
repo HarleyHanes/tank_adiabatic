@@ -32,52 +32,301 @@ dudvHxx = -2
 dvdvHxx = -2
 y=np.concatenate((u,v,dudvH,dvdvH),axis=0)
 dydt = model.dydtSens(y,0,paramSelect=["vH"])
-dudvHtComputed = dydt[2*model.nCollocation*model.nElements:3*model.nCollocation*model.nElements]
-dvdvHtComputed = dydt[3*model.nCollocation*model.nElements:]
+dudvHComputed = dydt[2*model.nCollocation*model.nElements:3*model.nCollocation*model.nElements]
+dvdvHComputed = dydt[3*model.nCollocation*model.nElements:]
 #Check ddudvHdt
-assert(np.isclose(dudvHtComputed, -dudvHx+dudvHxx/params["PeM"]                                        ).all())
+assert(np.isclose(dudvHComputed, -dudvHx+dudvHxx/params["PeM"]                                        ).all())
 #Check ddvdvHdt
-assert(np.isclose(dvdvHtComputed,(-dvdvHx+dvdvHxx/params["PeT"]+params["delta"]*(1-dvdvH))/params["Le"]).all())
+assert(np.isclose(dvdvHComputed,(-dvdvHx+dvdvHxx/params["PeT"]+params["delta"]*(1-dvdvH))/params["Le"]).all())
 
 #Case 2: Nonlinear Source Portion
-params={"PeM": 1, "PeT": 1, "f": 0, "Le": 1, "Da": 1, "beta": 1, "gamma": 1,"delta": 0, "vH": 0}
+params={"PeM": 200, "PeT": 100, "f": .4, "Le": 2, "Da": .8, "beta": 10, "gamma": 1.1,"delta": 2, "vH": 4}
 #Define nElem=1,nColl=2 model with roots at -1 and 1 for simplicity
 model = TankModel(nCollocation=1,nElements=2,spacing="legendre",bounds=[0,1],params=params)
 x=model.collocationPoints
 #Case 1a: u=x^2, uvH=x^2, v=x^2, vvH=x^2
-#u = -x**2+2*x+2/params["PeM"]
-u=0*x
+u = -x**2+2*x+2/params["PeM"]
 v = -x**2+2*x+(2/params["PeT"]+params["f"]*(2-1))/(1-params["f"])
-#dudvH = -x**2+2*x+2/params["PeM"]
-dudvH=0*x
-#dvdvH = -x**2+2*x+(2/params["PeT"]+params["f"]*(2-1))/(1-params["f"])
-dudvHx=0*x
-dudvHxx=0*x
-#dudvHx = -2*x+2
-#dvdvHx = -2*x+2
-#dudvHxx = -2
-#dvdvHxx = -2
-dvdvH=0*x
-dvdvHx=0*x
-dvdvHxx=0*x
+dudvH = -x**2+2*x+2/params["PeM"]
+dvdvH = -x**2+2*x+(2/params["PeT"]+params["f"]*(2-1))/(1-params["f"])
+dudvHx = -2*x+2
+dvdvHx = -2*x+2
+dudvHxx = -2
+dvdvHxx = -2
 y=np.concatenate((u,v,dudvH,dvdvH),axis=0)
-print(y)
 dydt = model.dydtSens(y,0,paramSelect=["vH"])
-dudvHtComputed = dydt[2*model.nCollocation*model.nElements:3*model.nCollocation*model.nElements]
-dvdvHtComputed = dydt[3*model.nCollocation*model.nElements:]
-print(dvdvHtComputed)
-print(1/((-x**2+2*x+3)**2)*np.exp((-x**2+2*x+2)/(-x**2+2*x+3)))
-print((-dvdvHx+dvdvHxx/params["PeT"]\
-                                  +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
-                                    *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdvH)/(1+params["beta"]*v)**2)-dudvH)\
-                                    +params["delta"]*(1-dvdvH))/params["Le"])
+dudvHComputed = dydt[2*model.nCollocation*model.nElements:3*model.nCollocation*model.nElements]
+dvdvHComputed = dydt[3*model.nCollocation*model.nElements:]
 #Check ddudvHdt
-# assert(np.isclose(dudvHtComputed, -dudvHx+dudvHxx/params["PeM"]\
-#                                     +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
-#                                     *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdvH)/(1+params["beta"]*v)**2)-dudvH)).all())
+assert(np.isclose(dudvHComputed, -dudvHx+dudvHxx/params["PeM"]\
+                                    +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
+                                    *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdvH)/(1+params["beta"]*v)**2)-dudvH)).all())
 #Check ddvdvHdt
-assert(np.isclose(dvdvHtComputed,(-dvdvHx+dvdvHxx/params["PeT"]\
+assert(np.isclose(dvdvHComputed,(-dvdvHx+dvdvHxx/params["PeT"]\
                                   +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
                                     *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdvH)/(1+params["beta"]*v)**2)-dudvH)\
                                     +params["delta"]*(1-dvdvH))/params["Le"]).all())
-print("         vH Transport and Diffusion Portion Passes")
+print("     vH Sensitivity Passes")
+
+#========================================== delta Tests ==================================================================
+print("     Testing delta")
+#Case 1: Transport and Diffusion Portion
+#Set Da=0 so the nonlinear source term is 0
+params={"PeM": 300, "PeT": 100, "f": 0, "Le": 3, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":1}
+#Define nElem=1,nColl=2 model with roots at -1 and 1 for simplicity
+model = TankModel(nCollocation=3,nElements=2,spacing="legendre",bounds=[0,1],params=params)
+x=model.collocationPoints
+#Case 1a: u=x^2, uvH=x^2, v=x^2, vvH=x^2
+u = -x**2+2*x+2/params["PeM"]
+v = -x**2+2*x+(2/params["PeT"]+params["f"]*(2-1))/(1-params["f"])
+dudDelta = -x**3-x**2+5*x+5/params["PeM"]
+dvdDelta = -x**3-x**2+5*x+(5/params["PeT"]+params["f"]*(5-2))/(1-params["f"])
+dudDeltax = -3*x**2-2*x+5
+dvdDeltax = -3*x**2-2*x+5
+dudDeltaxx = -6*x-2
+dvdDeltaxx = -6*x-2
+y=np.concatenate((u,v,dudDelta,dvdDelta),axis=0)
+dydt = model.dydtSens(y,0,paramSelect=["delta"])
+dudDeltaComputed = dydt[2*model.nCollocation*model.nElements:3*model.nCollocation*model.nElements]
+dvdDeltaComputed = dydt[3*model.nCollocation*model.nElements:]
+#Check ddudDeltadt
+assert(np.isclose(dudDeltaComputed, -dudDeltax+dudDeltaxx/params["PeM"]                                        ).all())
+#Check ddvdDeltadt
+assert(np.isclose(dvdDeltaComputed,(-dvdDeltax+dvdDeltaxx/params["PeT"]+params["vH"]-v-params["delta"]*dvdDelta)/params["Le"]).all())
+
+#Case 2: Nonlinear Source Portion
+params={"PeM": 200, "PeT": 100, "f": .4, "Le": 2, "Da": .8, "beta": 10, "gamma": 1.1,"delta": 2, "vH": 4}
+#Define nElem=1,nColl=2 model with roots at -1 and 1 for simplicity
+model = TankModel(nCollocation=1,nElements=2,spacing="legendre",bounds=[0,1],params=params)
+x=model.collocationPoints
+#Case 1a: u=x^2, uDelta=x^2, v=x^2, vDelta=x^2
+u = -x**3-x**2+5*x+5/params["PeM"]
+v = -x**3-x**2+5*x+(3/params["PeT"]+params["f"]*(5-2))/(1-params["f"])
+dudDelta = -x**2+2*x+2/params["PeM"]
+dvdDelta = -x**2+2*x+(2/params["PeT"]+params["f"]*(2-1))/(1-params["f"])
+dudDeltax = -2*x+2
+dvdDeltax = -2*x+2
+dudDeltaxx = -2
+dvdDeltaxx = -2
+y=np.concatenate((u,v,dudDelta,dvdDelta),axis=0)
+dydt = model.dydtSens(y,0,paramSelect=["delta"])
+dudDeltaComputed = dydt[2*model.nCollocation*model.nElements:3*model.nCollocation*model.nElements]
+dvdDeltaComputed = dydt[3*model.nCollocation*model.nElements:]
+#Check ddudDeltadt
+assert(np.isclose(dudDeltaComputed, -dudDeltax+dudDeltaxx/params["PeM"]\
+                                    +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
+                                    *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdDelta)/(1+params["beta"]*v)**2)-dudDelta)).all())
+#Check ddvdDeltadt
+assert(np.isclose(dvdDeltaComputed,(-dvdDeltax+dvdDeltaxx/params["PeT"]\
+                                  +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
+                                    *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdDelta)/(1+params["beta"]*v)**2)-dudDelta)\
+                                    +params["vH"]-v-params["delta"]*dvdDelta)/params["Le"]).all())
+print("     delta Sensitivity Passes")
+
+
+#========================================== Da Tests ==================================================================
+print("     Testing Da")
+#Skip Case 1 without nonlinear term since it can be removed since not all terms are multiplied by Da
+#Case 2: Nonlinear Source Portion
+params={"PeM": 200, "PeT": 100, "f": .4, "Le": 2, "Da": .8, "beta": 10, "gamma": 1.1,"delta": 2, "vH": 4}
+#Define nElem=1,nColl=2 model with roots at -1 and 1 for simplicity
+model = TankModel(nCollocation=3,nElements=2,spacing="legendre",bounds=[0,1],params=params)
+x=model.collocationPoints
+#Case 1a: u=x^2, uDa=x^2, v=x^2, vDa=x^2
+u = -x**3-x**2+5*x+5/params["PeM"]
+v = -x**3-x**2+5*x+(3/params["PeT"]+params["f"]*(5-2))/(1-params["f"])
+dudDa = -x**3-x**2+5*x+5/params["PeM"]
+dvdDa = -x**3-x**2+5*x+(5/params["PeT"]+params["f"]*(5-2))/(1-params["f"])
+dudDax = -3*x**2-2*x+5
+dvdDax = -3*x**2-2*x+5
+dudDaxx = -6*x-2
+dvdDaxx = -6*x-2
+y=np.concatenate((u,v,dudDa,dvdDa),axis=0)
+dydt = model.dydtSens(y,0,paramSelect=["Da"])
+dudDaComputed = dydt[2*model.nCollocation*model.nElements:3*model.nCollocation*model.nElements]
+dvdDaComputed = dydt[3*model.nCollocation*model.nElements:]
+#Check ddudDadt
+assert(np.isclose(dudDaComputed, -dudDax+dudDaxx/params["PeM"]\
+                                    +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
+                                    *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdDa)/(1+params["beta"]*v)**2+1/params["Da"])-dudDa)).all())
+#Check ddvdDadt
+assert(np.isclose(dvdDaComputed,(-dvdDax+dvdDaxx/params["PeT"]\
+                                  +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
+                                    *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdDa)/(1+params["beta"]*v)**2+1/params["Da"])-dudDa)\
+                                    -params["delta"]*dvdDa)/params["Le"]).all())
+print("     Da Sensitivity Passes")
+
+
+#========================================== gamma Tests ==================================================================
+print("     Testing gamma")
+#Case 1: Transport and Diffusion Portion
+#Set Da=0 so the nonlinear source term is 0
+params={"PeM": 300, "PeT": 100, "f": 0, "Le": 3, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":1}
+#Define nElem=1,nColl=2 model with roots at -1 and 1 for simplicity
+model = TankModel(nCollocation=3,nElements=2,spacing="legendre",bounds=[0,1],params=params)
+x=model.collocationPoints
+#Case 1a: u=x^2, uvH=x^2, v=x^2, vvH=x^2
+u = -x**2+2*x+2/params["PeM"]
+v = -x**2+2*x+(2/params["PeT"]+params["f"]*(2-1))/(1-params["f"])
+dudgamma = -x**3-x**2+5*x+5/params["PeM"]
+dvdgamma = -x**3-x**2+5*x+(5/params["PeT"]+params["f"]*(5-2))/(1-params["f"])
+dudgammax = -3*x**2-2*x+5
+dvdgammax = -3*x**2-2*x+5
+dudgammaxx = -6*x-2
+dvdgammaxx = -6*x-2
+y=np.concatenate((u,v,dudgamma,dvdgamma),axis=0)
+dydt = model.dydtSens(y,0,paramSelect=["gamma"])
+dudgammaComputed = dydt[2*model.nCollocation*model.nElements:3*model.nCollocation*model.nElements]
+dvdgammaComputed = dydt[3*model.nCollocation*model.nElements:]
+#Check ddudgammadt
+assert(np.isclose(dudgammaComputed, -dudgammax+dudgammaxx/params["PeM"]                                        ).all())
+#Check ddvdgammadt
+assert(np.isclose(dvdgammaComputed,(-dvdgammax+dvdgammaxx/params["PeT"]-params["delta"]*dvdgamma)/params["Le"]).all())
+
+#Case 2: Nonlinear Source Portion
+params={"PeM": 200, "PeT": 100, "f": .4, "Le": 2, "Da": .8, "beta": 10, "gamma": 1.1,"delta": 2, "vH": 4}
+#Define nElem=1,nColl=2 model with roots at -1 and 1 for simplicity
+model = TankModel(nCollocation=4,nElements=2,spacing="legendre",bounds=[0,1],params=params)
+x=model.collocationPoints
+#Case 1a: u=x^2, ugamma=x^2, v=x^2, vgamma=x^2
+u = -x**3-x**2+5*x+5/params["PeM"]
+v = -x**3-x**2+5*x+(3/params["PeT"]+params["f"]*(5-2))/(1-params["f"])
+dudgamma = -x**2+2*x+2/params["PeM"]
+dvdgamma = -x**2+2*x+(2/params["PeT"]+params["f"]*(2-1))/(1-params["f"])
+dudgammax = -2*x+2
+dvdgammax = -2*x+2
+dudgammaxx = -2
+dvdgammaxx = -2
+y=np.concatenate((u,v,dudgamma,dvdgamma),axis=0)
+dydt = model.dydtSens(y,0,paramSelect=["gamma"])
+dudgammaComputed = dydt[2*model.nCollocation*model.nElements:3*model.nCollocation*model.nElements]
+dvdgammaComputed = dydt[3*model.nCollocation*model.nElements:]
+#Check ddudgammadt
+assert(np.isclose(dudgammaComputed, -dudgammax+dudgammaxx/params["PeM"]\
+                                    +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
+                                    *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdgamma)/(1+params["beta"]*v)**2\
+                                             +params["beta"]*(v+params["gamma"]*dvdgamma)/(1+params["beta"]*v))\
+                                    -dudgamma)).all())
+#Check ddvdgammadt
+assert(np.isclose(dvdgammaComputed,(-dvdgammax+dvdgammaxx/params["PeT"]\
+                                  +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
+                                    *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdgamma)/(1+params["beta"]*v)**2\
+                                             +params["beta"]*(v+params["gamma"]*dvdgamma)/(1+params["beta"]*v))-dudgamma)\
+                                    -params["delta"]*dvdgamma)/params["Le"]).all())
+print("     gamma Sensitivity Passes")
+
+#========================================== beta Tests ==================================================================
+print("     Testing beta")
+#Case 1: Transport and Diffusion Portion
+#Set Da=0 so the nonlinear source term is 0
+params={"PeM": 300, "PeT": 100, "f": 0, "Le": 3, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":1}
+#Define nElem=1,nColl=2 model with roots at -1 and 1 for simplicity
+model = TankModel(nCollocation=3,nElements=2,spacing="legendre",bounds=[0,1],params=params)
+x=model.collocationPoints
+#Case 1a: u=x^2, uvH=x^2, v=x^2, vvH=x^2
+u = -x**2+2*x+2/params["PeM"]
+v = -x**2+2*x+(2/params["PeT"]+params["f"]*(2-1))/(1-params["f"])
+dudbeta = -x**3-x**2+5*x+5/params["PeM"]
+dvdbeta = -x**3-x**2+5*x+(5/params["PeT"]+params["f"]*(5-2))/(1-params["f"])
+dudbetax = -3*x**2-2*x+5
+dvdbetax = -3*x**2-2*x+5
+dudbetaxx = -6*x-2
+dvdbetaxx = -6*x-2
+y=np.concatenate((u,v,dudbeta,dvdbeta),axis=0)
+dydt = model.dydtSens(y,0,paramSelect=["beta"])
+dudbetaComputed = dydt[2*model.nCollocation*model.nElements:3*model.nCollocation*model.nElements]
+dvdbetaComputed = dydt[3*model.nCollocation*model.nElements:]
+#Check ddudbetadt
+assert(np.isclose(dudbetaComputed, -dudbetax+dudbetaxx/params["PeM"]                                        ).all())
+#Check ddvdbetadt
+assert(np.isclose(dvdbetaComputed,(-dvdbetax+dvdbetaxx/params["PeT"]-params["delta"]*dvdbeta)/params["Le"]).all())
+
+#Case 2: Nonlinear Source Portion
+params={"PeM": 200, "PeT": 100, "f": .4, "Le": 2, "Da": .8, "beta": 10, "gamma": 1.1,"delta": 2, "vH": 4}
+#Define nElem=1,nColl=2 model with roots at -1 and 1 for simplicity
+model = TankModel(nCollocation=1,nElements=2,spacing="legendre",bounds=[0,1],params=params)
+x=model.collocationPoints
+#Case 1a: u=x^2, ubeta=x^2, v=x^2, vbeta=x^2
+u = -x**3-x**2+5*x+5/params["PeM"]
+v = -x**3-x**2+5*x+(3/params["PeT"]+params["f"]*(5-2))/(1-params["f"])
+dudbeta = -x**2+2*x+2/params["PeM"]
+dvdbeta = -x**2+2*x+(2/params["PeT"]+params["f"]*(2-1))/(1-params["f"])
+dudbetax = -2*x+2
+dvdbetax = -2*x+2
+dudbetaxx = -2
+dvdbetaxx = -2
+y=np.concatenate((u,v,dudbeta,dvdbeta),axis=0)
+dydt = model.dydtSens(y,0,paramSelect=["beta"])
+dudbetaComputed = dydt[2*model.nCollocation*model.nElements:3*model.nCollocation*model.nElements]
+dvdbetaComputed = dydt[3*model.nCollocation*model.nElements:]
+#Check ddudbetadt
+assert(np.isclose(dudbetaComputed, -dudbetax+dudbetaxx/params["PeM"]\
+                                    +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
+                                    *((1-u)*(v+params["beta"]*dvdbeta)/(1+params["beta"]*v)*params["gamma"]*\
+                                        (1+(params["beta"]*v)/(1+params["beta"]*v))\
+                                    -dudbeta)).all())
+#Check ddvdgammadt
+assert(np.isclose(dvdbetaComputed,(-dvdbetax+dvdbetaxx/params["PeT"]\
+                                  +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
+                                    *((1-u)*(v+params["beta"]*dvdbeta)/(1+params["beta"]*v)*params["gamma"]*\
+                                        (1+(params["beta"]*v)/(1+params["beta"]*v))-dudbeta)\
+                                    -params["delta"]*dvdbeta)/params["Le"]).all())
+print("     beta Sensitivity Passes")
+
+#========================================== Le Tests ==================================================================
+print("     Testing Le")
+#Case 1: Transport and Diffusion Portion
+#Set Da=0 so the nonlinear source term is 0
+params={"PeM": 300, "PeT": 100, "f": 0, "Le": 3, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":1}
+#Define nElem=1,nColl=2 model with roots at -1 and 1 for simplicity
+model = TankModel(nCollocation=3,nElements=2,spacing="legendre",bounds=[0,1],params=params)
+x=model.collocationPoints
+#Case 1a: u=x^2, uvH=x^2, v=x^2, vvH=x^2
+u = -x**2+2*x+2/params["PeM"]
+v = -x**2+2*x+(2/params["PeT"]+params["f"]*(2-1))/(1-params["f"])
+dudLe = -x**3-x**2+5*x+5/params["PeM"]
+dvdLe = -x**3-x**2+5*x+(5/params["PeT"]+params["f"]*(5-2))/(1-params["f"])
+dudLex = -3*x**2-2*x+5
+dvdLex = -3*x**2-2*x+5
+dudLexx = -6*x-2
+dvdLexx = -6*x-2
+y=np.concatenate((u,v,dudLe,dvdLe),axis=0)
+dydt = model.dydtSens(y,0,paramSelect=["Le"])
+dvdt = dydt[model.nCollocation*model.nElements:2*model.nCollocation*model.nElements]
+dudLeComputed = dydt[2*model.nCollocation*model.nElements:3*model.nCollocation*model.nElements]
+dvdLeComputed = dydt[3*model.nCollocation*model.nElements:]
+#Check ddudLedt
+assert(np.isclose(dudLeComputed, -dudLex+dudLexx/params["PeM"]).all())
+#Check ddvdLedt
+assert(np.isclose(dvdLeComputed,(-dvdLex-dvdt+dvdLexx/params["PeT"]-params["delta"]*dvdLe)/params["Le"]).all())
+
+#Case 2: Nonlinear Source Portion
+params={"PeM": 200, "PeT": 100, "f": .4, "Le": 2, "Da": .8, "beta": 10, "gamma": 1.1,"delta": 2, "vH": 4}
+#Define nElem=1,nColl=2 model with roots at -1 and 1 for simplicity
+model = TankModel(nCollocation=1,nElements=2,spacing="legendre",bounds=[0,1],params=params)
+x=model.collocationPoints
+#Case 1a: u=x^2, uLe=x^2, v=x^2, vLe=x^2
+u = -x**3-x**2+5*x+5/params["PeM"]
+v = -x**3-x**2+5*x+(3/params["PeT"]+params["f"]*(5-2))/(1-params["f"])
+dudLe = -x**2+2*x+2/params["PeM"]
+dvdLe = -x**2+2*x+(2/params["PeT"]+params["f"]*(2-1))/(1-params["f"])
+dudLex = -2*x+2
+dvdLex = -2*x+2
+dudLexx = -2
+dvdLexx = -2
+y=np.concatenate((u,v,dudLe,dvdLe),axis=0)
+dydt = model.dydtSens(y,0,paramSelect=["Le"])
+dvdt = dydt[model.nCollocation*model.nElements:2*model.nCollocation*model.nElements]
+dudLeComputed = dydt[2*model.nCollocation*model.nElements:3*model.nCollocation*model.nElements]
+dvdLeComputed = dydt[3*model.nCollocation*model.nElements:]
+#Check ddudLedt
+#Check ddudvHdt
+assert(np.isclose(dudLeComputed, -dudLex+dudLexx/params["PeM"]\
+                                    +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
+                                    *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdLe)/(1+params["beta"]*v)**2)-dudLe)).all())
+#Check ddvdLedt
+assert(np.isclose(dvdLeComputed,(-dvdt-dvdLex+dvdLexx/params["PeT"]\
+                                  +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
+                                    *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdLe)/(1+params["beta"]*v)**2)-dudLe)\
+                                    -params["delta"]*dvdLe)/params["Le"]).all())
+print("     Le Sensitivity Passes")
