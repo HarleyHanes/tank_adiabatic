@@ -480,10 +480,7 @@ class TankModel:
         nPoints=self.nElements*self.nCollocation
         u=y[0:nPoints]
         v=y[nPoints:2*nPoints]
-        dudt=np.dot(self.massRHSmat,u)+self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))
-        dvdt=np.dot(self.tempRHSmat,v)+(self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))
-                                    +self.params["delta"]*(self.params["vH"]-v))/self.params["Le"]
-        dydt=np.append(dudt,dvdt)
+        dydt=self.dydt(y[0:2*nPoints],t)
         eqCounter=2
         for param in paramSelect:
             dudParam = y[eqCounter*nPoints:(eqCounter+1)*nPoints]
@@ -492,9 +489,9 @@ class TankModel:
                 case "vH":
                     ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
                                 *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam/(1+self.params["beta"]*v)**2))-dudParam)
-                    ddvdParamdt=np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                    ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
                                 *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam/(1+self.params["beta"]*v)**2))-dudParam)\
-                                +self.params["delta"]-self.params["vH"]*dvdParam
+                                +self.params["delta"]*(1-dvdParam))/self.params["Le"]
                     dydt=np.append(dydt,ddudParamdt)
                     dydt=np.append(dydt,ddvdParamdt)
 
