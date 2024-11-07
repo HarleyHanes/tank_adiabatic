@@ -86,6 +86,67 @@ expectedSecondOrderMat[3,3:7]=np.array([l20xx[3], l21xx[3],l22xx[3],l23xx[3]])
 assert(np.isclose(expectedSecondOrderMat, model.secondOrderMat).all())
 print("     Advec/ Diffusion Matrices Passing")
 
+print("     Testing PeM Sensitivity Boundary Matrix")
+params={"PeM": 10, "PeT": 12, "f": 1, "Le": 1, "Da": 1, "beta": 1, "gamma": 1,"delta": 1, "vH":1}
+model = TankModel(nCollocation=1,nElements=2,spacing="legendre",bounds=[0,1],params=params)
+x=np.array([0, 1, 2, 3, 4])/4
+l10=8*x**2-6*x+1
+l10x=16*x-6
+l11=8*x-16*x**2
+l11x=8-32*x
+l12=8*x**2-2*x
+l12x=16*x-2
+l20=8*x**2-14*x+6
+l20x=16*x-14
+l21=-16*x**2+24*x-8
+l21x=-32*x+24
+l22=8*x**2-10*x+3
+l22x=16*x-10
+peMsensBoundaryMat=np.zeros((2*((model.nCollocation+1)*model.nElements+1),2*(model.nCollocation+1)*model.nElements+2))
+peMsensBoundaryMat[0:5,0:5]=np.array([
+    [l10x[0]-params["PeM"], l11x[0], l12x[0],         0 ,       0],
+    [0,                     1,       0,               0,        0],
+    [l10x[2],               l11x[2], l12x[2]-l20x[2], -l21x[2], -l22x[2]],
+    [0,                     0,       0,               1,        0],
+    [0,                     0,       l20x[4],         l21x[4], l22x[4]]])
+peMsensBoundaryMat[5:,5:]=peMsensBoundaryMat[0:5,0:5]
+peMsensBoundaryMat[5,0]=-1
+#Check Boundary matrices
+assert(np.isclose(model.dudPeMboundaryMat,peMsensBoundaryMat).all())
+print("     PeM Sensitivity Boundary Matrix Passed")
+
+print("     Testing PeT Sensitivity Boundary Matrix")
+params={"PeM": 10, "PeT": 12, "f": 2, "Le": 1, "Da": 1, "beta": 1, "gamma": 1,"delta": 1, "vH":1}
+model = TankModel(nCollocation=1,nElements=2,spacing="legendre",bounds=[0,1],params=params)
+x=np.array([0, 1, 2, 3, 4])/4
+l10=8*x**2-6*x+1
+l10x=16*x-6
+l11=8*x-16*x**2
+l11x=8-32*x
+l12=8*x**2-2*x
+l12x=16*x-2
+l20=8*x**2-14*x+6
+l20x=16*x-14
+l21=-16*x**2+24*x-8
+l21x=-32*x+24
+l22=8*x**2-10*x+3
+l22x=16*x-10
+peTsensBoundaryMat=np.zeros((2*((model.nCollocation+1)*model.nElements+1),2*(model.nCollocation+1)*model.nElements+2))
+peTsensBoundaryMat[0:5,0:5]=np.array([
+    [l10x[0]-params["PeT"], l11x[0], l12x[0],         0 ,       params["PeT"]*params["f"]],
+    [0,                     1,       0,               0,        0],
+    [l10x[2],               l11x[2], l12x[2]-l20x[2], -l21x[2], -l22x[2]],
+    [0,                     0,       0,               1,        0],
+    [0,                     0,       l20x[4],         l21x[4], l22x[4]]])
+peTsensBoundaryMat[5:,5:]=peTsensBoundaryMat[0:5,0:5]
+peTsensBoundaryMat[5,0]=-1
+peTsensBoundaryMat[5,4]=params["f"]
+#Check Boundary matrices
+# print(model.dvdPeTboundaryMat)
+# print(peTsensBoundaryMat)
+assert(np.isclose(model.dvdPeTboundaryMat,peTsensBoundaryMat).all())
+print("     PeT Sensitivity Boundary Matrix Passed")
+
 print("     Testing dydt Computation")
 #Check dydt computed values
 params={"PeM": 1, "PeT": 1, "f":0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}

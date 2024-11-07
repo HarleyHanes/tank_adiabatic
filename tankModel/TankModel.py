@@ -389,10 +389,6 @@ class TankModel:
                     =self.elements[element-1].basisFirstDeriv(self.elements[element].interpolationPoints[0])
                 massBoundaryMat[iRow,(element*(self.nCollocation+1)):((element+1)*(self.nCollocation+1)+1)] \
                     -=self.elements[element].basisFirstDeriv(self.elements[element].interpolationPoints[0])
-        #Print Condition Numbers
-        # print("Mass Boundary Condition Number: " + str(np.linalg.cond(massBoundaryMat)))
-        # print("Temp Boundary Condition Number: " + str(np.linalg.cond(tempBoundaryMat)))
-        #Compute inverse of Boundary mat''
         self.massBoundaryMat=massBoundaryMat
         self.tempBoundaryMat=tempBoundaryMat
         pointExpansionMat=np.zeros((self.nElements*(self.nCollocation+1)+1,self.nElements*self.nCollocation))
@@ -404,8 +400,6 @@ class TankModel:
         self.pointExpansionMat=pointExpansionMat
         self.massFullCoeffMat=np.linalg.solve(massBoundaryMat,pointExpansionMat)
         self.tempFullCoeffMat=np.linalg.solve(tempBoundaryMat,pointExpansionMat)
-        massMatError=np.max(np.abs(pointExpansionMat-np.matmul(massBoundaryMat,self.massFullCoeffMat)))
-        tempMatError=np.max(np.abs(pointExpansionMat-np.matmul(tempBoundaryMat,self.tempFullCoeffMat)))
         if self.verbosity>1:
             if self.verbosity>2:
                 print("Point Expansion Matrix")
@@ -449,10 +443,35 @@ class TankModel:
                 print("Temp RHS Matrix")
                 print(self.tempRHSmat)
         
-        # jointRHSmat = np.zeros((2*self.nElements*self.nCollocation,2*(self.nElements*(self.nCollocation+1)+1)))
-        # jointRHSmat[0:(self.nElements*self.nCollocation),0:(self.nElements*(self.nCollocation+1)+1)]=self.massRHSmat
-        # jointRHSmat[(self.nElements*self.nCollocation):,(self.nElements*(self.nCollocation+1)+1):]=self.tempRHSmat
-        # self.jointRHSmat=jointRHSmat
+        #Sensitivity Matrices
+        doublePointExpansionMat=np.append(pointExpansionMat,np.zeros(pointExpansionMat.shape),axis=1)
+        doublePointExpansionMat=np.append(doublePointExpansionMat,np.append(np.zeros(pointExpansionMat.shape),pointExpansionMat,axis=1),axis=0)
+        dudPeMboundaryMat=np.zeros((2*((self.nCollocation+1)*self.nElements+1),2*((self.nCollocation+1)*self.nElements+1)))
+        dudPeMboundaryMat[:(self.nCollocation+1)*self.nElements+1,:(self.nCollocation+1)*self.nElements+1]=self.massBoundaryMat
+        dudPeMboundaryMat[(self.nCollocation+1)*self.nElements+1:,(self.nCollocation+1)*self.nElements+1:]=self.massBoundaryMat
+        dudPeMboundaryMat[(self.nCollocation+1)*self.nElements+1,0]=-1
+        self.dudPeMboundaryMat=dudPeMboundaryMat
+        dudPeMfullCoeffMat=np.linalg.solve(dudPeMboundaryMat,doublePointExpansionMat)[(self.nCollocation+1)*self.nElements+1:,]
+        self.dudPeMrhsMat=np.matmul(-self.firstOrderMat+1/self.params["PeM"]*self.secondOrderMat,dudPeMfullCoeffMat)
+        self.dudPeMSecondOrderMat=np.matmul(self.secondOrderMat/(self.params["PeM"]**2),self.massFullCoeffMat)
+
+        dvdPeTboundaryMat=np.zeros((2*((self.nCollocation+1)*self.nElements+1),2*((self.nCollocation+1)*self.nElements+1)))
+        dvdPeTboundaryMat[:(self.nCollocation+1)*self.nElements+1,:(self.nCollocation+1)*self.nElements+1]=self.tempBoundaryMat
+        dvdPeTboundaryMat[(self.nCollocation+1)*self.nElements+1:,(self.nCollocation+1)*self.nElements+1:]=self.tempBoundaryMat
+        dvdPeTboundaryMat[(self.nCollocation+1)*self.nElements+1,0]=-1
+        dvdPeTboundaryMat[(self.nCollocation+1)*self.nElements+1,(self.nCollocation+1)*self.nElements]=self.params["f"]
+        self.dvdPeTboundaryMat=dvdPeTboundaryMat
+        dvdPeTfullCoeffMat=np.linalg.solve(dvdPeTboundaryMat,doublePointExpansionMat)[(self.nCollocation+1)*self.nElements+1:,]
+        self.dvdPeTrhsMat=np.matmul(-self.firstOrderMat+1/self.params["PeT"]*self.secondOrderMat,dvdPeTfullCoeffMat)
+        self.dvdPeTSecondOrderMat=np.matmul(self.secondOrderMat/(self.params["PeT"]**2),self.tempFullCoeffMat)
+
+        dvdfboundaryMat=np.zeros((2*((self.nCollocation+1)*self.nElements+1),2*((self.nCollocation+1)*self.nElements+1)))
+        dvdfboundaryMat[:(self.nCollocation+1)*self.nElements+1,:(self.nCollocation+1)*self.nElements+1]=self.tempBoundaryMat
+        dvdfboundaryMat[(self.nCollocation+1)*self.nElements+1:,(self.nCollocation+1)*self.nElements+1:]=self.tempBoundaryMat
+        dvdfboundaryMat[(self.nCollocation+1)*self.nElements+1,(self.nCollocation+1)*self.nElements]=self.params["PeT"]
+        self.dvdfboundaryMat=dvdfboundaryMat
+        dvdffullCoeffMat=np.linalg.solve(dvdfboundaryMat,doublePointExpansionMat)[(self.nCollocation+1)*self.nElements+1:,]
+        self.dvdfrhsMat=np.matmul(-self.firstOrderMat+1/self.params["PeT"]*self.secondOrderMat,dvdffullCoeffMat)
         
     
     #================================Eval Functions==========================================
@@ -480,10 +499,7 @@ class TankModel:
         nPoints=self.nElements*self.nCollocation
         u=y[0:nPoints]
         v=y[nPoints:2*nPoints]
-        dudt=np.dot(self.massRHSmat,u)+self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))
-        dvdt=np.dot(self.tempRHSmat,v)+(self.params["Da"]*(1-u)*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))
-                                    +self.params["delta"]*(self.params["vH"]-v))/self.params["Le"]
-        dydt=np.append(dudt,dvdt)
+        dydt=self.dydt(y[0:2*nPoints],t)
         eqCounter=2
         for param in paramSelect:
             dudParam = y[eqCounter*nPoints:(eqCounter+1)*nPoints]
@@ -491,13 +507,88 @@ class TankModel:
             match param:
                 case "vH":
                     ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam/(1+self.params["beta"]*v)**2))-dudParam)
-                    ddvdParamdt=np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam/(1+self.params["beta"]*v)**2))-dudParam)\
-                                +self.params["delta"]-self.params["vH"]*dvdParam
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)
+                    ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
+                                +self.params["delta"]*(1-dvdParam))/self.params["Le"]
                     dydt=np.append(dydt,ddudParamdt)
                     dydt=np.append(dydt,ddvdParamdt)
-
+                case "delta":
+                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)
+                    ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
+                                +self.params["vH"]-v-self.params["delta"]*dvdParam)/self.params["Le"]
+                    dydt=np.append(dydt,ddudParamdt)
+                    dydt=np.append(dydt,ddvdParamdt)
+                case "Da":
+                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
+                                    +np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))*(1-u)
+                    ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
+                                    +np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))*(1-u)-self.params["delta"]*dvdParam)/self.params["Le"]
+                    dydt=np.append(dydt,ddudParamdt)
+                    dydt=np.append(dydt,ddvdParamdt)
+                case "gamma":
+                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*self.params["beta"]*(self.params["gamma"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2\
+                                                                 +(v+self.params["gamma"]*dvdParam)/(1+self.params["beta"]*v))-dudParam)
+                    ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*self.params["beta"]*(self.params["gamma"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2\
+                                                                 +(v+self.params["gamma"]*dvdParam)/(1+self.params["beta"]*v))-dudParam)\
+                                   -self.params["delta"]*dvdParam)/self.params["Le"]
+                    dydt=np.append(dydt,ddudParamdt)
+                    dydt=np.append(dydt,ddvdParamdt)
+                case "beta":
+                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*self.params["gamma"]*(v+self.params["beta"]*dvdParam)/(1+self.params["beta"]*v)\
+                                      *(1+(self.params["beta"]*v)/(1+self.params["beta"]*v))-dudParam)
+                    ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*self.params["gamma"]*(v+self.params["beta"]*dvdParam)/(1+self.params["beta"]*v)\
+                                      *(1+(self.params["beta"]*v)/(1+self.params["beta"]*v))-dudParam)\
+                                   -self.params["delta"]*dvdParam)/self.params["Le"]
+                    dydt=np.append(dydt,ddudParamdt)
+                    dydt=np.append(dydt,ddvdParamdt)
+                case "Le":
+                    dvdt = dydt[self.nCollocation*self.nElements:2*self.nCollocation*self.nElements]
+                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)
+                    ddvdParamdt=(-dvdt+np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
+                                    -self.params["delta"]*dvdParam)/self.params["Le"]
+                    dydt=np.append(dydt,ddudParamdt)
+                    dydt=np.append(dydt,ddvdParamdt)
+                case "PeM":
+                    uCombined = np.append(u,dudParam)
+                    ddudParamdt=np.dot(self.dudPeMrhsMat,uCombined)-np.dot(self.dudPeMSecondOrderMat,u)\
+                                    +self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)
+                    ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
+                                    -self.params["delta"]*dvdParam)/self.params["Le"]
+                    dydt=np.append(dydt,ddudParamdt)
+                    dydt=np.append(dydt,ddvdParamdt)
+                case "PeT":
+                    vCombined = np.append(v,dvdParam)
+                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)
+                    ddvdParamdt=(np.dot(self.dvdPeTrhsMat,vCombined)-np.dot(self.dvdPeTSecondOrderMat,v)\
+                                 +self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
+                                -self.params["delta"]*dvdParam)/self.params["Le"]
+                    dydt=np.append(dydt,ddudParamdt)
+                    dydt=np.append(dydt,ddvdParamdt)
+                case "f":
+                    vCombined = np.append(v,dvdParam)
+                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)
+                    ddvdParamdt=(np.dot(self.dvdfrhsMat,vCombined)\
+                                 +self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
+                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
+                                -self.params["delta"]*dvdParam)/self.params["Le"]
+                    dydt=np.append(dydt,ddudParamdt)
+                    dydt=np.append(dydt,ddvdParamdt)
             eqCounter+=2
         return dydt
     

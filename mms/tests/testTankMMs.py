@@ -34,7 +34,7 @@ spatialOrder = 2
 params = {"PeM": 1, "PeT": 1, "f": 5, "Le": 0, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
 temporal = lambda t: 1+1*t
 temporaldt = lambda t: 1+0*t
-u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = tankMMS.constructMMSsolutionFunction(spatialOrder,params,temporal,temporaldt)
+u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = tankMMS.constructPolynomialMMSsolutionFunction(spatialOrder,params,temporal,temporaldt)
 
 #Nominal Value tests
 uExpected= lambda t,x:temporal(t)*(-x**2+2*x+2/params["PeM"])
