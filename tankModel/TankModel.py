@@ -769,13 +769,14 @@ class TankModel:
         #Check x has at least 3 points 
         assert(np.size(x)>=3)
         #Get quadrature weights using simpson's rule
-        w=np.ones(x.size)/(3*(self.bounds[1]-self.bounds[0]))
-        w[1:2:-1]*=4
+        w=np.ones(x.size)/3*(self.bounds[1]-self.bounds[0])/(x.size-1)
+        w[1:x.size-1:2]*=4
         if np.size(x)>=5:
-            w[2:2:-2]*=2
-        self.podModesWeighted=podModes*w
-        self.romFirstOrderMat = np.dot(self.podModesWeighted,podModesx)
-        self.romSecondOrderMat = np.dot(self.podModesWeighted,podModesxx)
+            w[2:x.size-2:2]*=2
+        # Do double transpose so casting dimensions match for w
+        self.podModesWeighted=(podModes.transpose()*w).transpose()
+        self.romFirstOrderMat = self.podModesWeighted.transpose() @ podModesx
+        self.romSecondOrderMat = self.podModesWeighted.transpose() @ podModesxx
 
 
     def dydtPodRom(self,y,t,nModes,paramSelect=[],penaltyStrength=0):
