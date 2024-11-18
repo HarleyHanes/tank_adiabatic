@@ -727,20 +727,30 @@ class TankModel:
     def constructPodRom(self,modelCoeff,x,thresholdEnergy):
         #Get Snapshots and derivatives of snapshots
         uEval,vEval = self.eval(x,modelCoeff,output="seperated")
-        snapshots = np.concatenate((uEval,vEval),axis=1)
 
         uEvalx,vEvalx = self.eval(x,modelCoeff, output="seperated", deriv =1)
-        snapshotsx = np.concatenate((uEvalx,vEvalx),axis=1)
 
         uEvalxx,vEvalxx = self.eval(x,modelCoeff, output="seperated", deriv =2)
-        snapshotsxx = np.concatenate((uEvalxx,vEvalxx),axis=1)
-        podModes,podModesx, podModesxx, timeModes =self.computePODmodes(snapshots,snapshotsx,snapshotsxx,thresholdEnergy)
+        uModes, uModesx, uModesxx, uTimeModes =self.computePODmodes(uEval,uEvalx,uEvalxx,thresholdEnergy)
+        vModes, vModesx, vModesxx, vTimeModes =self.computePODmodes(vEval,vEvalx,vEvalxx,thresholdEnergy)
 
-        self.timeModes = timeModes
-        self.podModes=podModes
-        self.podModesx=podModesx
-        self.podModesxx=podModesxx
-        self.computeRomMatrices(podModes,podModesx,podModesxx,x)
+        uModesWeighted, uRomFirstOrderMat, uRomSecondOrderMat = self.computeRomMatrices(uModes,uModesx,uModesxx,x)
+        vModesWeighted, vRomFirstOrderMat, vRomSecondOrderMat = self.computeRomMatrices(vModes,vModesx,vModesxx,x)
+        self.uTimeModes = uTimeModes
+        self.uModes= uModes
+        self.uModesx = uModesx
+        self.uModesxx= uModesxx
+        self.uModesWeighted = uModesWeighted
+        self.uRomFirstOrderMat = uRomFirstOrderMat
+        self.uRomSecondOrderMat = uRomSecondOrderMat
+        self.vTimeModes = vTimeModes
+        self.vModes= vModes
+        self.vModesx = vModesx
+        self.vModesxx= vModesxx
+        self.vModesWeighted = vModesWeighted
+        self.vRomFirstOrderMat = vRomFirstOrderMat
+        self.vRomSecondOrderMat = vRomSecondOrderMat
+        
     
     def computePODmodes(self,snapshots, snapshotsx, snapshotsxx,thresholdEnergy):
         #Evaluation model at x points to 
@@ -768,15 +778,20 @@ class TankModel:
         assert(np.size(x)/2 != np.round(np.size(x)/2))
         #Check x has at least 3 points 
         assert(np.size(x)>=3)
+        #Check x is between bounds
+        assert(np.isclose(x[0],self.bounds[0]))
+        #Check x is between bounds
+        assert(np.isclose(x[-1],self.bounds[-1]))
         #Get quadrature weights using simpson's rule
         w=np.ones(x.size)/3*(self.bounds[1]-self.bounds[0])/(x.size-1)
         w[1:x.size-1:2]*=4
         if np.size(x)>=5:
             w[2:x.size-2:2]*=2
         # Do double transpose so casting dimensions match for w
-        self.podModesWeighted=(podModes.transpose()*w).transpose()
-        self.romFirstOrderMat = self.podModesWeighted.transpose() @ podModesx
-        self.romSecondOrderMat = self.podModesWeighted.transpose() @ podModesxx
+        podModesWeighted=(podModes.transpose()*w).transpose()
+        romFirstOrderMat = self.podModesWeighted.transpose() @ podModesx
+        romSecondOrderMat = self.podModesWeighted.transpose() @ podModesxx
+        return podModesWeighted, romFirstOrderMat, romSecondOrderMat
 
 
     def dydtPodRom(self,y,t,nModes,paramSelect=[],penaltyStrength=0):
@@ -784,22 +799,24 @@ class TankModel:
         v=y[nModes:2*nModes]
         uFull=np.matmul(self.podModes,u)
         vFull=np.matmul(self.podModes,v)
-        dudt=np.dot(self.romSecondOrderMat,u)/self.params["PeM"]-np.dot(self.romFirstOrderMat,u)\
-                +self.params["Da"]*np.dot(self.podModesWeighted,(1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
-                                                                                    *vFull/(1+self.params["beta"]*vFull)))
-        dvdt=1/self.params["Le"]*(np.dot(self.romSecondOrderMat,v)/self.params["PeT"]-np.dot(self.romFirstOrderMat,v)+self.params["delta"]*(1-v)\
-                +self.params["Da"]*np.dot(self.podModesWeighted,(1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
-                                                                                    *vFull/(1+self.params["beta"]*vFull))))
+        dudt=(self.uRomSecondOrderMat/self.params["PeM"]-self.uRomFirstOrderMat)@u\
+                +self.params["Da"]*self.uModesWeighted.transpose()\
+                                    @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
+                                      *vFull/(1+self.params["beta"]*vFull)))
+        dvdt=((self.vRomSecondOrderMat/self.params["PeT"]-self.vRomFirstOrderMat)@v+self.params["delta"]*(self.params["vH"]-v)\
+                    +self.params["Da"]*self.vModesWeighted.transpose()
+                                        @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
+                                          *vFull/(1+self.params["beta"]*vFull))))/self.params["Le"]
         dydt = np.append(dudt,dvdt)
         eqCounter=2
         for param in paramSelect:
             dudParam = y[eqCounter*nModes:(eqCounter+1)*nModes]
             dvdParam = y[(eqCounter+1)*nModes:(eqCounter+2)*nModes]
-            dudParamFull=np.matmul(self.podModes,dudParam)
-            dvdParamFull=np.matmul(self.podModes,dvdParam)
+            dudParamFull=np.matmul(self.uModes,dudParam)
+            dvdParamFull=np.matmul(self.vModes,dvdParam)
             #Define common derivative terms
-            ddudParamdt=np.dot(self.romSecondOrderMat,dudParam)/self.params["PeM"]-np.dot(self.romFirstOrderMat,dudParam)
-            ddvdParamdt=np.dot(self.romSecondOrderMat,dvdParam)/self.params["PeT"]-np.dot(self.romFirstOrderMat,dvdParam)
+            ddudParamdt=self.uRomSecondOrderMat @ dudParam/self.params["PeM"]-np.dot(self.uRomFirstOrderMat,dudParam)
+            ddvdParamdt=self.vRomSecondOrderMat @ dvdParam/self.params["PeT"]-np.dot(self.vRomFirstOrderMat,dvdParam)
             #Construct Additional Linear terms
             if param=="vH":
                 ddvdParamdt+=-self.params["vH"]*dvdParam+self.params["delta"]
@@ -808,50 +825,50 @@ class TankModel:
             elif param=="Le":
                 ddvdParamdt+=-dvdt-self.params["delta"]*dvdParam 
             elif param=="PeM":
-                ddudParamdt+=-np.dot(self.romSecondOrderMat,u)/(self.params["PeM"]**2)
+                ddudParamdt+=-self.uRomSecondOrderMat@u/(self.params["PeM"]**2)
                 ddvdParamdt+=-self.params["delta"]*dvdParam
             elif param=="PeT":
-                ddvdParamdt+=-np.dot(self.romSecondOrderMat,v)/(self.params["PeT"]**2)-self.params["delta"]*dvdParam
+                ddvdParamdt+=-self.vRomSecondOrderMat@v/(self.params["PeT"]**2)-self.params["delta"]*dvdParam
             elif param in ["Da", "gamma","beta","f"]:
                 ddvdParamdt+=-self.params["delta"]*dvdParam
 
 
             # Construct nonlinear term
             if param in ["vH", "delta","Le","PeM","PeT","f"]:
-                nonlinearTerm=np.dot(self.podModesWeighted,self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
-                                                                                     *vFull/(1+self.params["beta"]*vFull))\
-                                                                             *((1-uFull)*(self.params["gamma"]*self.params["beta"]\
-                                                                                         *(1+2*self.params["beta"]*vFull*dvdParamFull)\
-                                                                                        /((1+self.params["beta"]*vFull)**2))\
-                                                                                - dudParamFull))
+                nonlinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
+                                                *vFull/(1+self.params["beta"]*vFull))\
+                                                *((1-uFull)*(self.params["gamma"]*self.params["beta"]\
+                                                           *(1+2*self.params["beta"]*vFull*dvdParamFull)\
+                                                           /((1+self.params["beta"]*vFull)**2))\
+                                                - dudParamFull)
             elif param=="Da":
-                nonlinearTerm=np.dot(self.podModesWeighted,self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
-                                                                                     *vFull/(1+self.params["beta"]*vFull))\
-                                                                             *((1-uFull)*(self.params["gamma"]*self.params["beta"]\
-                                                                                         *(1+2*self.params["beta"]*vFull*dvdParamFull)\
-                                                                                        /((1+self.params["beta"]*vFull)**2))\
-                                                                                - dudParamFull)\
-                                                           +np.exp(self.params["gamma"]*self.params["beta"]\
-                                                                    *vFull/(1+self.params["beta"]*vFull))*(1-uFull))
+                nonlinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
+                                                       *vFull/(1+self.params["beta"]*vFull))\
+                                               *((1-uFull)*(self.params["gamma"]*self.params["beta"]\
+                                                           *(1+2*self.params["beta"]*vFull*dvdParamFull)\
+                                                           /((1+self.params["beta"]*vFull)**2))\
+                                               - dudParamFull)\
+                             +np.exp(self.params["gamma"]*self.params["beta"]\
+                                     *vFull/(1+self.params["beta"]*vFull))*(1-uFull)
             elif param=="beta":
-                nonlinearTerm=np.dot(self.podModesWeighted,self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
-                                                                                     *vFull/(1+self.params["beta"]*vFull))\
-                                                                             *((1-uFull)*self.params["gamma"]\
-                                                                               *(vFull+self.params["beta"]*dvdParamFull)/(1+self.params["beta"]*vFull)\
-                                                                               *(1+self.params["beta"]*vFull/(1+self.params["beta"]*vFull))
-                                                                                - dudParamFull))
+                nonlinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
+                                                       *vFull/(1+self.params["beta"]*vFull))\
+                                               *((1-uFull)*self.params["gamma"]\
+                                                 *(vFull+self.params["beta"]*dvdParamFull)/(1+self.params["beta"]*vFull)\
+                                                 *(1+self.params["beta"]*vFull/(1+self.params["beta"]*vFull))
+                                                 - dudParamFull)
             elif param=="gamma":
-                nonlinearTerm=np.dot(self.podModesWeighted,self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
-                                                                                     *vFull/(1+self.params["beta"]*vFull))\
-                                                                             *((1-uFull)*self.params["beta"]/(1+self.params["beta"]*vFull)\
-                                                                               *(vFull+self.params["gamma"]*dvdParamFull\
-                                                                                 +(self.params["beta"]*self.params["gamma"]*vFull*dvdParamFull)\
-                                                                                  /(1+self.params["beta"]*vFull))
-                                                                                - dudParamFull))
+                nonlinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
+                                                       *vFull/(1+self.params["beta"]*vFull))\
+                                               *((1-uFull)*self.params["beta"]/(1+self.params["beta"]*vFull)\
+                                                *(vFull+self.params["gamma"]*dvdParamFull\
+                                                    +(self.params["beta"]*self.params["gamma"]*vFull*dvdParamFull)\
+                                                    /(1+self.params["beta"]*vFull))
+                                               - dudParamFull)
             else:
                 raise(Exception("Invalid param value: "+param))            
-            ddudParamdt+=nonlinearTerm
-            ddvdParamdt+=nonlinearTerm
+            ddudParamdt+=self.uModesWeighted.transpose() @ nonlinearTerm
+            ddvdParamdt+=self.vModesWeighted.transpose() @ nonlinearTerm
             #Construct boundary term
             if param in ["vH", "delta", "Le", "Da","beta","gamma"]:
                 dudParamxLeftBoundary=np.dot(self.podModesx[0,:],dudParam)
