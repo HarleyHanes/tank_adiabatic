@@ -794,11 +794,11 @@ class TankModel:
         return podModesWeighted, romFirstOrderMat, romSecondOrderMat
 
 
-    def dydtPodRom(self,y,t,nModes,paramSelect=[],penaltyStrength=0):
-        u=y[0:nModes]
-        v=y[nModes:2*nModes]
-        uFull=np.matmul(self.podModes,u)
-        vFull=np.matmul(self.podModes,v)
+    def dydtPodRom(self,y,t,nModesU,nModesV,paramSelect=[],penaltyStrength=0):
+        u=y[0:nModesU]
+        v=y[nModesU:nModesU+nModesV]
+        uFull=np.matmul(self.uModes,u)
+        vFull=np.matmul(self.vModes,v)
         dudt=(self.uRomSecondOrderMat/self.params["PeM"]-self.uRomFirstOrderMat)@u\
                 +self.params["Da"]*self.uModesWeighted.transpose()\
                                     @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
@@ -808,10 +808,10 @@ class TankModel:
                                         @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
                                           *vFull/(1+self.params["beta"]*vFull))))/self.params["Le"]
         dydt = np.append(dudt,dvdt)
-        eqCounter=2
+        eqCounter=1
         for param in paramSelect:
-            dudParam = y[eqCounter*nModes:(eqCounter+1)*nModes]
-            dvdParam = y[(eqCounter+1)*nModes:(eqCounter+2)*nModes]
+            dudParam = y[eqCounter*(nModesU+nModesV):eqCounter*(nModesU+nModesV)+nModesU]
+            dvdParam = y[eqCounter*(nModesU+nModesV)+nModesU:(eqCounter+1)*(nModesU+nModesV)]
             dudParamFull=np.matmul(self.uModes,dudParam)
             dvdParamFull=np.matmul(self.vModes,dvdParam)
             #Define common derivative terms
@@ -891,5 +891,5 @@ class TankModel:
             ddvdParamdt/=self.params["Le"]
             dydt=np.append(dydt,ddudParamdt)
             dydt=np.append(dydt,ddvdParamdt)
-            eqCounter+=2
+            eqCounter+=1
         return dydt
