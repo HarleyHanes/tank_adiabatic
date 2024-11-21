@@ -204,14 +204,15 @@ dvdgammaComputed = dydt[3*model.nCollocation*model.nElements:]
 #Check ddudgammadt
 assert(np.isclose(dudgammaComputed, -dudgammax+dudgammaxx/params["PeM"]\
                                     +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
-                                    *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdgamma)/(1+params["beta"]*v)**2\
-                                             +params["beta"]*(v+params["gamma"]*dvdgamma)/(1+params["beta"]*v))\
+                                    *((1-u)*params["beta"]*(params["gamma"]*params["beta"]*v*dvdgamma/(1+params["beta"]*v)**2\
+                                             +(v+params["gamma"]*dvdgamma)/(1+params["beta"]*v))\
                                     -dudgamma)).all())
 #Check ddvdgammadt
 assert(np.isclose(dvdgammaComputed,(-dvdgammax+dvdgammaxx/params["PeT"]\
                                   +params["Da"]*np.exp(params["gamma"]*params["beta"]*v/(1+params["beta"]*v))\
-                                    *((1-u)*(params["gamma"]*params["beta"]*(1+2*params["beta"]*v*dvdgamma)/(1+params["beta"]*v)**2\
-                                             +params["beta"]*(v+params["gamma"]*dvdgamma)/(1+params["beta"]*v))-dudgamma)\
+                                    *((1-u)*params["beta"]*(params["gamma"]*params["beta"]*v*dvdgamma/(1+params["beta"]*v)**2\
+                                             +(v+params["gamma"]*dvdgamma)/(1+params["beta"]*v))\
+                                      -dudgamma)\
                                     -params["delta"]*dvdgamma)/params["Le"]).all())
 print("     gamma Sensitivity Passes")
 

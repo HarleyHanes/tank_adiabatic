@@ -532,10 +532,10 @@ class TankModel:
                     dydt=np.append(dydt,ddvdParamdt)
                 case "gamma":
                     ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*self.params["beta"]*(self.params["gamma"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2\
+                                    *((1-u)*self.params["beta"]*(self.params["gamma"]*self.params["beta"]*v*dvdParam/(1+self.params["beta"]*v)**2\
                                                                  +(v+self.params["gamma"]*dvdParam)/(1+self.params["beta"]*v))-dudParam)
                     ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*self.params["beta"]*(self.params["gamma"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2\
+                                    *((1-u)*self.params["beta"]*(self.params["gamma"]*self.params["beta"]*v*dvdParam/(1+self.params["beta"]*v)**2\
                                                                  +(v+self.params["gamma"]*dvdParam)/(1+self.params["beta"]*v))-dudParam)\
                                    -self.params["delta"]*dvdParam)/self.params["Le"]
                     dydt=np.append(dydt,ddudParamdt)
