@@ -792,6 +792,11 @@ class TankModel:
         modesx = modesx[:,:nModes]
         modesxx = modesxx[:,:nModes]
         timeModes = timeModes[:nModes,:]*S[:nModes].reshape((nModes,1))
+        #Check the POD decomposition is accurate in FOM space
+        podError = np.sqrt(np.sum((snapshots-modes@timeModes)**2)/np.sum(snapshots**2))
+        podIcError = np.sqrt(np.sum((snapshots[:,0]-(modes@timeModes)[:,0])**2)/np.sum(snapshots[:,0]**2))
+        print("POD Relative Error: ", podError)
+        print("POD Relative IC Error: ", podIcError)
         return modes, modesx, modesxx, timeModes
 
     def computeRomMatrices(self,mean, podModes,podModesx,podModesxx,x):
