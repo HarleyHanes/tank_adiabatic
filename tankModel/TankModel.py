@@ -727,37 +727,58 @@ class TankModel:
     def constructPodRom(self,modelCoeff,x,thresholdEnergy):
         #Get Snapshots and derivatives of snapshots
         uEval,vEval = self.eval(x,modelCoeff,output="seperated")
-
+        print("uEval Shape: ", uEval.shape)
+        #Compute Mean, keeping dimension so casting works
+        uMean = np.mean(uEval,axis=0)
+        print("uMean Shape: ", uMean.shape)
+        vMean = np.mean(vEval,axis=0)
+        uEval-=uMean
+        vEval-=vMean
         uEvalx,vEvalx = self.eval(x,modelCoeff, output="seperated", deriv =1)
+        uEvalx-=uMean
+        vEvalx-=vMean
 
         uEvalxx,vEvalxx = self.eval(x,modelCoeff, output="seperated", deriv =2)
-        uModes, uModesx, uModesxx, uTimeModes =self.computePODmodes(uEval,uEvalx,uEvalxx,thresholdEnergy)
-        vModes, vModesx, vModesxx, vTimeModes =self.computePODmodes(vEval,vEvalx,vEvalxx,thresholdEnergy)
-
-        uModesWeighted, uRomFirstOrderMat, uRomSecondOrderMat = self.computeRomMatrices(uModes,uModesx,uModesxx,x)
-        vModesWeighted, vRomFirstOrderMat, vRomSecondOrderMat = self.computeRomMatrices(vModes,vModesx,vModesxx,x)
+        uEvalxx-=uMean
+        vEvalxx-=vMean
+        #Use transpose of evals since eval is time x space but standard snapshot matrix is space x time
+        uModes, uModesx, uModesxx, uTimeModes =self.computePODmodes(uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),thresholdEnergy)
+        vModes, vModesx, vModesxx, vTimeModes =self.computePODmodes(vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),thresholdEnergy)
+        
+        uModesWeighted, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean, uRomSecondOrderMat, uRomSecondOrderMean\
+              = self.computeRomMatrices(uMean, uModes,uModesx,uModesxx,x)
+        vModesWeighted, vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean, vRomSecondOrderMat, vRomSecondOrderMean\
+              = self.computeRomMatrices(vMean, vModes,vModesx,vModesxx,x)
         self.uTimeModes = uTimeModes
+        self.uMean=uMean
         self.uModes= uModes
         self.uModesx = uModesx
         self.uModesxx= uModesxx
         self.uModesWeighted = uModesWeighted
+        self.uRomMassMean = uRomMassMean
         self.uRomFirstOrderMat = uRomFirstOrderMat
+        self.uRomFirstOrderMean=uRomFirstOrderMean
         self.uRomSecondOrderMat = uRomSecondOrderMat
+        self.uRomSecondOrderMean=uRomSecondOrderMean
         self.vTimeModes = vTimeModes
+        self.vMean=vMean
         self.vModes= vModes
         self.vModesx = vModesx
         self.vModesxx= vModesxx
         self.vModesWeighted = vModesWeighted
+        self.vRomMassMean = vRomMassMean
         self.vRomFirstOrderMat = vRomFirstOrderMat
+        self.vRomFirstOrderMean = vRomFirstOrderMean
         self.vRomSecondOrderMat = vRomSecondOrderMat
+        self.vRomSecondOrderMean = vRomSecondOrderMean
         
     
     def computePODmodes(self,snapshots, snapshotsx, snapshotsxx,thresholdEnergy):
         #Evaluation model at x points to 
         modes,S,timeModes = np.linalg.svd(snapshots)
         #Compute modes for derivatives
-        modesx = snapshotsx @ timeModes.transpose() @ (np.diag(1/S))
-        modesxx = snapshotsxx @ timeModes.transpose() @ (np.diag(1/S))
+        modesx = snapshotsx @ timeModes[:S.size,:].transpose() @ (np.diag(1/S))
+        modesxx = snapshotsxx @ timeModes[:S.size,:].transpose() @ (np.diag(1/S))
         #Create threshold for S
         totalEnergy=np.sum(S)
         cumulEnergy=0
@@ -773,7 +794,7 @@ class TankModel:
         timeModes = timeModes[:nModes,:]*S[:nModes].reshape((nModes,1))
         return modes, modesx, modesxx, timeModes
 
-    def computeRomMatrices(self,podModes,podModesx,podModesxx,x):
+    def computeRomMatrices(self,mean, podModes,podModesx,podModesxx,x):
         #Check x has an odd number of points
         assert(np.size(x)/2 != np.round(np.size(x)/2))
         #Check x has at least 3 points 
@@ -789,48 +810,54 @@ class TankModel:
             w[2:x.size-2:2]*=2
         # Do double transpose so casting dimensions match for w
         podModesWeighted=(podModes.transpose()*w).transpose()
-        romFirstOrderMat = self.podModesWeighted.transpose() @ podModesx
-        romSecondOrderMat = self.podModesWeighted.transpose() @ podModesxx
-        return podModesWeighted, romFirstOrderMat, romSecondOrderMat
+        romMassMean = podModesWeighted.transpose() @ mean
+        romFirstOrderMat = podModesWeighted.transpose() @ podModesx
+        romFirstOrderMean = (podModesx.transpose()*w) @ mean
+        romSecondOrderMat = podModesWeighted.transpose() @ podModesxx
+        romSecondOrderMean = (podModesxx.transpose()*w)@ mean
+        return podModesWeighted, romMassMean, romFirstOrderMat, romFirstOrderMean, romSecondOrderMat, romSecondOrderMean
 
 
     def dydtPodRom(self,y,t,nModesU,nModesV,paramSelect=[],penaltyStrength=0):
         u=y[0:nModesU]
         v=y[nModesU:nModesU+nModesV]
-        uFull=np.matmul(self.uModes,u)
-        vFull=np.matmul(self.vModes,v)
+        uFull=np.matmul(self.uModes,u)+self.uMean
+        vFull=np.matmul(self.vModes,v)+self.vMean
         dudt=(self.uRomSecondOrderMat/self.params["PeM"]-self.uRomFirstOrderMat)@u\
+                +self.uRomSecondOrderMean/self.params["PeM"]-self.uRomFirstOrderMean\
                 +self.params["Da"]*self.uModesWeighted.transpose()\
                                     @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
                                       *vFull/(1+self.params["beta"]*vFull)))
-        dvdt=((self.vRomSecondOrderMat/self.params["PeT"]-self.vRomFirstOrderMat)@v+self.params["delta"]*(self.params["vH"]-v)\
-                    +self.params["Da"]*self.vModesWeighted.transpose()
-                                        @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
-                                          *vFull/(1+self.params["beta"]*vFull))))/self.params["Le"]
+        dvdt=((self.vRomSecondOrderMat/self.params["PeT"]-self.vRomFirstOrderMat-self.params["delta"])@v\
+                +self.vRomSecondOrderMean/self.params["PeT"]-self.vRomFirstOrderMean\
+                +self.params["delta"]*(self.params["vH"]-self.vRomMassMean)\
+                +self.params["Da"]*self.vModesWeighted.transpose()
+                                    @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
+                                        *vFull/(1+self.params["beta"]*vFull))))/self.params["Le"]
         dydt = np.append(dudt,dvdt)
         eqCounter=1
         for param in paramSelect:
             dudParam = y[eqCounter*(nModesU+nModesV):eqCounter*(nModesU+nModesV)+nModesU]
             dvdParam = y[eqCounter*(nModesU+nModesV)+nModesU:(eqCounter+1)*(nModesU+nModesV)]
-            dudParamFull=np.matmul(self.uModes,dudParam)
-            dvdParamFull=np.matmul(self.vModes,dvdParam)
+            dudParamFull=np.matmul(self.uModes,dudParam)+self.uMean
+            dvdParamFull=np.matmul(self.vModes,dvdParam)+self.vMean
             #Define common derivative terms
-            ddudParamdt=self.uRomSecondOrderMat @ dudParam/self.params["PeM"]-np.dot(self.uRomFirstOrderMat,dudParam)
-            ddvdParamdt=self.vRomSecondOrderMat @ dvdParam/self.params["PeT"]-np.dot(self.vRomFirstOrderMat,dvdParam)
+            ddudParamdt=(self.uRomSecondOrderMat /self.params["PeM"]-self.uRomFirstOrderMat)@ dudParam\
+                            +self.uRomSecondOrderMean/self.params["PeM"]-self.uRomFirstOrderMean
+            ddvdParamdt=(self.vRomSecondOrderMat /self.params["PeT"]-self.vRomFirstOrderMat-self.params["delta"])@ dvdParam\
+                            +self.vRomSecondOrderMean/self.params["PeT"]-self.vRomFirstOrderMean
             #Construct Additional Linear terms
             if param=="vH":
-                ddvdParamdt+=-self.params["vH"]*dvdParam+self.params["delta"]
+                ddvdParamdt+=(self.params["delta"]-self.params["vH"])*dvdParam+self.params["delta"]
             elif param=="delta":
-                ddvdParamdt+=-self.params["delta"]*dvdParam+self.params["vH"]
+                ddvdParamdt+=self.params["vH"]-v
             elif param=="Le":
-                ddvdParamdt+=-dvdt-self.params["delta"]*dvdParam 
+                ddvdParamdt+=-dvdt
             elif param=="PeM":
-                ddudParamdt+=-self.uRomSecondOrderMat@u/(self.params["PeM"]**2)
-                ddvdParamdt+=-self.params["delta"]*dvdParam
+                ddudParamdt+=-(self.uRomSecondOrderMat@u+self.uRomSecondOrderMean)/(self.params["PeM"]**2)
             elif param=="PeT":
-                ddvdParamdt+=-self.vRomSecondOrderMat@v/(self.params["PeT"]**2)-self.params["delta"]*dvdParam
-            elif param in ["Da", "gamma","beta","f"]:
-                ddvdParamdt+=-self.params["delta"]*dvdParam
+                ddvdParamdt+=-(self.vRomSecondOrderMat@v+self.vRomSecondOrderMean)/(self.params["PeT"]**2)
+
 
 
             # Construct nonlinear term
@@ -870,25 +897,26 @@ class TankModel:
             ddudParamdt+=self.uModesWeighted.transpose() @ nonlinearTerm
             ddvdParamdt+=self.vModesWeighted.transpose() @ nonlinearTerm
             #Construct boundary term
+            dudParamxLeftBoundary=np.dot(self.uModesx[0,:],dudParam)+self.uMean
+            dvdParamxLeftBoundary=np.dot(self.vModesx[0,:],dvdParam)+self.vMean
             if param in ["vH", "delta", "Le", "Da","beta","gamma"]:
-                dudParamxLeftBoundary=np.dot(self.podModesx[0,:],dudParam)
-                dvdParamxLeftBoundary=np.dot(self.podModesx[0,:],dvdParam)
                 ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
                 ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
             elif param=="f":
                 ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
                 ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]+vFull[-1]))
             elif param=="PeM":
-                uxLeftBoundary=np.dot(self.podModesx[0,:],dudParam)
+                uxLeftBoundary=np.dot(self.uModesx[0,:],dudParam)+self.uMean
                 ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"]+uxLeftBoundary/(self.params["PeM"]**2))
                 ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
             elif param=="PeT":
-                vxLeftBoundary=np.dot(self.podModesx[0,:],dvdParam)
+                vxLeftBoundary=np.dot(self.vModesx[0,:],dvdParam)+self.vMean
                 ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
                 ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary-vxLeftBoundary/self.params["PeT"])/self.params["PeT"]-self.params["f"]*dvdParamFull[-1])
 
             #Scale RHS of v by Le
             ddvdParamdt/=self.params["Le"]
+
             dydt=np.append(dydt,ddudParamdt)
             dydt=np.append(dydt,ddvdParamdt)
             eqCounter+=1
