@@ -44,7 +44,7 @@ def subplotMovie(yVariables, xVariables, output_filename, fps=5, xLabels="X", yL
 
 
     # Matplotlib figure size (in pixels)
-    dpi = 100
+    dpi = 400
     # Determine grid dimensions where rows * cols = numPlots and rows >= cols
     numPlots = len(yVariables)
     cols = int(math.sqrt(numPlots))
@@ -182,7 +182,7 @@ def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", le
     # Plot each pair of (y, x) in subplots with conditional x-axis and y-axis labeling
     for i, (y, x) in enumerate(zip(yVariables, xVariables)):
         for iline in range(y.shape[0]):
-            axes[i].plot(x, y[iline],getLineFormat("line",iline))
+            axes[i].plot(x, y[iline],getLineFormat("line",iline),lw=subplotSize[0],ms=2*subplotSize[0])
         axes[i].set_ylim(yRanges[i])  # Set the y-axis range
 
         # Apply x-axis labels according to the conditions
@@ -204,7 +204,7 @@ def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", le
     plt.tight_layout()
     return fig, axes
 
-def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="null", subplotSize=(5, 4)):
+def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="null", legends="null", legendLoc="best",subplotSize=(5, 4)):
     # Validate inputs
     if isinstance(yVariables, np.ndarray) and isinstance(xVariables, np.ndarray):
         if yVariables.shape[-1] != xVariables.shape[-1]:
@@ -257,7 +257,28 @@ def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="n
         yLabels = [yLabels] * len(yVariables)
     else:
         raise ValueError("Invalid type entered for yLabels: " + str(type(yLabels)))
-
+    
+    if legends=="null":
+        useLegends=False
+    else:
+        useLegends=True
+        if all(isinstance(legend, list) for legend in legends):
+            if len(legends)!=len(yVariables):
+                raise ValueError("Invalid length of "+ str(len(legends))+" for legends for yVariables of length " + len(yVariables))
+            for i in range(len(yVariables)):
+                if len(legends[i])!=yVariables[i].shape[-2]:
+                    raise ValueError("Legend " + str(i) + "is of length " + str(len(legends[i]))+ " but yVariables has "+ str(yVariables[i].shape[-2])+" lines.")
+                if not all(isinstance(lineLabels,str) for lineLabels in legends[i]):
+                    raise ValueError("Non-string legend elements for legend[" + str(i)+"]")
+            useIndividualLegends=True
+        elif all(isinstance(legend, str) for legend in legends):
+                if len(legends)!=yVariables[0].shape[-2]:
+                    print(legends)
+                    raise ValueError("String legend is of length " + str(len(legends))+ " but yVariables has "+ str(yVariables[0].shape[-2])+" lines.")
+                useIndividualLegends=False
+        else:
+            raise ValueError("Invalid types entered for legends. Must be a list of strings or list of list of strings: " + str(type(legends[0])))
+    
     # Determine grid dimensions where rows * cols = numPlots and rows >= cols
     rows = len(yVariables)
     cols = yVariables[0].shape[0]
@@ -266,15 +287,17 @@ def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="n
     # Calculate the figure size based on the number of rows, columns, and subplot size
     figWidth, figHeight = subplotSize[0] * cols, subplotSize[1] * rows
     fig, axes = plt.subplots(rows, cols, figsize=(figWidth, figHeight))
-    print("(rows,cols): (", rows, ", ",cols,")")
+    axes = np.reshape(axes,(rows,cols))
 
     # Plot each pair of (y, x) in subplots with conditional x-axis and y-axis labeling
     for iy in range(len(yVariables)):
         for it in range(yVariables[0].shape[0]):
             if len(xVariables)==len(yVariables):
-                axes[iy,it].plot(xVariables[iy], yVariables[iy][it].transpose())
+                for iline in range(yVariables[iy][it].shape[0]):
+                    axes[iy,it].plot(xVariables[iy], yVariables[iy][it][iline],getLineFormat("line",iline),lw=subplotSize[0],ms=2*subplotSize[0])
             else:
-                axes[iy,it].plot(xVariables[0], yVariables[iy][it].transpose())
+                for iline in range(yVariables[iy][it].shape[0]):
+                    axes[iy,it].plot(xVariables[0], yVariables[iy][it][iline],getLineFormat("line",iline),lw=subplotSize[0],ms=2*subplotSize[0])
 
             if useIndividualTitles and title!="null" and iy==0:
                 axes[iy, it].set_title(title[it])
@@ -288,10 +311,16 @@ def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="n
                 axes[iy, it].set_xlabel(xLabels[0])
 
             # Apply y-axis labels according to the conditions
-            if useIndividualYLabels:
-                axes[iy, it].set_ylabel(yLabels[iy],rotation=0,labelpad=8.0)
-            elif i % cols == 0:  # Only label y-axis for the left-most column
-                axes[iy, it].set_ylabel(yLabels[0],rotation=0,labelpad=8.0)
+            if it == 0:
+                if useIndividualYLabels:
+                    axes[iy, it].set_ylabel(yLabels[iy],rotation=0,labelpad=8.0)
+                else:  # Only label y-axis for the left-most column
+                    axes[iy, it].set_ylabel(yLabels[0],rotation=0,labelpad=8.0)
+            if useLegends and it ==yVariables[0].shape[0]-1:
+                if useIndividualLegends:
+                    axes[iy, it].legend(legends[iy], loc = legendLoc)
+                elif iy==0:
+                    axes[iy, it].legend(legends,  loc = legendLoc)
 
     plt.tight_layout()
     return fig, axes
@@ -302,20 +331,20 @@ def getLineFormat(linetype,iter):
             case 0:
                 return "-b"
             case 1:
-                return "--o"
+                return "--m"
             case 2:
                 return "-.g"
-            case 2:
+            case 3:
                 return "-*r"
     elif linetype == "point":
         match iter:
             case 0:
                 return "sb"
             case 1:
-                return "to"
+                return "tm"
             case 2:
                 return ".g"
-            case 2:
+            case 3:
                 return "*r"
     else :
         raise ValueError("Invalid linetype option, must be line or point")
