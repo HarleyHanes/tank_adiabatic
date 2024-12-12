@@ -48,14 +48,29 @@ podModesx=np.array([[1, 1, 1, 1, 1, 1, 1, 1, 1],
 podModesxx=np.array([[0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1],
                      [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]]).transpose()
 x=np.linspace(0,1,9)
-model.computeRomMatrices(podModes,podModesx,podModesxx,x)
-podModesWeighted=np.array([[1, 4, 2, 4, 2, 4, 2, 4, 1],
+mean=np.zeros(x.shape)
+podModesWeighted, romMassMean, romFirstOrderMat, romFirstOrderMean, romSecondOrderMat, romSecondOrderMean= model.computeRomMatrices(mean,podModes,podModesx,podModesxx,x)
+podModesWeightedTrue=np.array([[1, 4, 2, 4, 2, 4, 2, 4, 1],
                            [1, 4, 2, 4, 2, 4, 2, 4, 1]*podModes[:,1]]).transpose()/8/3
-romFirstOrderMat=np.array([[1,1],
+romFirstOrderMatTrue=np.array([[1,1],
                            [1/2,1/2]])
-romSecondOrderMat=np.array([[1/2,1/2],
+romSecondOrderMatTrue=np.array([[1/2,1/2],
                             [1/3,  1/3]])
-assert(np.isclose(podModesWeighted,model.podModesWeighted).all())
-assert(np.isclose(romFirstOrderMat,model.romFirstOrderMat).all())
-assert(np.isclose(romSecondOrderMat,model.romSecondOrderMat).all())
+assert(np.isclose(podModesWeighted,podModesWeightedTrue).all())
+assert(np.isclose(romFirstOrderMat,romFirstOrderMatTrue).all())
+assert(np.isclose(romSecondOrderMat,romSecondOrderMatTrue).all())
+
+#Test Additional Case
+x=np.linspace(0,1,7)
+podModes = np.array([x*0+1,x]).transpose()
+mean=x**2
+podModesx = np.array([x*0,x*0+1]).transpose()
+podModesxx = np.array([x*0,x*0]).transpose()
+podModesWeighted, romMassMean, romFirstOrderMat, romFirstOrderMean, romSecondOrderMat, romSecondOrderMean= model.computeRomMatrices(mean,podModes,podModesx,podModesxx,x)
+assert(np.isclose(podModesWeighted,podModes*np.array([[1, 4, 2, 4, 2, 4, 1]]).transpose()/18).all())
+assert(np.isclose(romMassMean,np.array([1/3,1/4])).all())
+assert(np.isclose(podModesWeighted.transpose()@podModes,np.array([[1,1/2],[1/2,1/3]])).all())
+
+
+
 
