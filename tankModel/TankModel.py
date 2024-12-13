@@ -724,31 +724,53 @@ class TankModel:
 
     #================================POD-ROM===================================================
 
-    def constructPodRom(self,modelCoeff,x,thresholdEnergy):
+    def constructPodRom(self,modelCoeff,x,thresholdEnergy,quadRule="simpson",mean="zero"):
         #Get Snapshots and derivatives of snapshots
         uEval,vEval = self.eval(x,modelCoeff,output="seperated")
-        print("uEval Shape: ", uEval.shape)
         #Compute Mean, keeping dimension so casting works
-        uMean = np.mean(uEval,axis=0)
-        print("uMean Shape: ", uMean.shape)
-        vMean = np.mean(vEval,axis=0)
+        if mean =="mean":
+            meanCoeff = np.mean(modelCoeff,axis=0)
+            uMean,vMean = self.eval(x,meanCoeff,output="seperated")
+            uMeanx,vMeanx = self.eval(x,meanCoeff,output="seperated",deriv=1)
+            uMeanxx,vMeanxx = self.eval(x,meanCoeff,output="seperated",deriv=2)
+        elif mean =="zero":
+            uMean = np.zeros(uEval.shape[1])
+            vMean = np.zeros(vEval.shape[1])
+            uMeanx = np.zeros(uEval.shape[1])
+            vMeanx = np.zeros(vEval.shape[1])
+            uMeanxx = np.zeros(uEval.shape[1])
+            vMeanxx = np.zeros(vEval.shape[1])
         uEval-=uMean
         vEval-=vMean
         uEvalx,vEvalx = self.eval(x,modelCoeff, output="seperated", deriv =1)
-        uEvalx-=uMean
-        vEvalx-=vMean
+        uEvalx-=uMeanx
+        vEvalx-=vMeanx
 
         uEvalxx,vEvalxx = self.eval(x,modelCoeff, output="seperated", deriv =2)
-        uEvalxx-=uMean
-        vEvalxx-=vMean
+        uEvalxx-=uMeanxx
+        vEvalxx-=vMeanxx
+
+        #Scale snapshots by quadrature matrix
+        W=self.getQuadWeights(x,quadRule)
         #Use transpose of evals since eval is time x space but standard snapshot matrix is space x time
-        uModes, uModesx, uModesxx, uTimeModes =self.computePODmodes(uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),thresholdEnergy)
-        vModes, vModesx, vModesxx, vTimeModes =self.computePODmodes(vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),thresholdEnergy)
+        uModes, uModesWeighted, uModesx, uModesxx, uTimeModes =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),thresholdEnergy)
+        vModes, vModesWeighted, vModesx, vModesxx, vTimeModes =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),thresholdEnergy)
         
-        uModesWeighted, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean, uRomSecondOrderMat, uRomSecondOrderMean\
-              = self.computeRomMatrices(uMean, uModes,uModesx,uModesxx,x)
-        vModesWeighted, vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean, vRomSecondOrderMat, vRomSecondOrderMean\
-              = self.computeRomMatrices(vMean, vModes,vModesx,vModesxx,x)
+        #Check orthonormality of modes
+        uModesMass = uModesWeighted.transpose()@ uModes
+        vModesMass = vModesWeighted.transpose()@ vModes
+        if not np.isclose(uModesMass,np.eye(uModesMass.shape[0])).all() or not np.isclose(vModesMass,np.eye(vModesMass.shape[0])).all():
+            print("uModes Mass Matrix MonteCarlo: ", uModes.transpose()@uModes)
+            print("uModes Mass Matrix: ", uModesMass)
+            print("vModes Mass Matrix: ", vModesMass)
+            raise ValueError("Non-orthonormal POD modes")
+        uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean, uRomSecondOrderMat, uRomSecondOrderMean\
+              = self.computeRomMatrices(W,uMean, uModes, uModesx,uModesxx)
+        vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean, vRomSecondOrderMat, vRomSecondOrderMean\
+              = self.computeRomMatrices(W,vMean, vModes, vModesx,vModesxx)
+        
+
+    
         self.uTimeModes = uTimeModes
         self.uMean=uMean
         self.uModes= uModes
@@ -773,12 +795,19 @@ class TankModel:
         self.vRomSecondOrderMean = vRomSecondOrderMean
         
     
-    def computePODmodes(self,snapshots, snapshotsx, snapshotsxx,thresholdEnergy):
-        #Evaluation model at x points to 
-        modes,S,timeModes = np.linalg.svd(snapshots)
+    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,thresholdEnergy):
+        #Geteigen decomp of UtWU
+        timeModes,S,null= np.linalg.svd(snapshots.transpose()@W@snapshots)
+        #Check symmetry of eigen decomp
+        if not np.isclose(timeModes,null.transpose()).all():
+            print("timeModes-timeModesT: ",timeModes-null.transpose())
+        print(timeModes.shape)
+        #Have to take squareroot of S for scaling
+        S=np.sqrt(S)
+        modes = snapshots@timeModes@np.diag(1/S)
         #Compute modes for derivatives
-        modesx = snapshotsx @ timeModes[:S.size,:].transpose() @ (np.diag(1/S))
-        modesxx = snapshotsxx @ timeModes[:S.size,:].transpose() @ (np.diag(1/S))
+        modesx = snapshotsx @ timeModes @ (np.diag(1/S))
+        modesxx = snapshotsxx @ timeModes @ (np.diag(1/S))
         #Create threshold for S
         totalEnergy=np.sum(S)
         cumulEnergy=0
@@ -788,47 +817,55 @@ class TankModel:
             cumulEnergy=np.sum(S[:nModes])/totalEnergy
         print("Cumulative Energy of Modes: ", cumulEnergy)
         print("Number of modes used: ", nModes)
+        print(modes.shape)
+        print(timeModes.shape)
+        print(S.shape)
         modes = modes[:,:nModes]
+        modesWeighted = W@modes
         modesx = modesx[:,:nModes]
         modesxx = modesxx[:,:nModes]
-        timeModes = timeModes[:nModes,:]*S[:nModes].reshape((nModes,1))
+        timeModes = (timeModes@np.diag(S))[:,:nModes]
         #Check the POD decomposition is accurate in FOM space
-        podError = np.sqrt(np.sum((snapshots-modes@timeModes)**2)/np.sum(snapshots**2))
-        podIcError = np.sqrt(np.sum((snapshots[:,0]-(modes@timeModes)[:,0])**2)/np.sum(snapshots[:,0]**2))
+        podError = np.sqrt(np.sum(W@((snapshots-modes@timeModes.transpose())**2))/np.sum(W@(snapshots**2)))
+        podIcError = np.sqrt(np.sum(W@((snapshots[:,0]-(modes@timeModes.transpose())[:,0])**2))/np.sum(W@(snapshots[:,0]**2)))
         print("POD Relative Error: ", podError)
         print("POD Relative IC Error: ", podIcError)
-        return modes, modesx, modesxx, timeModes
+        return modes, modesWeighted, modesx, modesxx, timeModes
 
-    def computeRomMatrices(self,mean, podModes,podModesx,podModesxx,x):
-        #Check x has an odd number of points
-        assert(np.size(x)/2 != np.round(np.size(x)/2))
-        #Check x has at least 3 points 
-        assert(np.size(x)>=3)
-        #Check x is between bounds
-        assert(np.isclose(x[0],self.bounds[0]))
-        #Check x is between bounds
-        assert(np.isclose(x[-1],self.bounds[-1]))
-        #Get quadrature weights using simpson's rule
-        w=np.ones(x.size)/3*(self.bounds[1]-self.bounds[0])/(x.size-1)
-        w[1:x.size-1:2]*=4
-        if np.size(x)>=5:
-            w[2:x.size-2:2]*=2
-        # Do double transpose so casting dimensions match for w
-        podModesWeighted=(podModes.transpose()*w).transpose()
-        romMassMean = podModesWeighted.transpose() @ mean
-        romFirstOrderMat = podModesWeighted.transpose() @ podModesx
-        romFirstOrderMean = (podModesx.transpose()*w) @ mean
-        romSecondOrderMat = podModesWeighted.transpose() @ podModesxx
-        romSecondOrderMean = (podModesxx.transpose()*w)@ mean
-        return podModesWeighted, romMassMean, romFirstOrderMat, romFirstOrderMean, romSecondOrderMat, romSecondOrderMean
+    def computeRomMatrices(self,W,mean,  podModes, podModesx,podModesxx):
 
+        romMassMean = podModes.transpose() @ W @ mean
+        romFirstOrderMat = podModes.transpose()@ W  @ podModesx
+        romFirstOrderMean = podModesx.transpose()@W @ mean
+        romSecondOrderMat = podModes.transpose()@W @ podModesxx
+        romSecondOrderMean = podModesxx.transpose()@ W @ mean
+        return romMassMean, romFirstOrderMat, romFirstOrderMean, romSecondOrderMat, romSecondOrderMean
+
+    def getQuadWeights(self,x,quadRule):
+        if quadRule == "simpson":
+            #Check x has an odd number of points
+            assert(np.size(x)/2 != np.round(np.size(x)/2))
+            #Check x has at least 3 points 
+            assert(np.size(x)>=3)
+            #Check x is between bounds
+            assert(np.isclose(x[0],self.bounds[0]))
+            #Check x is between bounds
+            assert(np.isclose(x[-1],self.bounds[-1]))
+            #Get quadrature weights using simpson's rule
+            w=np.ones(x.size)/3*(self.bounds[1]-self.bounds[0])/(x.size-1)
+            w[1:x.size-1:2]*=4
+            if np.size(x)>=5:
+                w[2:x.size-2:2]*=2
+        elif quadRule == "uniform":
+            w=np.ones(np.size(x))#/(x.size)*(self.bounds[1]-self.bounds[0])
+        return np.diag(w)
 
     def dydtPodRom(self,y,t,nModesU,nModesV,paramSelect=[],penaltyStrength=0):
         u=y[0:nModesU]
         v=y[nModesU:nModesU+nModesV]
         uFull=np.matmul(self.uModes,u)+self.uMean
         vFull=np.matmul(self.vModes,v)+self.vMean
-        dudt=(self.uRomSecondOrderMat/self.params["PeM"]-self.uRomFirstOrderMat)@u\
+        dudt=(self.uRomSecondOrderMat/self.params["PeM"]- self.uRomFirstOrderMat)@u\
                 +self.uRomSecondOrderMean/self.params["PeM"]-self.uRomFirstOrderMean\
                 +self.params["Da"]*self.uModesWeighted.transpose()\
                                     @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\

@@ -13,33 +13,41 @@ import matplotlib.pyplot as plt
 
 
 #Set save details
-paramSet = "BizonLinear" #BizonPeriodic, BizonLinear, BizonAdvecDiffusion
+paramSet = "BizonAdvec" #BizonPeriodic, BizonLinear, BizonAdvecDiffusion
 equationSet = "tankOnly" 
 nCollocation=2
 nElements=32
-runStabalization=False
 usePodRom=True
-tstep=.05
-tmax=3
-energyRetention=.99
+energyRetention=.9
+xpoints=101
 
 
 if paramSet == "BizonPeriodic":
     baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
+    stabalizationTime=100
+    tstep=.05
+    tmax=2.05
 elif paramSet == "BizonLinear":
-    baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
+    baseParams={"PeM": 300, "PeT": 300, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
+    stabalizationTime=.1
+    tstep=.02
+    tmax=2
 elif paramSet == "BizonAdvecDiffusion":
     baseParams={"PeM": 300, "PeT": 300, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
+    stabalizationTime=.1
+    tstep=.01
+    tmax=1.5
+elif paramSet == "BizonAdvec":
+    baseParams={"PeM": 1e16, "PeT": 1e16, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
+    stabalizationTime=.1
+    tstep=.05
+    tmax=4
 else: 
     raise ValueError("Invalid paramSet entered: " + str(equationSet))
     
 
 saveLocation = "../../results/podRomAnalysis/"+paramSet +"_"+equationSet
-if runStabalization:
-    saveLocation += "/stabalized"
-else:
-    saveLocation += "/perturbation"
-saveLocation +="_nCol" + str(nCollocation) + "_nElem"+str(nElements)+"_e"+str(energyRetention)+"/"
+saveLocation +="/nCol" + str(nCollocation) + "_nElem"+str(nElements)+"_e"+str(energyRetention)+"/"
 
 
 
@@ -77,12 +85,18 @@ if usePodRom:
 #==================================== Setup system ===============================================================================
 model=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[0,1],params=baseParams)
 dydtSens =lambda y,t: model.dydtSens(y,t,paramSelect=paramSelect)
-modelCoeff=np.ones((1,model.nCollocation*model.nElements*2*neq))
-x=np.linspace(0,1,51)
+if paramSet=="BizonAdvec":
+    collPoints=np.append(model.collocationPoints,model.collocationPoints,axis=0)
+    modelCoeff=np.array([-collPoints**2+2*collPoints])
+elif baseParams["vH"]==0:
+    modelCoeff=np.ones((1,model.nCollocation*model.nElements*2*neq))*.5
+else:
+    modelCoeff=np.ones((1,model.nCollocation*model.nElements*2*neq))*baseParams["vH"]
+x=np.linspace(0,1,xpoints)
 #=================================== Run Stabalization ===========================================================================
-if runStabalization:
+if not stabalizationTime==0:
     #Run out till stabalizing in periodic domain
-    odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(0,100),modelCoeff[-1,:], method='BDF',atol=1e-6,rtol=1e-6)
+    odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(0,stabalizationTime),modelCoeff[-1,:], method='BDF',atol=1e-6,rtol=1e-6)
     modelCoeff = odeOut.y[:,[-1]].transpose()
 #=================================== Get Simulation Data ================================================================
 
@@ -104,9 +118,8 @@ if usePodRom:
     print("Number of POD Modes for (u,v): (",nModesU, ", ",nModesV, ")")
     #Get Initial Modal Weights
     romCoeff=np.empty((1,neq*(nModesU+nModesV)))
-    romCoeff[0,:nModesU]=model.uTimeModes[:,0]
-    romCoeff[0,nModesU:nModesU+nModesV]=model.vTimeModes[:,0]
-    #------------------------------ Run POD-ROM
+    romCoeff[0,:nModesU]=model.uTimeModes[0,:]
+    romCoeff[0,nModesU:nModesU+nModesV]=model.vTimeModes[0,:]
     for i in range(1, neq):
         start = i*(2*model.nCollocation*model.nElements)
         coeff = modelCoeff[0,start:start+2*model.nCollocation*model.nElements]
@@ -116,6 +129,7 @@ if usePodRom:
         romCoeff[0,start:start+nModesU]=np.append(romCoeff,uModes,axis=0)
         romCoeff[0,start+nModesU:start+nModesU+nModesV]=np.append(romCoeff,vModes,axis=0)
 
+    #------------------------------ Run POD-ROM
     dydtPodRom = lambda y,t: model.dydtPodRom(y,t,nModesU,nModesV,paramSelect=paramSelect,penaltyStrength=0)
     t=0
     while t<tmax:
@@ -144,7 +158,7 @@ if usePodRom:
         uResult[:,0,:]=uFomResult
         uResult[:,1,:]=uRomResult
         if i==0:
-            uPOD = ((model.uModes @ model.uTimeModes)+model.uMean.reshape((model.uMean.size,1))).transpose()
+            uPOD = ((model.uModes @ model.uTimeModes.transpose())+model.uMean.reshape((model.uMean.size,1))).transpose()
             uResult[:,2,:]=uPOD
         uResults.append(uResult)
         combinedResults.append(uResult)
@@ -162,7 +176,7 @@ if usePodRom:
         vResult[:,0,:]=vFomResult
         vResult[:,1,:]=vRomResult
         if i==0:
-            vPOD = (model.vModes@ model.vTimeModes +model.vMean.reshape((model.vMean.size,1))).transpose()
+            vPOD = (model.vModes@ model.vTimeModes.transpose() +model.vMean.reshape((model.vMean.size,1))).transpose()
             vResult[:,2,:]=vPOD
         vResults.append(vResult)
         combinedResults.append(vResult)
@@ -189,16 +203,12 @@ subplotMovie(combinedResults, x, saveLocation + "combined.mov", fps=15, xLabels=
 #================================================== Make example plots ============================================================
 tplot = np.linspace(0,tmax/tstep,5,dtype=int)
 title = ["t=" + str(t*tstep) for t in tplot]
-print(len(uResults))
-print(uResults[0].shape)
 for i in range(len(uResults)):
     uResults[i]=uResults[i][tplot]
     vResults[i]=vResults[i][tplot]
 for i in range(len(combinedResults)):
     combinedResults[i]=combinedResults[i][tplot]
 
-print(len(uResults))
-print(uResults[0].shape)
 fig,axs = subplotTimeSeries(combinedResults, x, xLabels="x", yLabels=combinedLabels, title = title,legends=legends, subplotSize=(2.5, 2))
 plt.savefig(saveLocation + "combinedTimeSeries.pdf", format="pdf")
 plt.savefig(saveLocation + "combinedTimeSeries.png", format="png")
