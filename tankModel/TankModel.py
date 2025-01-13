@@ -760,9 +760,9 @@ class TankModel:
         uModes, uModesx, uModesxx, uTimeModes =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),thresholdEnergy)
         vModes, vModesx, vModesxx, vTimeModes =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),thresholdEnergy)
         
-        uModesWeighted, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean, uRomSecondOrderMat, uRomSecondOrderMean\
+        uModesWeighted, uModesInt, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean, uRomSecondOrderMat, uRomSecondOrderMean\
               = self.computeRomMatrices(W,uMean, uMeanx, uMeanxx, uModes, uModesx,uModesxx)
-        vModesWeighted,vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean, vRomSecondOrderMat, vRomSecondOrderMean\
+        vModesWeighted, vModesInt, vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean, vRomSecondOrderMat, vRomSecondOrderMean\
               = self.computeRomMatrices(W,vMean, uMeanx, uMeanxx, vModes, vModesx,vModesxx)
         
         #Check orthonormality of modes
@@ -781,6 +781,7 @@ class TankModel:
         self.uModesx = uModesx
         self.uModesxx= uModesxx
         self.uModesWeighted = uModesWeighted
+        self.uModesInt = uModesInt
         self.uRomMassMean = uRomMassMean
         self.uRomFirstOrderMat = uRomFirstOrderMat
         self.uRomFirstOrderMean=uRomFirstOrderMean
@@ -792,6 +793,7 @@ class TankModel:
         self.vModesx = vModesx
         self.vModesxx= vModesxx
         self.vModesWeighted = vModesWeighted
+        self.vModesInt = vModesInt
         self.vRomMassMean = vRomMassMean
         self.vRomFirstOrderMat = vRomFirstOrderMat
         self.vRomFirstOrderMean = vRomFirstOrderMean
@@ -833,12 +835,13 @@ class TankModel:
 
     def computeRomMatrices(self,W,mean,  meanx, meanxx, podModes, podModesx,podModesxx):
         podModesWeighted = W @ podModes
+        podModesInt = podModesWeighted.transpose() @ np.ones(mean.size)
         romMassMean = podModesWeighted.transpose() @ mean
         romFirstOrderMat = podModesWeighted.transpose() @ podModesx
         romFirstOrderMean = podModesWeighted.transpose() @ meanx
         romSecondOrderMat = podModesWeighted.transpose() @ podModesxx
         romSecondOrderMean = podModesWeighted.transpose() @ meanxx
-        return podModesWeighted, romMassMean, romFirstOrderMat, romFirstOrderMean, romSecondOrderMat, romSecondOrderMean
+        return podModesWeighted, podModesInt, romMassMean, romFirstOrderMat, romFirstOrderMean, romSecondOrderMat, romSecondOrderMean
 
     def getQuadWeights(self,x,quadRule):
         if quadRule == "simpson":
@@ -871,7 +874,7 @@ class TankModel:
                                       *vFull/(1+self.params["beta"]*vFull)))
         dvdt=((self.vRomSecondOrderMat/self.params["PeT"]-self.vRomFirstOrderMat)@v\
                 +self.vRomSecondOrderMean/self.params["PeT"]-self.vRomFirstOrderMean\
-                +self.params["delta"]*(self.params["vH"]-(v+self.vRomMassMean))\
+                +self.params["delta"]*(self.params["vH"]*self.vModesInt-v-self.vRomMassMean)\
                 +self.params["Da"]*self.vModesWeighted.transpose()
                                     @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
                                         *vFull/(1+self.params["beta"]*vFull))))/self.params["Le"]

@@ -20,11 +20,9 @@ nElements=32
 usePodRom=True
 energyRetention=.99
 xpoints=101
-mean_reduction = "zero"
+mean_reduction = "first"
 
 #Notes on results
-# Probably some issue in "mean" option for mean reduction since more modes are used to reach the same energy retention than with no mean reduction
-# "first" option has less modes as expected but pod-rom doesn't work
 
 
 if paramSet == "BizonPeriodic":
@@ -33,7 +31,7 @@ if paramSet == "BizonPeriodic":
     tstep=.02
     tmax=4.1
 elif paramSet == "BizonNonLinear":
-    baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":0}
+    baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 0, "vH":0}
     stabalizationTime=.1
     tstep=.02
     tmax=4.1
