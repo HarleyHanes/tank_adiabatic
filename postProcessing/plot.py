@@ -291,6 +291,8 @@ def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="n
 
     # Plot each pair of (y, x) in subplots with conditional x-axis and y-axis labeling
     for iy in range(len(yVariables)):
+        ywidth = np.max(yVariables[iy])-np.min(yVariables[iy])
+        yRanges=(np.min(yVariables[iy])-.1*ywidth,np.max(yVariables[iy])+.1*ywidth)
         for it in range(yVariables[0].shape[0]):
             if len(xVariables)==len(yVariables):
                 for iline in range(yVariables[iy][it].shape[0]):
@@ -298,7 +300,7 @@ def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="n
             else:
                 for iline in range(yVariables[iy][it].shape[0]):
                     axes[iy,it].plot(xVariables[0], yVariables[iy][it][iline],getLineFormat("line",iline),lw=subplotSize[0],ms=2*subplotSize[0])
-
+            axes[iy,it].set_ylim(yRanges)
             if useIndividualTitles and title!="null" and iy==0:
                 axes[iy, it].set_title(title[it])
             elif not useIndividualTitles and title!="null":

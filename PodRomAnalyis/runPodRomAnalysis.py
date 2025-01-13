@@ -13,41 +13,51 @@ import matplotlib.pyplot as plt
 
 
 #Set save details
-paramSet = "BizonAdvec" #BizonPeriodic, BizonLinear, BizonAdvecDiffusion
+paramSet = "BizonPeriodic" #BizonPeriodic, BizonLinear, BizonAdvecDiffusion
 equationSet = "tankOnly" 
 nCollocation=2
 nElements=32
 usePodRom=True
-energyRetention=.9
+energyRetention=.99
 xpoints=101
+mean_reduction = "zero"
+
+#Notes on results
+# Probably some issue in "mean" option for mean reduction since more modes are used to reach the same energy retention than with no mean reduction
+# "first" option has less modes as expected but pod-rom doesn't work
 
 
 if paramSet == "BizonPeriodic":
     baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
     stabalizationTime=100
-    tstep=.05
-    tmax=2.05
+    tstep=.02
+    tmax=4.1
+elif paramSet == "BizonNonLinear":
+    baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":0}
+    stabalizationTime=.1
+    tstep=.02
+    tmax=4.1
 elif paramSet == "BizonLinear":
     baseParams={"PeM": 300, "PeT": 300, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
     stabalizationTime=.1
     tstep=.02
     tmax=2
 elif paramSet == "BizonAdvecDiffusion":
-    baseParams={"PeM": 300, "PeT": 300, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
+    baseParams={"PeM": 1, "PeT": 1, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
     stabalizationTime=.1
     tstep=.01
     tmax=1.5
 elif paramSet == "BizonAdvec":
     baseParams={"PeM": 1e16, "PeT": 1e16, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
     stabalizationTime=.1
-    tstep=.05
-    tmax=4
+    tstep=.01
+    tmax=1
 else: 
     raise ValueError("Invalid paramSet entered: " + str(equationSet))
     
 
 saveLocation = "../../results/podRomAnalysis/"+paramSet +"_"+equationSet
-saveLocation +="/nCol" + str(nCollocation) + "_nElem"+str(nElements)+"_e"+str(energyRetention)+"/"
+saveLocation +="/nCol" + str(nCollocation) + "_nElem"+str(nElements)+"_e"+str(energyRetention)+"_"+mean_reduction+ "/"
 
 
 
@@ -112,7 +122,7 @@ while t<tmax:
 #================================== Run POD-ROM ==================================================================================
 if usePodRom:
     #------------------------------- Setup POD-ROM
-    model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,energyRetention)
+    model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,energyRetention,mean=mean_reduction)
     nModesU = model.uModes.shape[1]
     nModesV = model.vModes.shape[1]
     print("Number of POD Modes for (u,v): (",nModesU, ", ",nModesV, ")")

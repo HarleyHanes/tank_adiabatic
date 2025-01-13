@@ -724,7 +724,7 @@ class TankModel:
 
     #================================POD-ROM===================================================
 
-    def constructPodRom(self,modelCoeff,x,thresholdEnergy,quadRule="simpson",mean="zero"):
+    def constructPodRom(self,modelCoeff,x,thresholdEnergy,quadRule="simpson",mean="mean"):
         #Get Snapshots and derivatives of snapshots
         uEval,vEval = self.eval(x,modelCoeff,output="seperated")
         #Compute Mean, keeping dimension so casting works
@@ -740,6 +740,10 @@ class TankModel:
             vMeanx = np.zeros(vEval.shape[1])
             uMeanxx = np.zeros(uEval.shape[1])
             vMeanxx = np.zeros(vEval.shape[1])
+        elif mean =="first":
+            uMean,vMean = self.eval(x,modelCoeff[0],output="seperated")
+            uMeanx,vMeanx = self.eval(x,modelCoeff[0],output="seperated",deriv=1)
+            uMeanxx,vMeanxx = self.eval(x,modelCoeff[0],output="seperated",deriv=2)
         uEval-=uMean
         vEval-=vMean
         uEvalx,vEvalx = self.eval(x,modelCoeff, output="seperated", deriv =1)
@@ -753,8 +757,13 @@ class TankModel:
         #Scale snapshots by quadrature matrix
         W=self.getQuadWeights(x,quadRule)
         #Use transpose of evals since eval is time x space but standard snapshot matrix is space x time
-        uModes, uModesWeighted, uModesx, uModesxx, uTimeModes =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),thresholdEnergy)
-        vModes, vModesWeighted, vModesx, vModesxx, vTimeModes =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),thresholdEnergy)
+        uModes, uModesx, uModesxx, uTimeModes =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),thresholdEnergy)
+        vModes, vModesx, vModesxx, vTimeModes =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),thresholdEnergy)
+        
+        uModesWeighted, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean, uRomSecondOrderMat, uRomSecondOrderMean\
+              = self.computeRomMatrices(W,uMean, uMeanx, uMeanxx, uModes, uModesx,uModesxx)
+        vModesWeighted,vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean, vRomSecondOrderMat, vRomSecondOrderMean\
+              = self.computeRomMatrices(W,vMean, uMeanx, uMeanxx, vModes, vModesx,vModesxx)
         
         #Check orthonormality of modes
         uModesMass = uModesWeighted.transpose()@ uModes
@@ -764,11 +773,6 @@ class TankModel:
             print("uModes Mass Matrix: ", uModesMass)
             print("vModes Mass Matrix: ", vModesMass)
             raise ValueError("Non-orthonormal POD modes")
-        uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean, uRomSecondOrderMat, uRomSecondOrderMean\
-              = self.computeRomMatrices(W,uMean, uModes, uModesx,uModesxx)
-        vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean, vRomSecondOrderMat, vRomSecondOrderMean\
-              = self.computeRomMatrices(W,vMean, vModes, vModesx,vModesxx)
-        
 
     
         self.uTimeModes = uTimeModes
@@ -801,7 +805,6 @@ class TankModel:
         #Check symmetry of eigen decomp
         if not np.isclose(timeModes,null.transpose()).all():
             print("timeModes-timeModesT: ",timeModes-null.transpose())
-        print(timeModes.shape)
         #Have to take squareroot of S for scaling
         S=np.sqrt(S)
         modes = snapshots@timeModes@np.diag(1/S)
@@ -817,11 +820,7 @@ class TankModel:
             cumulEnergy=np.sum(S[:nModes])/totalEnergy
         print("Cumulative Energy of Modes: ", cumulEnergy)
         print("Number of modes used: ", nModes)
-        print(modes.shape)
-        print(timeModes.shape)
-        print(S.shape)
         modes = modes[:,:nModes]
-        modesWeighted = W@modes
         modesx = modesx[:,:nModes]
         modesxx = modesxx[:,:nModes]
         timeModes = (timeModes@np.diag(S))[:,:nModes]
@@ -830,16 +829,16 @@ class TankModel:
         podIcError = np.sqrt(np.sum(W@((snapshots[:,0]-(modes@timeModes.transpose())[:,0])**2))/np.sum(W@(snapshots[:,0]**2)))
         print("POD Relative Error: ", podError)
         print("POD Relative IC Error: ", podIcError)
-        return modes, modesWeighted, modesx, modesxx, timeModes
+        return modes, modesx, modesxx, timeModes
 
-    def computeRomMatrices(self,W,mean,  podModes, podModesx,podModesxx):
-
-        romMassMean = podModes.transpose() @ W @ mean
-        romFirstOrderMat = podModes.transpose()@ W  @ podModesx
-        romFirstOrderMean = podModesx.transpose()@W @ mean
-        romSecondOrderMat = podModes.transpose()@W @ podModesxx
-        romSecondOrderMean = podModesxx.transpose()@ W @ mean
-        return romMassMean, romFirstOrderMat, romFirstOrderMean, romSecondOrderMat, romSecondOrderMean
+    def computeRomMatrices(self,W,mean,  meanx, meanxx, podModes, podModesx,podModesxx):
+        podModesWeighted = W @ podModes
+        romMassMean = podModesWeighted.transpose() @ mean
+        romFirstOrderMat = podModesWeighted.transpose() @ podModesx
+        romFirstOrderMean = podModesWeighted.transpose() @ meanx
+        romSecondOrderMat = podModesWeighted.transpose() @ podModesxx
+        romSecondOrderMean = podModesWeighted.transpose() @ meanxx
+        return podModesWeighted, romMassMean, romFirstOrderMat, romFirstOrderMean, romSecondOrderMat, romSecondOrderMean
 
     def getQuadWeights(self,x,quadRule):
         if quadRule == "simpson":
@@ -863,16 +862,16 @@ class TankModel:
     def dydtPodRom(self,y,t,nModesU,nModesV,paramSelect=[],penaltyStrength=0):
         u=y[0:nModesU]
         v=y[nModesU:nModesU+nModesV]
-        uFull=np.matmul(self.uModes,u)+self.uMean
-        vFull=np.matmul(self.vModes,v)+self.vMean
+        uFull=self.uModes@u+self.uMean
+        vFull=self.vModes@v+self.vMean
         dudt=(self.uRomSecondOrderMat/self.params["PeM"]- self.uRomFirstOrderMat)@u\
                 +self.uRomSecondOrderMean/self.params["PeM"]-self.uRomFirstOrderMean\
                 +self.params["Da"]*self.uModesWeighted.transpose()\
                                     @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
                                       *vFull/(1+self.params["beta"]*vFull)))
-        dvdt=((self.vRomSecondOrderMat/self.params["PeT"]-self.vRomFirstOrderMat-self.params["delta"])@v\
+        dvdt=((self.vRomSecondOrderMat/self.params["PeT"]-self.vRomFirstOrderMat)@v\
                 +self.vRomSecondOrderMean/self.params["PeT"]-self.vRomFirstOrderMean\
-                +self.params["delta"]*(self.params["vH"]-self.vRomMassMean)\
+                +self.params["delta"]*(self.params["vH"]-(v+self.vRomMassMean))\
                 +self.params["Da"]*self.vModesWeighted.transpose()
                                     @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
                                         *vFull/(1+self.params["beta"]*vFull))))/self.params["Le"]
