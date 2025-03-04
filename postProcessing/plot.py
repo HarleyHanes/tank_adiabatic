@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import math
 import cv2
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+import matplotlib.ticker as ticker
 
 
 def subplotMovie(yVariables, xVariables, output_filename, fps=5, xLabels="X", yLabels="null", legends="null",legendLoc="upper left",subplotSize=(5, 4),yRanges="auto"):
@@ -287,8 +288,8 @@ def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="n
     # Calculate the figure size based on the number of rows, columns, and subplot size
     figWidth, figHeight = subplotSize[0] * cols, subplotSize[1] * rows
     fig, axes = plt.subplots(rows, cols, figsize=(figWidth, figHeight))
+    plt.subplots_adjust(wspace=0.35)
     axes = np.reshape(axes,(rows,cols))
-
     # Plot each pair of (y, x) in subplots with conditional x-axis and y-axis labeling
     for iy in range(len(yVariables)):
         ywidth = np.max(yVariables[iy])-np.min(yVariables[iy])
@@ -323,7 +324,51 @@ def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="n
                     axes[iy, it].legend(legends[iy], loc = legendLoc)
                 elif iy==0:
                     axes[iy, it].legend(legends,  loc = legendLoc)
+    return fig, axes
 
+
+def plotErrorConvergence(error,fidelity, xLabel="X", yLabel="Y", plotType="loglog", title="null", legends="null",legendLoc="best",figsize=(4,3.3)):
+    if not isinstance(error,np.ndarray):
+        raise(ValueError("error must be a numpy array"))
+    if isinstance(fidelity,list):
+        fidelity = np.array(fidelity)
+    if not isinstance(fidelity,np.ndarray):
+        print("fidelity: ",fidelity)
+        raise(ValueError("fidelity must be a 1D numpy array or list"))
+    if fidelity.ndim==1:
+        if error.shape[0] != fidelity.shape[0]:
+            print("error shape: ", error.shape)
+            print("fidelity shape: ", fidelity.shape)
+            raise(ValueError("error and fidelity must have the same number of columns"))
+        else:
+            fidelity=np.tile(fidelity[:,None],error.shape[2])
+    if fidelity.shape != error.shape:
+        raise(ValueError("error and fidelity must have the same shape"))
+    if legends!="null":
+        if isinstance(legends,str):
+            legends=[legends]
+        elif isinstance(legends,list):
+            if len(legends)!=error.shape[1]:
+                raise(ValueError("Invalid length of "+ str(len(legends))+" for legends for error of length " + str(error.shape[1])))
+        else:
+            raise(ValueError("Invalid type entered for legends: " + str(type(legends))))
+        
+    fig, axes = plt.subplots(1,1, figsize=figsize)
+    for i in range(error.shape[1]):
+        if plotType=="loglog":
+            axes.loglog(fidelity[:,i],error[:,i],getLineFormat("line",i),lw=figsize[0],ms=2*figsize[0])
+        elif plotType=="semilogx":
+            axes.semilogx(fidelity[:,i],error[:,i],getLineFormat("line",i),lw=figsize[0],ms=2*figsize[0])
+        elif plotType=="semilog":
+            axes.semilogy(fidelity[:,i],error[:,i],getLineFormat("line",i),lw=figsize[0],ms=2*figsize[0])
+        else :
+            axes.plot(fidelity[:,i],error[:,i],getLineFormat("line",i),lw=figsize[0],ms=2*figsize[0])
+    if legends!="null":
+        axes.legend(legends,  loc = legendLoc)
+    if title!="null":
+        fig.suptitle(title, fontsize=16)
+    axes.set_xlabel(xLabel)
+    axes.set_ylabel(yLabel)
     plt.tight_layout()
     return fig, axes
 

@@ -9,12 +9,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 import tankMMS
-nCollocations = [4]
+nCollocations = [2]
 verbosity = 1
 
 #I think there's an error with the higher
-higherOrderTerms=[7]  #Must be greater than 2 to satisfy BC
-nElems = np.array([2,4,8,16,32])  #Cant use nElems=1 due to some dimensionality issues with squeeze
+higherOrderTerms=[3]  #Must be greater than 2 to satisfy BC
+nElems = np.array([2,4,8,16,32,64,128])  #Cant use nElems=1 due to some dimensionality issues with squeeze
 parameterSet="Bizon2012_stable"
 #Parameter limitations:
 # Non-negative: Da, gamma, beta, delta
