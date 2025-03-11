@@ -772,12 +772,12 @@ class TankModel:
         uEvalxx,vEvalxx = self.eval(x,modelCoeff, output="seperated", deriv =2)
         uEvalxx-=uMeanxx
         vEvalxx-=vMeanxx
-
+    
         #Scale snapshots by quadrature matrix
         W=self.getQuadWeights(x,quadRule)
-        #Use transpose of evals since eval is time x space but standard snapshot matrix is space x time
         uModes, uModesx, uModesxx, uTimeModes, uTruncationError =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold)
         vModes, vModesx, vModesxx, vTimeModes, vTruncationError =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold)
+        
         
         uModesWeighted, uModesInt, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean, uRomSecondOrderMat, uRomSecondOrderMean\
               = self.computeRomMatrices(W,uMean, uMeanx, uMeanxx, uModes, uModesx,uModesxx)
@@ -792,8 +792,27 @@ class TankModel:
                         vRomSecondOrderMat, vRomSecondOrderMean), truncationError
         
     
-    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True):
-        #Geteigen decomp of UtWU
+    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,groupSeperations="null"):
+        # INCOMPLETE: Scale each observed response to [0,1] for POD so that sensitivities with large values aren't weighted more, may need setting up this change in TankModel
+        if type(groupSeperations)==np.ndarray:
+            raise ValueError("groupSeperations for mixed inputs incomplete")
+            # Compute norm of each snapshot
+            norms = np.sqrt(np.sum(W@(snapshots**2),axis=0))
+            snapshotScaling = np.zeros(norms.shape)
+            # Preallocate average norms for each group of snapshots
+            groupNorms = np.zeros(groupSeperations.size+1)
+            groupSeperations = np.append(groupSeperations,0)
+            groupSeperations = np.append(groupSeperations,snapshots.shape[1])
+            for iGroup in range(groupSeperations.size):
+                groupNorms[iGroup] = np.mean(norms[groupSeperations[iGroup]:groupSeperations[iGroup+1]])
+                snapshotScaling[groupSeperations[iGroup]:groupSeperations[iGroup+1]] = 1/groupNorms[iGroup]
+            # Relative snapshots to average norm
+            snapshotsRel = snapshots/snapshotScaling
+        elif groupSeperations!="null":
+            raise ValueError("Invalid groupSeperations input")
+
+        #Use transpose of evals since eval is time x space but standard snapshot matrix is space x time
+        #Get eigen decomp of UtWU
         timeModes,S,null= np.linalg.svd(snapshots.transpose()@W@snapshots)
         #Check symmetry of eigen decomp
         if not np.isclose(timeModes@S,S@null).all():
@@ -807,6 +826,7 @@ class TankModel:
         modes = snapshots@timeModes@np.diag(1/S)
         modesx = snapshotsx @ timeModes @ (np.diag(1/S))
         modesxx = snapshotsxx @ timeModes @ (np.diag(1/S))
+        #Rescale time-modes by average norms
         if useEnergyThreshold:
             #Create threshold for S
             totalEnergy=np.sum(S)
@@ -971,17 +991,11 @@ class TankModel:
         #print("Step Completed for t=",t)
         return dydt
     
-    def computeRomError(self,fomCoeff, romCoeff, romData, quadRule="simpson",norm="Linf"):
-        #Map from fomCoeff to fom Solution
-        uEval,vEval = self.eval(romData.x,fomCoeff,output="seperated")
-        uEval=uEval.transpose()
-        vEval=vEval.transpose()
+    def computeRomError(self,uEval,vEval,uRom,vRom, W,norm="Linf"):
         #Map from romCoeff to rom Solution
-        uRom = romData.uModes @ romCoeff[:,:romData.uNmodes].transpose() + romData.uMean.reshape((romData.nPoints,1))
-        vRom = romData.vModes @ romCoeff[:,romData.uNmodes:].transpose() + romData.vMean.reshape((romData.nPoints,1))
         if norm == "L2" or norm==r"$L_2$":
             #Compute joint-error
-            error = np.sqrt(np.sum(np.sum(romData.W @ (uEval-uRom)))**2+np.sum(np.sum(romData.W @(vEval-vRom)))**2)/np.sqrt(np.sum(np.sum(romData.W @uEval))**2+np.sum(np.sum(romData.W @vEval))**2)
+            error = np.sqrt(np.sum(np.sum(W @ (uEval-uRom)))**2+np.sum(np.sum(W @(vEval-vRom)))**2)/np.sqrt(np.sum(np.sum(W @uEval))**2+np.sum(np.sum(W @vEval))**2)
         elif norm == "Linf" or norm==r"$L_\infty$":
             errorU = np.max(np.abs(uEval-uRom))/np.max(np.abs(uEval))
             errorV = np.max(np.abs(vEval-vRom))/np.max(np.abs(vEval))
