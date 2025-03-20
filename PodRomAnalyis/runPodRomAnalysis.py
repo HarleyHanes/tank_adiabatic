@@ -14,16 +14,18 @@ import matplotlib.pyplot as plt
 
 
 #Set save details
-paramSet = "BizonAdvec" #BizonPeriodic, BizonLinear, BizonAdvecDiffusion
-equationSet = "tankOnly"
-romSensitivityApproach = "finite" #none, finite, sensEq, DEPOD 
+paramSet = "BizonPeriodic" #BizonPeriodic, BizonLinear, BizonAdvecDiffusion
+equationSet = "Le"
+romSensitivityApproach = "sensEq" #none, finite, sensEq, DEPOD
+finiteDelta = 1e0
 nCollocation=2
 nElements=64
 usePodRom=True
-useEnergyThreshold=False
+useEnergyThreshold=True
 if useEnergyThreshold==True:
     #energyRetention=[.8,.85,.885,.925,.95,.975,.99,.9925,.995,.9975,.999,.9999]
-    modeRetention=[.85,.99,.999]
+    #modeRetention=[.85,.99,.999]
+    modeRetention=[.999]
 else:
     #modeRetention=[3,4]
     #modeRetention = [3,4,5,7,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23] #
@@ -34,8 +36,8 @@ mean_reduction = ["zero"]
 error_norm = [r"$L_2$",r"$L_\infty$"]
 
 #Display settings
-plotTimeSeries=False
-plotError=True
+plotTimeSeries=True
+plotError=False
 makeMovies=False
 
 
@@ -68,14 +70,18 @@ elif paramSet == "BizonAdvecDiffusion":
 elif paramSet == "BizonAdvec":
     baseParams={"PeM": 1e16, "PeT": 1e16, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
     stabalizationTime=.1
-    tstep=.01
-    tmax=1
+    #tstep=.01
+    tstep=.1
+    tmax=.9
 else: 
     raise ValueError("Invalid paramSet entered: " + str(equationSet))
     
-
-
-fomSaveFolder = "../../results/podRomAnalysis/"+paramSet +"_"+equationSet +"_nCol" + str(nCollocation) + "_nElem"+str(nElements)
+fomSaveFolder = "../../results/podRomAnalysis/"+paramSet +"_nCol" + str(nCollocation) + "_nElem"+str(nElements)
+if equationSet != "tankOnly":
+    fomSaveFolder+="/"+equationSet+"_"+romSensitivityApproach
+    if romSensitivityApproach == "finite":
+        fomSaveFolder += "_d"+str(finiteDelta)
+        
 
 
 #Simulation Settings
@@ -86,6 +92,18 @@ if equationSet == "tankOnly":
     uLabels=[r"$u$"]
     vLabels=[r"$v$"]
     combinedLabels= [r"$u$",r"$v$"]
+elif equationSet == "Le":
+    neq=2
+    paramSelect=["Le"]
+    uLabels=[r"$u$",r"$u_{\mathrm{Le}}$"]
+    vLabels=[r"$v$",r"$v_{\mathrm{Le}}$"]
+    combinedLabels= [r"$u$",r"$v$",r"$u_{\mathrm{Le}}$",r"$v_{\mathrm{Le}}$"]
+elif equationSet == "vH":
+    neq=2
+    paramSelect=["vH"]
+    uLabels=[r"$u$",r"$u_{v_H}$"]
+    vLabels=[r"$v$",r"$v_{v_H}$"]
+    combinedLabels= [r"$u$",r"$v$",r"$u_{v_H}$",r"$v_{v_H}$"]
 elif equationSet == "linearParams":
     neq=5
     paramSelect=["Le","Da","delta","vH"]
@@ -108,6 +126,7 @@ else:
 if not os.path.exists(fomSaveFolder):
         os.makedirs(fomSaveFolder)
 #==================================== Setup system ===============================================================================
+print("Setting up system")
 model=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[0,1],params=baseParams)
 dydtSens =lambda y,t: model.dydtSens(y,t,paramSelect=paramSelect)
 if paramSet=="BizonChaotic":
@@ -121,21 +140,24 @@ if paramSet=="BizonChaotic":
     odeOut= scipy.integrate.solve_ivp(lambda t,y: stabalizationDydtSens(y,t),(0,stabalizationTime),modelCoeff[-1,:], method='BDF',atol=1e-6,rtol=1e-6)
     modelCoeff = odeOut.y[:,[-1]].transpose()
 elif paramSet=="BizonAdvec":
-    if equationSet != "tankOnly":
-        print("WARNING: Initialization of advection diffusion case not yet implemented for non-tankOnly equation sets")
     collPoints=np.append(model.collocationPoints,model.collocationPoints,axis=0)
     modelCoeff=np.array([-collPoints**2+2*collPoints])
+    for i in range(neq-1):
+        modelCoeff = np.append(modelCoeff,[-collPoints**2+2*collPoints],axis=1)
+    print(modelCoeff.shape)
 elif baseParams["vH"]==0:
     modelCoeff=np.ones((1,model.nCollocation*model.nElements*2*neq))*.5
 else:
     modelCoeff=np.ones((1,model.nCollocation*model.nElements*2*neq))*baseParams["vH"]
 x=np.linspace(0,1,xpoints)
 #=================================== Run Stabalization ===========================================================================
+print("Running Stabalization")
 if not stabalizationTime==0:
     #Run out till stabalizing in periodic domain
     odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(0,stabalizationTime),modelCoeff[-1,:], method='BDF',atol=1e-6,rtol=1e-6)
     modelCoeff = odeOut.y[:,[-1]].transpose()
 #=================================== Get Simulation Data ================================================================
+print("Getting Simulation Data")
 t=0
 while t<tmax:
     odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(t,t+tstep),modelCoeff[-1], method='BDF',atol=1e-10,rtol=1e-10)
@@ -149,9 +171,9 @@ if usePodRom:
     vResults = np.empty((neq,modelCoeff.shape[0],3,x.size))
     combinedResults=np.empty((2*neq,modelCoeff.shape[0],3,x.size))
 else:
-    uResults = np.empty((neq,modelCoeff.shape[0],x.size))
-    vResults = np.empty((neq,modelCoeff.shape[0],x.size))
-    combinedResults=np.empty((2*neq,modelCoeff.shape[0],x.size))
+    uResults = np.empty((neq,modelCoeff.shape[0],1,x.size))
+    vResults = np.empty((neq,modelCoeff.shape[0],1,x.size))
+    combinedResults=np.empty((2*neq,modelCoeff.shape[0],1,x.size))
 if type(modeRetention)==float or type(modeRetention)==int:
     modeRetention = [modeRetention]
 if type(mean_reduction)==str:
@@ -169,6 +191,7 @@ for i in range(0, neq):
 #================================== Run POD-ROM ==================================================================================
 for iret in range(len(modeRetention)):
     for j in range(len(mean_reduction)):
+        print("Running POD-ROM for mode retention ", modeRetention[iret], " and mean reduction ", mean_reduction[j])
         if usePodRom:
             if j>1:
                 raise ValueError("More than 1 mean-reduction used. Results data currently gets saved over for each mean-reduction")
@@ -194,13 +217,15 @@ for iret in range(len(modeRetention)):
             elif romSensitivityApproach == "sensEq":
                 romData, truncationError[iret,j,:]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,modeRetention[iret],mean=mean_reduction[j],useEnergyThreshold=useEnergyThreshold)
                 #Compute time modes for sensitivity equations
-                uFullSnapshots,vFullSnapshots = model.eval(x,modelCoeff,output="combined")
-                uFullTimeModes = romData.uModes.transpose() @ uFullSnapshots
-                vFullTimeModes = romData.vModes.transpose() @ vFullSnapshots
+                uSensTimeModes = (romData.uModesWeighted.transpose() @ uResults[i,:,0,:].transpose()).transpose()
+                vSensTimeModes = (romData.vModesWeighted.transpose() @ vResults[i,:,0,:].transpose()).transpose()
+                uFullTimeModes = np.append(romData.uTimeModes,uSensTimeModes,axis=1)
+                vFullTimeModes = np.append(romData.vTimeModes,vSensTimeModes,axis=1)
+                print(uFullTimeModes.shape)
                 #Check Time modes match for first nModes
-                if not np.isclose(uFullTimeModes[:,:nCollocation*nElements],romData.uTimeModes).all():
+                if not np.isclose(uFullTimeModes[:,:romData.uNmodes],romData.uTimeModes).all():
                     raise ValueError("u time modes do not match")
-                if not np.isclose(uFullTimeModes[:,:nCollocation*nElements],romData.uTimeModes).all():
+                if not np.isclose(vFullTimeModes[:,:romData.vNmodes],romData.vTimeModes).all():
                     raise ValueError("v time modes do not match")
             else:
                 raise ValueError("Invalid romSensitivityApproach entered: " + str(romSensitivityApproach))
@@ -215,6 +240,7 @@ for iret in range(len(modeRetention)):
                     =romData.uTimeModes[0,:romData.uNmodes]
                 romCoeff[0,romData.uNmodes:romData.uNmodes+romData.vNmodes]\
                     =romData.vTimeModes[0,:romData.vNmodes]
+                dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=0)
             elif romSensitivityApproach == "DEPOD":
                 # INCOMPLETE: need to setup POD computation for mixed-solution and sensitivity snapshot matrices
                 raise ValueError("DEPOD not yet implemented")
@@ -226,6 +252,7 @@ for iret in range(len(modeRetention)):
                         =romData.uTimeModes[timeModeIndex,:romData.uNmodes]
                     romCoeff[0,start+romData.uNmodes:start+romData.uNmodes+romData.vNmodes]\
                         =romData.vTimeModes[timeModeIndex,:romData.vNmodes]
+                dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect=paramSelect,penaltyStrength=0)
             elif romSensitivityApproach == "sensEq":
                 romCoeff=np.empty((1,neq*(romData.uNmodes+romData.vNmodes)))
                 for ieq in range(neq):
@@ -234,7 +261,7 @@ for iret in range(len(modeRetention)):
                         =uFullTimeModes[0,ieq*romData.uNmodes:(ieq+1)*romData.uNmodes]
                     romCoeff[0,start+romData.uNmodes:start+romData.uNmodes+romData.vNmodes]\
                         =vFullTimeModes[0,ieq*romData.vNmodes:(ieq+1)*romData.vNmodes]
-            dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect=paramSelect,penaltyStrength=0)
+                    dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect=paramSelect,penaltyStrength=0)
             t=0
             while t<tmax:
                 odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(t,t+tstep),romCoeff[-1], method='BDF',atol=1e-10,rtol=1e-10)
@@ -242,29 +269,32 @@ for iret in range(len(modeRetention)):
                 romCoeff=np.append(romCoeff,odeOut.y[:,[-1]].transpose(),axis=0)
                 t+=tstep
             if romSensitivityApproach == "finite":
-                perturbedRomCoeff = romCoeff[[0],:]
                 for i in range(len(paramSelect)):
+                    #NOTE: The initialization here is tough, for very small values of finite Delta the initialization is better, but at the coarse levels we have its a limitation 
+                    perturbedRomCoeff = romCoeff[[0],:romData.uNmodes+romData.vNmodes]
                     perturbedParams = baseParams.copy()
                     perturbedParams[paramSelect[i]]+= finiteDelta
                     model.params = perturbedParams
                     while t<tmax:
                         odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(t,t+tstep),perturbedRomCoeff[-1], method='BDF',atol=1e-10,rtol=1e-10)
                         change = np.max(np.abs(odeOut.y[:,-1]-perturbedRomCoeff[-1,:]))
-                        pertrurbedRomCoeff=np.append(romCoeff,odeOut.y[:,[-1]].transpose(),axis=0)
+                        perturbedRomCoeff=np.append(perturbedRomCoeff,odeOut.y[:,[-1]].transpose(),axis=0)
                         t+=tstep
-                    romCoeff = np.append(romCoeff,(perturbedRomCoeff-romCoeff[:,:romData.uNmodes+romData.vNmodes])/finiteDelta,axis=0)
+                    #Compute Sensitivity in POD space
+                    romCoeff = np.append(romCoeff,(perturbedRomCoeff-romCoeff[:,:romData.uNmodes+romData.vNmodes])/finiteDelta,axis=1)
             
             #----------------------------- Map Results Back into Spatial Space
             for i in range(0, neq):
                 # Compute ROM Solution
-                romStart = i*(romData.uNmodes+romData.vNmodes)
+                romModeStart = i*(romData.uNmodes+romData.vNmodes)
                 if i==0:
-                    uResults[i,:,1,:] = (romData.uModes @ romCoeff[:,romStart:romStart+romData.uNmodes].transpose()).transpose() + romData.uMean
-                    vResults[i,:,1,:] = (romData.vModes @ romCoeff[:,romStart+romData.uNmodes:romStart+romData.uNmodes+romData.vNmodes].transpose()).transpose() + romData.vMean
+                    uResults[i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose() + romData.uMean
+                    vResults[i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose() + romData.vMean
                 else:
-                    uResults[i,:,1,:] = (romData.uModes @ romCoeff[:,romStart:romStart+romData.uNmodes].transpose()).transpose()
-                    vResults[i,:,1,:] = (romData.vModes @ romCoeff[:,romStart+romData.uNmodes:romStart+romData.uNmodes+romData.vNmodes].transpose()).transpose()
-                
+                    uResults[i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose()
+                    vResults[i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose()
+                combinedResults[2*i,:,1,:] = uResults[i,:,1,:]
+                combinedResults[2*i+1,:,1,:] = vResults[i,:,1,:]
                 if i==0:
                     uResults[i,:,2,:] = ((romData.uModes @ romData.uTimeModes[:romCoeff.shape[0],:].transpose())+romData.uMean.reshape((romData.uMean.size,1))).transpose()
                     vResults[i,:,2,:] = (romData.vModes @ romData.vTimeModes[:romCoeff.shape[0],:].transpose() +romData.vMean.reshape((romData.vMean.size,1))).transpose()
@@ -274,56 +304,61 @@ for iret in range(len(modeRetention)):
                     #UNVERIFIED: That that property holds numerically with this implementation and whether it holds if using a mean decomp
                     if mean_reduction[j]!="zero":
                         print("WARNING: Correctness of approach unconfirmed for non-zero mean reduction")
-                    uResults[i,:,2,:] = ((romData.uModes @ romData.uModes.transpose()) @ uResults[i,:,0,:])
-                    vResults[i,:,2,:] = ((romData.vModes @ romData.vModes.transpose()) @ vResults[i,:,0,:])
+                    uResults[i,:,2,:] = ((romData.uModes @ romData.uModesWeighted.transpose()) @ uResults[i,:,0,:].transpose()).transpose()
+                    vResults[i,:,2,:] = ((romData.vModes @ romData.vModesWeighted.transpose()) @ vResults[i,:,0,:].transpose()).transpose()
+                combinedResults[2*i,:,2,:] = uResults[i,:,2,:]
+                combinedResults[2*i+1,:,2,:] = vResults[i,:,2,:]
 
         #================================================== Compute Error =================================================================
             for k in range(len(error_norm)):
-                error[iret,j,k] = model.computeRomError(uResults[0,:,0,:],vResults[0,:,0,:],uResults[0,:,1,:],vResults[0,:,1,:],romData.W,norm=error_norm[k])
+                error[iret,j,k] = model.computeRomError(uResults[0,:,0,:].transpose(),vResults[0,:,0,:].transpose(),uResults[0,:,1,:].transpose(),vResults[0,:,1,:].transpose(),romData.W,norm=error_norm[k])
                 print("ROM Error in norm "+error_norm[k]+": ", error[iret,j,k])
                 #INCOMPLETE: Figure out what want to compute for sensitivity error.
+        # print("uResults for time 0: ", uResults[:,0,:,:])
+        # print("uResults for time 1: ", uResults[:,-1,:,:])
+        if usePodRom:
+            legends = ["FOM","ROM","POD"] 
+        else:
+            legends = ["FOM"]
         #=========================================== Make Movies ===================================================================
-        if usePodRom and makeMovies:    
-            subplotMovie(uResults, x, romSaveFolder + "u.mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
-            subplotMovie(vResults, x, romSaveFolder + "v.mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
-            subplotMovie(combinedResults, x, romSaveFolder + "combined.mov", fps=15, xLabels="x",  yLabels=combinedLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
-        elif makeMovies:    
-            subplotMovie(uResults, x, fomSaveFolder + "u.mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
-            subplotMovie(vResults, x, fomSaveFolder + "v.mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
-            subplotMovie(combinedResults, x, fomSaveFolder + "combined.mov", fps=15, xLabels="x",  yLabels=combinedLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
+        if usePodRom and makeMovies:   
+            subplotMovie([u for u in uResults], x, romSaveFolder + "u.mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
+            subplotMovie([v for v in vResults], x, romSaveFolder + "v.mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
+            subplotMovie([y for y in combinedResults], x, romSaveFolder + "combined.mov", fps=15, xLabels="x",  yLabels=combinedLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
+        elif makeMovies:   
+            subplotMovie([u for u in uResults], x, fomSaveFolder + "u.mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
+            subplotMovie([v for v in vResults], x, fomSaveFolder + "v.mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
+            subplotMovie([y for y in combinedResults], x, fomSaveFolder + "combined.mov", fps=15, xLabels="x",  yLabels=combinedLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
 
         #================================================== Make example plots ============================================================
         if plotTimeSeries:
-                    tplot = np.linspace(0,tmax/tstep,4,dtype=int)
-                    title = ["t=" + str(t*tstep) for t in tplot]
-                    for i in range(len(uResults)):
-                        uResults[i]=uResults[i][tplot]
-                        vResults[i]=vResults[i][tplot]
-                    for i in range(len(combinedResults)):
-                        combinedResults[i]=combinedResults[i][tplot]
+            tplot = np.linspace(0,tmax/tstep,4,dtype=int)
+            title = ["t=" + str(t*tstep) for t in tplot]
+            uResults=[u[tplot,:,:] for u in uResults]
+            vResults=[v[tplot,:,:] for v in vResults]
+            combinedResults=[y[tplot,:,:] for y in combinedResults]
 
-                    fig,axs = subplotTimeSeries(combinedResults, x, xLabels="x", yLabels=combinedLabels, title = title,legends=legends, subplotSize=(2.65, 2))
-                    if usePodRom:
-                        plt.savefig(romSaveFolder + "combinedTimeSeries.pdf", format="pdf")
-                        plt.savefig(romSaveFolder + "combinedTimeSeries.png", format="png")
-                    else:
-                        plt.savefig(fomSaveFolder + "combinedTimeSeries.pdf", format="pdf")
-                        plt.savefig(fomSaveFolder + "combinedTimeSeries.png", format="png")
-                    fig,axs = subplotTimeSeries(uResults, x, xLabels="x", yLabels=uLabels, title = title,legends=legends, subplotSize=(2.65, 2))
-                    if usePodRom:
-                        plt.savefig(romSaveFolder + "uTimeSeries.pdf", format="pdf")
-                        plt.savefig(romSaveFolder + "uTimeSeries.png", format="png")
-                    else:
-                        plt.savefig(fomSaveFolder + "uTimeSeries.pdf", format="pdf")
-                        plt.savefig(fomSaveFolder + "uTimeSeries.png", format="png")
-                    fig,axs = subplotTimeSeries(vResults, x, xLabels="x", yLabels=vLabels, title = title,legends=legends, subplotSize=(2.65, 2))
-                    if usePodRom:
-                        plt.savefig(romSaveFolder + "vTimeSeries.pdf", format="pdf")
-                        plt.savefig(romSaveFolder + "vTimeSeries.png", format="png")
-                    else:
-                        plt.savefig(fomSaveFolder + "vTimeSeries.pdf", format="pdf")
-                        plt.savefig(fomSaveFolder + "vTimeSeries.png", format="png")
-
+            fig,axs = subplotTimeSeries(uResults, x, xLabels="x", yLabels=uLabels, title = title,legends=legends, subplotSize=(2.65, 2))
+            if usePodRom:
+                plt.savefig(romSaveFolder + "uTimeSeries.pdf", format="pdf")
+                plt.savefig(romSaveFolder + "uTimeSeries.png", format="png")
+            else:
+                plt.savefig(fomSaveFolder + "uTimeSeries.pdf", format="pdf")
+                plt.savefig(fomSaveFolder + "uTimeSeries.png", format="png")
+            fig,axs = subplotTimeSeries(vResults, x, xLabels="x", yLabels=vLabels, title = title,legends=legends, subplotSize=(2.65, 2))
+            if usePodRom:
+                plt.savefig(romSaveFolder + "vTimeSeries.pdf", format="pdf")
+                plt.savefig(romSaveFolder + "vTimeSeries.png", format="png")
+            else:
+                plt.savefig(fomSaveFolder + "vTimeSeries.pdf", format="pdf")
+                plt.savefig(fomSaveFolder + "vTimeSeries.png", format="png")
+            fig,axs = subplotTimeSeries(combinedResults, x, xLabels="x", yLabels=combinedLabels, title = title,legends=legends, subplotSize=(2.65, 2))
+            if usePodRom:
+                plt.savefig(romSaveFolder + "combinedTimeSeries.pdf", format="pdf")
+                plt.savefig(romSaveFolder + "combinedTimeSeries.png", format="png")
+            else:
+                plt.savefig(fomSaveFolder + "combinedTimeSeries.pdf", format="pdf")
+                plt.savefig(fomSaveFolder + "combinedTimeSeries.png", format="png")
 
 #=========================================== Plot Error ===================================================================
 if usePodRom and plotError and error.size>1:

@@ -905,8 +905,8 @@ class TankModel:
         dydt = np.append(dudt,dvdt)
         eqCounter=1
         for param in paramSelect:
-            dudParam = y[eqCounter*(romData.uNmodes+romData.vModes):eqCounter*(romData.uNmodes+romData.vModes)+romData.uNmodes]
-            dvdParam = y[eqCounter*(romData.uNmodes+romData.vModes)+romData.uNmodes:(eqCounter+1)*(romData.uNmodes+romData.vModes)]
+            dudParam = y[eqCounter*(romData.uNmodes+romData.vNmodes):eqCounter*(romData.uNmodes+romData.vNmodes)+romData.uNmodes]
+            dvdParam = y[eqCounter*(romData.uNmodes+romData.vNmodes)+romData.uNmodes:(eqCounter+1)*(romData.uNmodes+romData.vNmodes)]
             dudParamFull=np.matmul(romData.uModes,dudParam)+romData.uMean
             dvdParamFull=np.matmul(romData.vModes,dvdParam)+romData.vMean
             #Define common derivative terms
@@ -965,9 +965,13 @@ class TankModel:
             ddudParamdt+=romData.uModesWeighted.transpose() @ nonlinearTerm
             ddvdParamdt+=romData.vModesWeighted.transpose() @ nonlinearTerm
             #Construct boundary term
-            dudParamxLeftBoundary=np.dot(romData.uModesx[0,:],dudParam)+romData.uMean
-            dvdParamxLeftBoundary=np.dot(romData.vModesx[0,:],dvdParam)+romData.vMean
+            #NOTE: I think there are currently errors in this, check the BP formulation and then confirm this is implemented correctly
+            dudParamxLeftBoundary=np.dot(romData.uModesx[0,:],dudParam)+romData.uMean[0]
+            dvdParamxLeftBoundary=np.dot(romData.vModesx[0,:],dvdParam)+romData.vMean[0]
             if param in ["vH", "delta", "Le", "Da","beta","gamma"]:
+                print(ddudParamdt.shape)
+                print(dudParamxLeftBoundary.shape)
+                print(dudParamFull.shape)
                 ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
                 ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
             elif param=="f":
