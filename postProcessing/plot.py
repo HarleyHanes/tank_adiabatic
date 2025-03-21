@@ -128,7 +128,7 @@ def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", le
 
     if isinstance(yLabels, list):
         if len(yLabels)!=len(yVariables):
-            raise ValueError("Invalid length of "+ str(len(yLabels))+" for yLabels for yVariables of length " + len(yVariables))
+            raise ValueError("Invalid length of "+ str(len(yLabels))+" for yLabels for yVariables of length " + str(len(yVariables)))
     elif isinstance(yLabels,str):
         yLabels = [yLabels] * len(yVariables)
     else:
@@ -139,7 +139,7 @@ def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", le
         useLegends=True
         if all(isinstance(legend, list) for legend in legends):
             if len(legends)!=len(yVariables):
-                raise ValueError("Invalid length of "+ str(len(legends))+" for legends for yVariables of length " + len(yVariables))
+                raise ValueError("Invalid length of "+ str(len(legends))+" for legends for yVariables of length " + str(len(yVariables)))
             for i in range(len(yVariables)):
                 if len(legends[i])!=yVariables[i].shape[0]:
                     raise ValueError("Legend " + str(i) + "is of length " + str(len(legends[i]))+ " but yVariables has "+ str(yVariables[i].shape[0])+" lines.")
@@ -169,11 +169,8 @@ def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", le
 
     # Determine grid dimensions where rows * cols = numPlots and rows >= cols
     numPlots = len(yVariables)
-    cols = int(math.sqrt(numPlots))
-    while numPlots % cols != 0:
-        cols -= 1
-    rows = numPlots // cols
-
+    cols = int(np.round(int(math.sqrt(numPlots))))
+    rows = int(np.ceil(numPlots / cols))
     # Calculate the figure size based on the number of rows, columns, and subplot size
     figWidth, figHeight = subplotSize[0] * cols, subplotSize[1] * rows
     fig, axes = plt.subplots(rows, cols, figsize=(figWidth, figHeight))
@@ -182,8 +179,11 @@ def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", le
 
     # Plot each pair of (y, x) in subplots with conditional x-axis and y-axis labeling
     for i, (y, x) in enumerate(zip(yVariables, xVariables)):
-        for iline in range(y.shape[0]):
-            axes[i].plot(x, y[iline],getLineFormat("line",iline),lw=subplotSize[0],ms=2*subplotSize[0])
+        if y.ndim == 1:
+            axes[i].plot(x, y,lw=subplotSize[0],ms=2*subplotSize[0])
+        else:
+            for iline in range(y.shape[0]):
+                axes[i].plot(x, y[iline],getLineFormat("line",iline),lw=subplotSize[0],ms=2*subplotSize[0])
         axes[i].set_ylim(yRanges[i])  # Set the y-axis range
 
         # Apply x-axis labels according to the conditions
@@ -240,7 +240,7 @@ def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="n
             yVariables[i]=np.reshape(yVariables[i],(1,)+yVariables[i].shape) 
     if isinstance(xLabels, list): 
         if len(xLabels)!=len(xVariables):
-            raise ValueError("Invalid length of "+ str(len(xLabels))+" for xLabels for xVariables of length " + len(xVariables))
+            raise ValueError("Invalid length of "+ str(len(xLabels))+" for xLabels for xVariables of length " + str(len(xVariables)))
     elif isinstance(xLabels,str):
         xLabels = [xLabels] * len(xVariables)
     else:
@@ -253,7 +253,7 @@ def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="n
 
     if isinstance(yLabels, list):
         if len(yLabels)!=len(yVariables):
-            raise ValueError("Invalid length of "+ str(len(yLabels))+" for yLabels for yVariables of length " + len(yVariables))
+            raise ValueError("Invalid length of "+ str(len(yLabels))+" for yLabels for yVariables of length " + str(len(yVariables)))
     elif isinstance(yLabels,str):
         yLabels = [yLabels] * len(yVariables)
     else:

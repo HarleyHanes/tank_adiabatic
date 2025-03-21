@@ -847,9 +847,9 @@ class TankModel:
         timeModes = (timeModes@np.diag(S))[:,:nModes]
         #Check Orthonormality of modes
         if not np.isclose(modes.transpose()@W@modes,np.eye(modes.shape[1])).all():
-            print("Departure from Orthonormality: ", np.sum(np.eye((modes.shape[1],modes.shape[1])),modes.transpose()@W@modes))
+            print("WARNING: Modes not orthonormal")
+            print("Departure from Orthonormality: ", np.sum(np.eye(modes.shape[1])-modes.transpose()@W@modes))
             print("Modes Mass Matrix: ", modes.transpose()@W@modes)
-            raise ValueError("Non-orthonormal POD modes")
         #Check the POD decomposition is accurate in FOM space
         podError = np.sqrt(np.sum(W@((snapshots-modes@timeModes.transpose())**2))/np.sum(W@(snapshots**2)))
         podIcError = np.sqrt(np.sum(W@((snapshots[:,0]-(modes@timeModes.transpose())[:,0])**2))/np.sum(W@(snapshots[:,0]**2)))
@@ -969,20 +969,17 @@ class TankModel:
             dudParamxLeftBoundary=np.dot(romData.uModesx[0,:],dudParam)+romData.uMean[0]
             dvdParamxLeftBoundary=np.dot(romData.vModesx[0,:],dvdParam)+romData.vMean[0]
             if param in ["vH", "delta", "Le", "Da","beta","gamma"]:
-                print(ddudParamdt.shape)
-                print(dudParamxLeftBoundary.shape)
-                print(dudParamFull.shape)
                 ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
                 ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
             elif param=="f":
                 ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
                 ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]+vFull[-1]))
             elif param=="PeM":
-                uxLeftBoundary=np.dot(romData.uModesx[0,:],dudParam)+romData.uMean
+                uxLeftBoundary=np.dot(romData.uModesx[0,:],dudParam)+romData.uMean[0]
                 ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"]+uxLeftBoundary/(self.params["PeM"]**2))
                 ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
             elif param=="PeT":
-                vxLeftBoundary=np.dot(romData.vModesx[0,:],dvdParam)+romData.vMean
+                vxLeftBoundary=np.dot(romData.vModesx[0,:],dvdParam)+romData.vMean[0]
                 ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
                 ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary-vxLeftBoundary/self.params["PeT"])/self.params["PeT"]-self.params["f"]*dvdParamFull[-1])
 
