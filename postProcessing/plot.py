@@ -6,7 +6,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import matplotlib.ticker as ticker
 
 
-def subplotMovie(yVariables, xVariables, output_filename, fps=5, xLabels="X", yLabels="null", legends="null",legendLoc="upper left",subplotSize=(5, 4),yRanges="auto"):
+def subplotMovie(yVariables, xVariables, output_filename, fps=5, xLabels="X", yLabels="null", legends="null",legendLoc="upper left",subplotSize=(5, 4),yRanges="auto",lineTypeStart=0):
     """
     Create a .mov file where each frame is a subplot call using the ith element
     in the first dimension of every numpy array in yVariables. Returns the video_writer.
@@ -42,7 +42,7 @@ def subplotMovie(yVariables, xVariables, output_filename, fps=5, xLabels="X", yL
             raise ValueError(f"Invalid length of {len(yRanges)} for yRanges for yVariables of length {len(yVariables)}")
     else:
         raise ValueError(f"Invalid type entered for yRanges: {type(yRanges)}")
-
+   
 
     # Matplotlib figure size (in pixels)
     dpi = 400
@@ -67,7 +67,7 @@ def subplotMovie(yVariables, xVariables, output_filename, fps=5, xLabels="X", yL
         frame_yVariables = [yVar[i, :] for yVar in yVariables]
 
         # Create the subplot using the provided function
-        fig, axes = subplot(frame_yVariables, xVariables, xLabels=xLabels, yLabels=yLabels,legends=legends,legendLoc=legendLoc, subplotSize=subplotSize,yRanges=yRanges)
+        fig, axes = subplot(frame_yVariables, xVariables, xLabels=xLabels, yLabels=yLabels,legends=legends,legendLoc=legendLoc, subplotSize=subplotSize,yRanges=yRanges,lineTypeStart=lineTypeStart)
 
         # Render the figure to a buffer
         canvas = FigureCanvas(fig)
@@ -88,7 +88,7 @@ def subplotMovie(yVariables, xVariables, output_filename, fps=5, xLabels="X", yL
         plt.close(fig)
     video_writer.release()
 
-def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", legendLoc="best", subplotSize=(5, 4),yRanges="auto"):
+def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", legendLoc="best", subplotSize=(5, 4),yRanges="auto",lineTypeStart=0):
     # Validate inputs
     if isinstance(yVariables, np.ndarray) and isinstance(xVariables, np.ndarray):
         if yVariables.shape[-1] != xVariables.shape[-1]:
@@ -148,7 +148,6 @@ def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", le
             useIndividualLegends=True
         elif all(isinstance(legend, str) for legend in legends):
                 if len(legends)!=yVariables[0].shape[0]:
-                    print(legends)
                     raise ValueError("String legend is of length " + str(len(legends))+ " but yVariables has "+ str(yVariables[0].shape[0])+" lines.")
                 useIndividualLegends=False
         else:
@@ -183,7 +182,7 @@ def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", le
             axes[i].plot(x, y,lw=subplotSize[0],ms=2*subplotSize[0])
         else:
             for iline in range(y.shape[0]):
-                axes[i].plot(x, y[iline],getLineFormat("line",iline),lw=subplotSize[0],ms=2*subplotSize[0])
+                axes[i].plot(x, y[iline],getLineFormat("line",iline+lineTypeStart),lw=subplotSize[0],ms=2*subplotSize[0])
         axes[i].set_ylim(yRanges[i])  # Set the y-axis range
 
         # Apply x-axis labels according to the conditions
@@ -205,7 +204,7 @@ def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", le
     plt.tight_layout()
     return fig, axes
 
-def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="null", legends="null", legendLoc="best",subplotSize=(5, 4)):
+def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="null", legends="null", legendLoc="best",subplotSize=(5, 4),lineTypeStart=0):
     # Validate inputs
     if isinstance(yVariables, np.ndarray) and isinstance(xVariables, np.ndarray):
         if yVariables.shape[-1] != xVariables.shape[-1]:
@@ -297,10 +296,10 @@ def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="n
         for it in range(yVariables[0].shape[0]):
             if len(xVariables)==len(yVariables):
                 for iline in range(yVariables[iy][it].shape[0]):
-                    axes[iy,it].plot(xVariables[iy], yVariables[iy][it][iline],getLineFormat("line",iline),lw=subplotSize[0],ms=2*subplotSize[0])
+                    axes[iy,it].plot(xVariables[iy], yVariables[iy][it][iline],getLineFormat("line",iline+lineTypeStart),lw=subplotSize[0],ms=2*subplotSize[0])
             else:
                 for iline in range(yVariables[iy][it].shape[0]):
-                    axes[iy,it].plot(xVariables[0], yVariables[iy][it][iline],getLineFormat("line",iline),lw=subplotSize[0],ms=2*subplotSize[0])
+                    axes[iy,it].plot(xVariables[0], yVariables[iy][it][iline],getLineFormat("line",iline+lineTypeStart),lw=subplotSize[0],ms=2*subplotSize[0])
             axes[iy,it].set_ylim(yRanges)
             if useIndividualTitles and title!="null" and iy==0:
                 axes[iy, it].set_title(title[it])

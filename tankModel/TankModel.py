@@ -725,7 +725,7 @@ class TankModel:
 
     #================================POD-ROM===================================================
 
-    def constructPodRom(self,modelCoeff,x,modeThreshold,quadRule="simpson",mean="mean",useEnergyThreshold=True):
+    def constructPodRom(self,modelCoeff,x,W,modeThreshold,quadRule="simpson",mean="mean",useEnergyThreshold=True):
         #Get Snapshots and derivatives of snapshots
         uEval,vEval = self.eval(x,modelCoeff,output="seperated")
         #Compute Mean, keeping dimension so casting works
@@ -773,8 +773,6 @@ class TankModel:
         uEvalxx-=uMeanxx
         vEvalxx-=vMeanxx
     
-        #Scale snapshots by quadrature matrix
-        W=self.getQuadWeights(x,quadRule)
         uModes, uModesx, uModesxx, uTimeModes, uTruncationError =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold)
         vModes, vModesx, vModesxx, vTimeModes, vTruncationError =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold)
         
@@ -867,16 +865,11 @@ class TankModel:
         romSecondOrderMean = podModesWeighted.transpose() @ meanxx
         return podModesWeighted, podModesInt, romMassMean, romFirstOrderMat, romFirstOrderMean, romSecondOrderMat, romSecondOrderMean
 
-    def getQuadWeights(self,x,quadRule):
+    def getQuadWeights(self,nPoints,quadRule):
+        if quadRule == "simpson" and nPoints%2==0:
+            raise ValueError("Simpson's rule requires an odd number of points")
         if quadRule == "simpson":
-            #Check x has an odd number of points
-            assert(np.size(x)/2 != np.round(np.size(x)/2))
-            #Check x has at least 3 points 
-            assert(np.size(x)>=3)
-            #Check x is between bounds
-            assert(np.isclose(x[0],self.bounds[0]))
-            #Check x is between bounds
-            assert(np.isclose(x[-1],self.bounds[-1]))
+            x=np.linspace(self.bounds[0],self.bounds[1],nPoints)
             #Get quadrature weights using simpson's rule
             w=np.ones(x.size)/3*(self.bounds[1]-self.bounds[0])/(x.size-1)
             w[1:x.size-1:2]*=4
@@ -884,7 +877,13 @@ class TankModel:
                 w[2:x.size-2:2]*=2
         elif quadRule == "uniform":
             w=np.ones(np.size(x))#/(x.size)*(self.bounds[1]-self.bounds[0])
-        return np.diag(w)
+        elif quadRule == "gauss-legendre":
+            x,w= np.polynomial.legendre.leggauss(nPoints)
+            x=(x+1)*(self.bounds[1]-self.bounds[0])/2+self.bounds[0]
+            w=w*(self.bounds[1]-self.bounds[0])/2
+        else:
+            raise ValueError("Invalid quadRule")
+        return x, np.diag(w)
 
     def dydtPodRom(self,y,t,romData,paramSelect=[],penaltyStrength=0):
         u=y[0:romData.uNmodes]

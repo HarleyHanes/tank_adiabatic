@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 
 #Set save details
-paramSet = "BizonChaotic" #BizonPeriodic, BizonLinear, BizonNonLinear, BizonAdvecDiffusion
+paramSet = "BizonAdvec" #BizonPeriodic, BizonLinear, BizonNonLinear, BizonAdvecDiffusion
 equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
 romSensitivityApproach = "finite" #none, finite, sensEq, DEPOD
 finiteDelta = 1e-6
@@ -28,20 +28,23 @@ if useEnergyThreshold==True:
     #modeRetention=[.85,.99,.999]
     modeRetention=[.99]
 else:
-    modeRetention=[23]
+    modeRetention=[4]
+    #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20] #Stable for periodic with no mean-decomp, gauss-legendre points
     #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24] #All modes (stable for periodic with no mean-decomp)
     #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,23,24] #Chaotic, no mean-decomp (note 12 is not used due to instability in the POD-ROM)
     #modeRetention = [3,4,5,7,9,10,11,13,14,15,16,17,18,19,20,21,22,23] #Chaotic, mean decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
     #modeRetention = [14,15,16,17,18,19,20,21,22,23] #Chaotic, first decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
-xpoints=101
+nPoints=99
+quadRule = "gauss-legendre"
 mean_reduction = ["zero"]
 error_norm = [r"$L_2$",r"$L_\infty$"]
 
 #Display settings
 plotTimeSeries=True
 plotModes=False
-plotError=False
-makeMovies=False
+plotConvergence=False
+plotError=True
+makeMovies=True
 
 
 
@@ -139,6 +142,7 @@ if not os.path.exists(fomSaveFolder):
 #==================================== Setup system ===============================================================================
 print("Setting up system")
 model=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[0,1],params=baseParams)
+x,W = model.getQuadWeights(nPoints,quadRule)
 dydtSens =lambda y,t: model.dydtSens(y,t,paramSelect=paramSelect)
 if paramSet=="BizonChaotic":
     #For Chaotic, need to run two stabalizations, one to get to the pre-periodic stable case, and another to get to the chaotic case
@@ -162,7 +166,7 @@ elif baseParams["vH"]==0:
     modelCoeff=np.ones((1,model.nCollocation*model.nElements*2*neq))*.5
 else:
     modelCoeff=np.ones((1,model.nCollocation*model.nElements*2*neq))*baseParams["vH"]
-x=np.linspace(0,1,xpoints)
+
 #=================================== Run Stabalization ===========================================================================
 print("Running Stabalization")
 if not stabalizationTime==0:
@@ -222,13 +226,13 @@ for iret in range(len(modeRetention)):
             # Get POD Decomposition
             if romSensitivityApproach == "finite" or romSensitivityApproach == "none":
                 #No adjustment to POD Needed for finite difference approach
-                romData, truncationError[iret,j,:]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,modeRetention[iret],mean=mean_reduction[j],useEnergyThreshold=useEnergyThreshold)
+                romData, truncationError[iret,j,:]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[j],useEnergyThreshold=useEnergyThreshold)
             elif romSensitivityApproach == "DEPOD":
                 # INCOMPLETE: need to setup POD computation for mixed-solution and sensitivity snapshot matrices
                 raise ValueError("DEPOD not yet implemented")
                 romData, truncationError[iret,j,:]=model.constructPodRom(modelCoeff,x,modeRetention[iret],mean=mean_reduction[j],useEnergyThreshold=useEnergyThreshold)
             elif romSensitivityApproach == "sensEq":
-                romData, truncationError[iret,j,:]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,modeRetention[iret],mean=mean_reduction[j],useEnergyThreshold=useEnergyThreshold)
+                romData, truncationError[iret,j,:]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[j],useEnergyThreshold=useEnergyThreshold)
                 #Compute time modes for sensitivity equations
                 uFullTimeModes = romData.uTimeModes.copy()
                 vFullTimeModes = romData.vTimeModes.copy()
@@ -328,7 +332,6 @@ for iret in range(len(modeRetention)):
                     vResults[i,:,2,:] = ((romData.vModes @ romData.vModesWeighted.transpose()) @ vResults[i,:,0,:].transpose()).transpose()
                 combinedResults[2*i,:,2,:] = uResults[i,:,2,:]
                 combinedResults[2*i+1,:,2,:] = vResults[i,:,2,:]
-
         #================================================== Compute Error =================================================================
             for k in range(len(error_norm)):
                 error[iret,j,k] = model.computeRomError(uResults[0,:,0,:].transpose(),vResults[0,:,0,:].transpose(),uResults[0,:,1,:].transpose(),vResults[0,:,1,:].transpose(),romData.W,norm=error_norm[k])
@@ -345,40 +348,50 @@ for iret in range(len(modeRetention)):
             subplotMovie([u for u in uResults], x, romSaveFolder + "u.mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
             subplotMovie([v for v in vResults], x, romSaveFolder + "v.mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
             subplotMovie([y for y in combinedResults], x, romSaveFolder + "combined.mov", fps=15, xLabels="x",  yLabels=combinedLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
+            if plotError:
+                print(uResults.shape)
+                subplotMovie([u[:,1:3,:]-u[:,[0],:] for u in uResults], x, romSaveFolder + "uError.mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends[1:3], legendLoc="upper left", subplotSize=(2.5, 2),lineTypeStart=1)
+                subplotMovie([v[:,1:3,:]-v[:,[0],:] for v in vResults], x, romSaveFolder + "vError.mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends[1:3], legendLoc="upper left", subplotSize=(2.5, 2),lineTypeStart=1)
+                
         elif makeMovies:   
             subplotMovie([u for u in uResults], x, fomSaveFolder + "u.mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
             subplotMovie([v for v in vResults], x, fomSaveFolder + "v.mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
             subplotMovie([y for y in combinedResults], x, fomSaveFolder + "combined.mov", fps=15, xLabels="x",  yLabels=combinedLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
-
+        
         #================================================== Make example plots ============================================================
         if plotTimeSeries:
             tplot = np.linspace(0,tmax/tstep,4,dtype=int)
             title = ["t=" + str(round(100000*t*tstep)/100000) for t in tplot]
-            uResults=[u[tplot,:,:] for u in uResults]
-            vResults=[v[tplot,:,:] for v in vResults]
-            combinedResults=[y[tplot,:,:] for y in combinedResults]
 
-            fig,axs = subplotTimeSeries(uResults, x, xLabels="x", yLabels=uLabels, title = title,legends=legends, subplotSize=(2.65, 2))
+            fig,axs = subplotTimeSeries([u[tplot,:,:] for u in uResults], x, xLabels="x", yLabels=uLabels, title = title,legends=legends, subplotSize=(2.65, 2))
             if usePodRom:
                 plt.savefig(romSaveFolder + "uTimeSeries.pdf", format="pdf")
                 plt.savefig(romSaveFolder + "uTimeSeries.png", format="png")
             else:
                 plt.savefig(fomSaveFolder + "uTimeSeries.pdf", format="pdf")
                 plt.savefig(fomSaveFolder + "uTimeSeries.png", format="png")
-            fig,axs = subplotTimeSeries(vResults, x, xLabels="x", yLabels=vLabels, title = title,legends=legends, subplotSize=(2.65, 2))
+            fig,axs = subplotTimeSeries([v[tplot,:,:] for v in vResults], x, xLabels="x", yLabels=vLabels, title = title,legends=legends, subplotSize=(2.65, 2))
             if usePodRom:
                 plt.savefig(romSaveFolder + "vTimeSeries.pdf", format="pdf")
                 plt.savefig(romSaveFolder + "vTimeSeries.png", format="png")
             else:
                 plt.savefig(fomSaveFolder + "vTimeSeries.pdf", format="pdf")
                 plt.savefig(fomSaveFolder + "vTimeSeries.png", format="png")
-            fig,axs = subplotTimeSeries(combinedResults, x, xLabels="x", yLabels=combinedLabels, title = title,legends=legends, subplotSize=(2.65, 2))
+            fig,axs = subplotTimeSeries([y[tplot,:,:] for y in combinedResults], x, xLabels="x", yLabels=combinedLabels, title = title,legends=legends, subplotSize=(2.65, 2))
             if usePodRom:
                 plt.savefig(romSaveFolder + "combinedTimeSeries.pdf", format="pdf")
                 plt.savefig(romSaveFolder + "combinedTimeSeries.png", format="png")
             else:
                 plt.savefig(fomSaveFolder + "combinedTimeSeries.pdf", format="pdf")
                 plt.savefig(fomSaveFolder + "combinedTimeSeries.png", format="png")
+            if usePodRom and plotError:
+                fig,axs = subplotTimeSeries([u[tplot,1:3,:]-u[tplot,0:1,:] for u in uResults], x, xLabels="x", yLabels=uLabels, title = title,legends=legends[1:3], subplotSize=(2.65, 2),lineTypeStart=1)
+                plt.savefig(romSaveFolder + "uErrorTimeSeries.pdf", format="pdf")
+                plt.savefig(romSaveFolder + "uErrorTimeSeries.png", format="png")
+                fig,axs = subplotTimeSeries([v[tplot,1:3,:]-v[tplot,0:1,:] for v in vResults], x, xLabels="x", yLabels=vLabels, title = title,legends=legends[1:3], subplotSize=(2.65, 2),lineTypeStart=1)
+                plt.savefig(romSaveFolder + "vErrorTimeSeries.pdf", format="pdf")
+                plt.savefig(romSaveFolder + "vErrorTimeSeries.png", format="png")
+
         #================================================== Plot POD Modes ============================================================
         if plotModes and usePodRom:
             subplot([mode for mode in romData.uModes.transpose()], x, xLabels="x", yLabels=["Mode " + str(i+1) for i in range(romData.uNmodes)])
@@ -388,7 +401,7 @@ for iret in range(len(modeRetention)):
             plt.savefig(romSaveFolder + "vModes.pdf", format="pdf")
             plt.savefig(romSaveFolder + "vModes.png", format="png")
 #=========================================== Plot Error ===================================================================
-if usePodRom and plotError and error.size>1:
+if usePodRom and plotConvergence and error.size>1:
     if error.shape[2]>1: 
         error = error.reshape((error.shape[0],error.shape[1]*error.shape[2]))
         truncationError = truncationError.reshape((error.shape[0],error.shape[1]))
