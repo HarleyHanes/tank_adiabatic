@@ -15,18 +15,18 @@ import matplotlib.pyplot as plt
 
 
 #Set save details
-paramSet = "BizonAdvec" #BizonPeriodic, BizonLinear, BizonNonLinear, BizonAdvecDiffusion
-equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
-romSensitivityApproach = "finite" #none, finite, sensEq, DEPOD
+paramSet = "BizonPeriodic" #BizonPeriodic, BizonLinear, BizonNonLinear, BizonAdvecDiffusion
+equationSet = "nonBoundaryParams" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
+romSensitivityApproach = "sensEq" #none, finite, sensEq, DEPOD
 finiteDelta = 1e-6
 nCollocation=2
 nElements=64
 usePodRom=True
-useEnergyThreshold=False
+useEnergyThreshold=True
 if useEnergyThreshold==True:
     #energyRetention=[.8,.85,.885,.925,.95,.975,.99,.9925,.995,.9975,.999,.9999]
     #modeRetention=[.85,.99,.999]
-    modeRetention=[.99]
+    modeRetention=[.995]
 else:
     modeRetention=[4]
     #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20] #Stable for periodic with no mean-decomp, gauss-legendre points
@@ -35,7 +35,7 @@ else:
     #modeRetention = [3,4,5,7,9,10,11,13,14,15,16,17,18,19,20,21,22,23] #Chaotic, mean decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
     #modeRetention = [14,15,16,17,18,19,20,21,22,23] #Chaotic, first decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
 nPoints=99
-quadRule = "gauss-legendre"
+quadRule = "simpson"
 mean_reduction = ["zero"]
 error_norm = [r"$L_2$",r"$L_\infty$"]
 
@@ -44,7 +44,7 @@ plotTimeSeries=True
 plotModes=False
 plotConvergence=False
 plotError=True
-makeMovies=True
+makeMovies=False
 
 
 
@@ -56,7 +56,8 @@ if paramSet == "BizonChaotic":
 elif paramSet == "BizonPeriodic":
     baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
     stabalizationTime=20
-    tstep=.02
+    #tstep=.02
+    tstep=.2
     tmax=2.1
 elif paramSet == "BizonNonLinear":
     baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 0, "vH":0}
