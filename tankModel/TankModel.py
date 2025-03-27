@@ -254,65 +254,50 @@ class TankModel:
         
         if not "PeM" in value:
             raise Exception("PeM not in params dictionary")
-        elif type(value["PeM"])!= float and type(value["PeM"])!= int:
+        elif type(value["PeM"])!= float and type(value["PeM"])!= int and type(value["PeM"])!= complex:
             raise Exception("Non-numerical value entered for PeM: " + str(value["PeM"]))
-        elif value["PeM"] < 0:
-            raise Exception("Negative value eneter for PeM: " + str(value["PeM"]))
         
         if not "PeT" in value:
             raise Exception("PeT not in params dictionary")
-        elif type(value["PeT"])!= float and type(value["PeT"])!= int:
+        elif type(value["PeT"])!= float and type(value["PeT"])!= int and type(value["PeT"])!= complex:
             raise Exception("Non-numerical value entered for PeT: " + str(value["PeT"]))
-        elif value["PeT"] < 0:
-            raise Exception("Negative value eneter for PeT: " + str(value["PeT"]))
-        
+       
         if not "f" in value:
             raise Exception("f not in params dictionary")
-        elif type(value["f"])!= float and type(value["f"])!= int:
+        elif type(value["f"])!= float and type(value["f"])!= int and type(value["f"])!= complex:
             raise Exception("Non-numerical value entered for f: " + str(value["f"]))
-        elif value["f"] < 0:
-            raise Exception("Negative value eneter for f: " + str(value["f"]))
         
         
         if not "Le" in value:
             raise Exception("Le not in params dictionary")
-        elif type(value["Le"])!= float and type(value["Le"])!= int:
+        elif type(value["Le"])!= float and type(value["Le"])!= int and type(value["Le"])!= complex:
             raise Exception("Non-numerical value entered for Le: " + str(value["Le"]))
-        elif value["Le"] < 0:
-            raise Exception("Negative value eneter for Le: " + str(value["Le"]))
-        
+       
         if not "Da" in value:
             raise Exception("Da not in params dictionary")
-        elif type(value["Da"])!= float and type(value["Da"])!= int:
+        elif type(value["Da"])!= float and type(value["Da"])!= int and type(value["Da"])!= complex:
             raise Exception("Non-numerical value entered for Da: " + str(value["Da"]))
-        elif value["Da"] < 0:
-            raise Exception("Negative value eneter for Da: " + str(value["Da"]))
-
+        
         if not "beta" in value:
             raise Exception("beta not in params dictionary")
-        elif type(value["beta"])!= float and type(value["beta"])!= int:
+        elif type(value["beta"])!= float and type(value["beta"])!= int and type(value["beta"])!= complex:
             raise Exception("Non-numerical value entered for beta: " + str(value["beta"]))
-        elif value["beta"] < 0:
-            raise Exception("Negative value eneter for beta: " + str(value["beta"]))
         
 
         if not "gamma" in value:
             raise Exception("gamma not in params dictionary")
-        elif type(value["gamma"])!= float and type(value["gamma"])!= int:
+        elif type(value["gamma"])!= float and type(value["gamma"])!= int and type(value["gamma"])!= complex:
             raise Exception("Non-numerical value entered for gamma: " + str(value["gamma"]))
-        elif value["gamma"] < 0:
-            raise Exception("Negative value eneter for gamma: " + str(value["gamma"]))
         
         if not "delta" in value:
             raise Exception("delta not in params dictionary")
-        elif type(value["delta"])!= float and type(value["delta"])!= int:
+        elif type(value["delta"])!= float and type(value["delta"])!= int and type(value["delta"])!= complex:
             raise Exception("Non-numerical value entered for delta: " + str(value["delta"]))
-        elif value["delta"] < 0:
-            raise Exception("Negative value eneter for delta: " + str(value["delta"]))
+
         
         if not "vH" in value:
             raise Exception("vH not in params dictionary")
-        elif type(value["vH"])!= float and type(value["vH"])!= int:
+        elif type(value["vH"])!= float and type(value["vH"])!= int and type(value["vH"])!= complex:
             raise Exception("Non-numerical value entered for vH: " + str(value["vH"]))
         
         self._params=value
@@ -886,9 +871,9 @@ class TankModel:
             elif param=="delta":
                 ddvdParamdt+=self.params["vH"]*romData.vModesInt-v-self.params["delta"]*dvdParam
             elif param=="Le":
-                ddvdParamdt+=-dvdt+self.params["delta"]*dvdParam
+                ddvdParamdt+= -dvdt-self.params["delta"]*dvdParam
             else:
-                ddvdParamdt+= self.params["delta"]*dvdParam
+                ddvdParamdt+= -self.params["delta"]*dvdParam
 
 
 
@@ -906,17 +891,17 @@ class TankModel:
                              +(1-uFull))*np.exp(self.params["gamma"]*self.params["beta"]\
                                              *vFull/(1+self.params["beta"]*vFull))
             elif param=="beta":
-                nonlinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
-                                                       *vFull/(1+self.params["beta"]*vFull))\
-                                               *((1-uFull)*self.params["gamma"]\
-                                                 *(vFull+self.params["beta"]*dvdParamFull)/(1+self.params["beta"]*vFull)**2\
-                                                 - dudParamFull)
+                nonLinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
+                                                       *vFull/(1+self.params["beta"]*vFull))
+                nonlinearTerm*=((1-uFull)*self.params["gamma"]*(vFull+self.params["beta"]*dvdParamFull)\
+                                                                /((1+self.params["beta"]*vFull)**2)\
+                                 - dudParamFull)
             elif param=="gamma":
-                nonlinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
-                                                       *vFull/(1+self.params["beta"]*vFull))\
-                                               *((1-uFull)*self.params["beta"]*(vFull+self.params["beta"]*vFull**2+self.params["gamma"]*dvdParamFull)\
-                                                 /((1+self.params["beta"]*vFull)**2)\
-                                               - dudParamFull)
+                nonLinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
+                                                       *vFull/(1+self.params["beta"]*vFull))
+                nonLinearTerm*=((1-uFull)*self.params["beta"]*(vFull+self.params["beta"]*(vFull**2)+self.params["gamma"]*dvdParamFull)\
+                                                                /((1+self.params["beta"]*vFull)**2)\
+                                 - dudParamFull)
             else:
                 raise(Exception("Invalid param value: "+param))            
             ddudParamdt+=romData.uModesWeighted.transpose() @ nonlinearTerm

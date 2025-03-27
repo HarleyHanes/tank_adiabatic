@@ -16,34 +16,36 @@ import matplotlib.pyplot as plt
 
 #Set save details
 paramSet = "BizonPeriodic" #BizonPeriodic, BizonLinear, BizonNonLinear, BizonAdvecDiffusion
-equationSet = "nonBoundaryParams" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
-romSensitivityApproach = "sensEq" #none, finite, sensEq, DEPOD
-finiteDelta = 1e-6
+equationSet = "tankOnly" #tankOnly, Le, vH, linearPasrams, linearBoundaryParams, allParams, nonBoundaryParams
+romSensitivityApproach = "complex" #none, finite, sensEq, DEPOD (unfinished), complex, only used if equationSet!=tankOnly
+finiteDelta = 1e-6   #Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
+complexDelta = 1e-10 #Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
+coarse = False
 nCollocation=2
 nElements=64
 usePodRom=True
-useEnergyThreshold=True
+useEnergyThreshold=False
 if useEnergyThreshold==True:
     #energyRetention=[.8,.85,.885,.925,.95,.975,.99,.9925,.995,.9975,.999,.9999]
     #modeRetention=[.85,.99,.999]
-    modeRetention=[.995]
+    modeRetention=[.999]
 else:
-    modeRetention=[4]
+    #modeRetention=[1,2,3,4,5,6,7]
     #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20] #Stable for periodic with no mean-decomp, gauss-legendre points
-    #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24] #All modes (stable for periodic with no mean-decomp)
+    modeRetention = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24] #All modes (stable for periodic with no mean-decomp)
     #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,23,24] #Chaotic, no mean-decomp (note 12 is not used due to instability in the POD-ROM)
     #modeRetention = [3,4,5,7,9,10,11,13,14,15,16,17,18,19,20,21,22,23] #Chaotic, mean decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
     #modeRetention = [14,15,16,17,18,19,20,21,22,23] #Chaotic, first decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
 nPoints=99
-quadRule = "simpson"
+quadRule = "gauss-legendre"
 mean_reduction = ["zero"]
 error_norm = [r"$L_2$",r"$L_\infty$"]
 
 #Display settings
 plotTimeSeries=True
 plotModes=False
-plotConvergence=False
-plotError=True
+plotConvergence=True
+plotError=False
 makeMovies=False
 
 
@@ -51,45 +53,58 @@ makeMovies=False
 if paramSet == "BizonChaotic":
     baseParams={"PeM": 700, "PeT": 700, "f": .3, "Le": 1, "Da": .15, "beta": 1.8, "gamma": 10,"delta": 2, "vH":-.065}
     stabalizationTime=150
-    tstep=.02
+    if coarse:
+        tstep=.2
+    else:
+        tstep=.02
     tmax=4.1
 elif paramSet == "BizonPeriodic":
     baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
     stabalizationTime=20
-    #tstep=.02
-    tstep=.2
+    if coarse:
+        tstep=.2
+    else:
+        tstep=.02
     tmax=2.1
 elif paramSet == "BizonNonLinear":
     baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 0, "vH":0}
     stabalizationTime=.1
-    # tstep=.02
-    # tmax=4.1
-    tstep=.4
+    if coarse:
+        tstep=.4
+    else:
+        tstep=.02
     tmax=2
 elif paramSet == "BizonLinear":
     baseParams={"PeM": 300, "PeT": 300, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
     stabalizationTime=.1
-    tstep=.02
+    if coarse:
+        tstep=.2
+    else:
+        tstep=.02
     tmax=2
 elif paramSet == "BizonAdvecDiffusion":
     baseParams={"PeM": 1, "PeT": 1, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
     stabalizationTime=.1
-    tstep=.01
+    if corase:
+        tstep=.1
+    else:
+        tstep=.01
     tmax=1.5
 elif paramSet == "BizonAdvec":
     baseParams={"PeM": 1e16, "PeT": 1e16, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
     stabalizationTime=.1
-    tstep=.01
-    #tstep=.1
+    if coarse:
+        tstep=.1
+    else:
+        tstep=.01
     tmax=.9
 else: 
     raise ValueError("Invalid paramSet entered: " + str(equationSet))
     
 fomSaveFolder = "../../results/podRomAnalysis/"+paramSet +"_nCol" + str(nCollocation) + "_nElem"+str(nElements)
-if equationSet != "tankOnly":
-    fomSaveFolder+="/"+equationSet+"_"+romSensitivityApproach
-    if romSensitivityApproach == "finite":
-        fomSaveFolder += "_d"+str(finiteDelta)
+if coarse:
+    fomSaveFolder += "_coarse"
+fomSaveFolder+="/"+equationSet+"/"
         
 
 
@@ -215,17 +230,26 @@ for iret in range(len(modeRetention)):
             if j>1:
                 raise ValueError("More than 1 mean-reduction used. Results data currently gets saved over for each mean-reduction")
             #------------------------------- Make Folder to save data
+            if equationSet != "tankOnly":
+                romSaveFolder = fomSaveFolder +  romSensitivityApproach
+                if romSensitivityApproach == "finite":
+                    romSaveFolder += "_d"+str(finiteDelta)
+                elif romSensitivityApproach == "complex":
+                    romSaveFolder += "_d"+str(complexDelta)
+            else:
+                romSaveFolder = fomSaveFolder
+            romSaveFolder += "/"+mean_reduction[j] + "_"+quadRule+"_n"+str(nPoints)+"/"
             if useEnergyThreshold:
-                romSaveFolder = fomSaveFolder + "/podRom_e"+str(modeRetention[iret])+"_"+mean_reduction[j]+ "/"
+                romSaveFolder += "e"+str(modeRetention[iret])+ "/"
             else :
-                romSaveFolder = fomSaveFolder + "/podRom_n"+str(modeRetention[iret])+"_"+mean_reduction[j]+ "/"
+                romSaveFolder += "m"+str(modeRetention[iret])+ "/"
 
             if not os.path.exists(romSaveFolder):
                 os.makedirs(romSaveFolder)
 
             #------------------------------- Compute POD
             # Get POD Decomposition
-            if romSensitivityApproach == "finite" or romSensitivityApproach == "none":
+            if romSensitivityApproach == "finite" or romSensitivityApproach == "complex" or romSensitivityApproach == "none":
                 #No adjustment to POD Needed for finite difference approach
                 romData, truncationError[iret,j,:]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[j],useEnergyThreshold=useEnergyThreshold)
             elif romSensitivityApproach == "DEPOD":
@@ -254,7 +278,7 @@ for iret in range(len(modeRetention)):
 
             #------------------------------ Run POD-ROM
             #Get Initial Modal Weights
-            if romSensitivityApproach == "finite" or romSensitivityApproach == "none":
+            if romSensitivityApproach == "finite" or romSensitivityApproach == "complex" or romSensitivityApproach == "none":
                 romCoeff=np.empty((1,romData.uNmodes+romData.vNmodes))
                 romCoeff[0,:romData.uNmodes]\
                     =romData.uTimeModes[0,:romData.uNmodes]
@@ -307,6 +331,23 @@ for iret in range(len(modeRetention)):
                         t+=tstep
                     #Compute Sensitivity in POD space
                     romCoeff = np.append(romCoeff,(perturbedRomCoeff-romCoeff[:,:romData.uNmodes+romData.vNmodes])/finiteDelta,axis=1)
+            elif romSensitivityApproach == "complex":
+                for i in range(len(paramSelect)):
+                    #NOTE: The initialization here is tough, for very small values of finite Delta the initialization is better, but at the coarse levels we have its a limitation 
+                    perturbedRomCoeff = romCoeff[[0],:romData.uNmodes+romData.vNmodes].astype(complex)
+                    perturbedParams = baseParams.copy()
+                    perturbedParams[paramSelect[i]]+= complexDelta*1j
+                    perturbedModel=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[0,1],params=perturbedParams)
+                    dydtPodRom = lambda y,t: perturbedModel.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=0)
+                    t=0
+                    while t<tmax:
+                        odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(t,t+tstep),perturbedRomCoeff[-1], method='BDF',atol=1e-10,rtol=1e-10)
+                        change = np.max(np.abs(odeOut.y[:,-1]-perturbedRomCoeff[-1,:]))
+                        perturbedRomCoeff=np.append(perturbedRomCoeff,odeOut.y[:,[-1]].transpose(),axis=0)
+                        t+=tstep
+                    #Compute Sensitivity in POD space
+                    romCoeff = np.append(romCoeff,np.imag(perturbedRomCoeff)/complexDelta,axis=1)
+
             
             #----------------------------- Map Results Back into Spatial Space
             for i in range(0, neq):
@@ -415,6 +456,6 @@ if usePodRom and plotConvergence and error.size>1:
         legends=mean_reduction
         error=np.squeeze(error)
     fig,axs = plotErrorConvergence(error,truncationError,xLabel="Proportion Information Truncated in POD",yLabel="Relative ROM Error",legends=legends) 
-    plt.savefig(fomSaveFolder + "/errorConvergence.pdf", format="pdf")
-    plt.savefig(fomSaveFolder + "/errorConvergence.png", format="png")
+    plt.savefig(romSaveFolder + "../errorConvergence.pdf", format="pdf")
+    plt.savefig(romSaveFolder + "../errorConvergence.png", format="png")
 plt.show()
