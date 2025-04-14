@@ -6,7 +6,7 @@ class RomData:
                  uRomSecondOrderMat, uRomSecondOrderMean, vTimeModes, vMean,
                  vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
                  vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
-                 vRomSecondOrderMat, vRomSecondOrderMean):
+                 vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues):
         
         self.x = x
         self.nPoints = len(x)
@@ -39,6 +39,8 @@ class RomData:
         self.vRomFirstOrderMean = vRomFirstOrderMean
         self.vRomSecondOrderMat = vRomSecondOrderMat
         self.vRomSecondOrderMean = vRomSecondOrderMean
+        self.uSingularValues = uSingularValues
+        self.vSingularValues = vSingularValues
 
     # Getter and setter methods with validation
     @property

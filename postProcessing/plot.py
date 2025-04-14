@@ -4,9 +4,10 @@ import math
 import cv2
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import matplotlib.ticker as ticker
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
-def subplotMovie(yVariables, xVariables, output_filename, fps=5, xLabels="X", yLabels="null", legends="null",legendLoc="upper left",subplotSize=(5, 4),yRanges="auto",lineTypeStart=0):
+def subplotMovie(yVariables, xVariables, output_filename, fps=5, xLabels="X", yLabels="null", legends="null",legendLoc="upper left",subplotSize=(5, 4),yRanges="fixed",lineTypeStart=0):
     """
     Create a .mov file where each frame is a subplot call using the ith element
     in the first dimension of every numpy array in yVariables. Returns the video_writer.
@@ -31,16 +32,17 @@ def subplotMovie(yVariables, xVariables, output_filename, fps=5, xLabels="X", yL
             raise ValueError("All yVariables must have the same number of frames.")
 
     # Validate yRanges
-    if yRanges == "auto":
+    if yRanges == "fixed":
         yRanges = []
         for y in yVariables:
             y_min, y_max = np.min(y), np.max(y)
             padding = 0.05 * (y_max - y_min)
             yRanges.append((y_min - padding, y_max + padding))
+
     elif isinstance(yRanges, list):
         if len(yRanges) != len(yVariables):
             raise ValueError(f"Invalid length of {len(yRanges)} for yRanges for yVariables of length {len(yVariables)}")
-    else:
+    elif yRanges!="auto":
         raise ValueError(f"Invalid type entered for yRanges: {type(yRanges)}")
    
 
@@ -88,7 +90,7 @@ def subplotMovie(yVariables, xVariables, output_filename, fps=5, xLabels="X", yL
         plt.close(fig)
     video_writer.release()
 
-def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", legendLoc="best", subplotSize=(5, 4),yRanges="auto",lineTypeStart=0):
+def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", legendLoc="best", subplotSize=(5, 4),yRanges="fixed",lineTypeStart=0):
     # Validate inputs
     if isinstance(yVariables, np.ndarray) and isinstance(xVariables, np.ndarray):
         if yVariables.shape[-1] != xVariables.shape[-1]:
@@ -154,12 +156,14 @@ def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", le
             raise ValueError("Invalid types entered for legends. Must be a list of strings or list of list of strings: " + str(type(legends[0])))
     
     # Validate yRanges
-    if yRanges == "auto":
+    if yRanges == "fixed":
         yRanges = []
         for y in yVariables:
             y_min, y_max = np.min(y), np.max(y)
             padding = 0.05 * (y_max - y_min)
             yRanges.append((y_min - padding, y_max + padding))
+    elif yRanges == "auto":
+        yRanges = ["auto"] * len(yVariables)
     elif isinstance(yRanges, list):
         if len(yRanges) != len(yVariables):
             raise ValueError(f"Invalid length of {len(yRanges)} for yRanges for yVariables of length {len(yVariables)}")
@@ -183,7 +187,8 @@ def subplot(yVariables, xVariables, xLabels="X", yLabels="Y", legends="null", le
         else:
             for iline in range(y.shape[0]):
                 axes[i].plot(x, y[iline],getLineFormat("line",iline+lineTypeStart),lw=subplotSize[0],ms=2*subplotSize[0])
-        axes[i].set_ylim(yRanges[i])  # Set the y-axis range
+        if yRanges[i] != "auto":
+            axes[i].set_ylim(yRanges[i])  # Set the y-axis range
 
         # Apply x-axis labels according to the conditions
         if useIndividualXLabels:
@@ -325,6 +330,102 @@ def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="n
                     axes[iy, it].legend(legends,  loc = legendLoc)
     return fig, axes
 
+def plotRomMatrices(matrices,xLabels="null",yLabels="null",title="null",cmap="coolwarm",sharedColorBar=False,subplotSize=(5,4)):
+
+    if type(matrices==list):
+        for i in range(len(matrices)):
+            if not isinstance(matrices[i],np.ndarray):
+                raise ValueError("All elements in matrices must be numpy arrays.")
+    elif type(matrices)==np.ndarray:
+        matrices = [matrices]
+    else:
+        raise ValueError("Invalid type entered for matrices: " + str(type(matrices)))
+    nPlots = len(matrices)
+
+    if xLabels!="null":
+        if type(xLabels)==str:
+            xLabels = [xLabels]*nPlots
+        elif type(xLabels)==list:
+            if len(xLabels)!=nPlots:
+                raise ValueError("Invalid length of "+ str(len(xLabels))+" for xLabels for matrices of length " + str(nPlots))
+        else:
+            raise ValueError("Invalid type entered for xLabels: " + str(type(xLabels)))
+        
+    if yLabels!="null":
+        if type(yLabels)==str:
+            yLabels = [yLabels]*nPlots
+        elif type(yLabels)==list:
+            if len(yLabels)!=nPlots:
+                raise ValueError("Invalid length of "+ str(len(yLabels))+" for yLabels for matrices of length " + str(nPlots))
+        else:
+            raise ValueError("Invalid type entered for yLabels: " + str(type(yLabels)))
+        
+    if title!="null":
+        if type(title)==str:
+            title = [title]*nPlots
+        elif type(title)==list:
+            if len(title)!=nPlots:
+                raise ValueError("Invalid length of "+ str(len(title))+" for title for matrices of length " + str(nPlots))
+        else:
+            raise ValueError("Invalid type entered for title: " + str(type(title)))
+        
+    fig, axes = plt.subplots(1,nPlots, figsize=(nPlots*subplotSize[0], subplotSize[1]))
+    if sharedColorBar:
+        if cmap =="hot":
+            vmin = matrices[0].min()
+            vmax = matrices[0].max()
+            for i in range(1,nPlots):
+                vmin = min(vmin, matrices[i].min())
+                vmax = max(vmax, matrices[i].max())
+        elif cmap == "coolwarm":
+            vmax = matrices[0].abs().max()
+            for i in range(1,nPlots):
+                vmax = min(vmax, matrices[i].abs().min())
+            vmin = -vmax
+    for i in range(nPlots):
+        if not sharedColorBar:
+            vmin = matrices[i].min()
+            vmax = matrices[i].max()
+        im = axes[i].imshow(matrices[i],cmap =cmap,vmin=vmin,vmax=vmax)
+        if not sharedColorBar:
+            fig.colorbar(im)
+        elif i == nPlots-1:
+            divider = make_axes_locatable(axes[1])
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+            fig.colorbar(im, ax=axes[i], cax=cax)
+        if xLabels!="null":
+            axes[i].set_xlabel(xLabels[i])
+        if yLabels!="null":
+            axes[i].set_ylabel(yLabels[i])
+        if title!="null":
+            axes[i].set_title(title[i])
+        
+        # Label ticks starting from 1
+        if matrices[i].shape[0] < 10:
+            axes[i].set_xticks(np.arange(0,matrices[i].shape[1],1))
+            axes[i].set_yticks(np.arange(0,matrices[i].shape[0],1))
+            axes[i].set_xticklabels(np.arange(1, matrices[i].shape[1] + 1))
+            axes[i].set_yticklabels(np.arange(1, matrices[i].shape[0] + 1))
+        elif matrices[i].shape[0] < 20:
+            axes[i].set_xticks(np.arange(0,matrices[i].shape[1],2))
+            axes[i].set_yticks(np.arange(0,matrices[i].shape[0],2))
+            axes[i].set_xticklabels(np.arange(1, matrices[i].shape[1] + 1, 2))
+            axes[i].set_yticklabels(np.arange(1, matrices[i].shape[0] + 1, 2))
+        elif matrices[i].shape[0] < 30:
+            axes[i].set_xticks(np.arange(0,matrices[i].shape[1],3))
+            axes[i].set_yticks(np.arange(0,matrices[i].shape[0],3))
+            axes[i].set_xticklabels(np.arange(1, matrices[i].shape[1] + 1, 3))
+            axes[i].set_yticklabels(np.arange(1, matrices[i].shape[0] + 1, 3))
+        elif matrices[i].shape[0] < 40:
+            axes[i].set_xticks(np.arange(0,matrices[i].shape[1],4))
+            axes[i].set_yticks(np.arange(0,matrices[i].shape[0],4))
+            axes[i].set_xticklabels(np.arange(1, matrices[i].shape[1] + 1, 4))
+            axes[i].set_yticklabels(np.arange(1, matrices[i].shape[0] + 1, 4))
+
+        # Optional: rotate x tick labels for readability
+        #plt.setp(axes[i].get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    plt.tight_layout()
+    return fig, axes
 
 def plotErrorConvergence(error,fidelity, xLabel="X", yLabel="Y", plotType="loglog", title="null", legends="null",legendLoc="best",figsize=(4,3.3)):
     if not isinstance(error,np.ndarray):
@@ -355,13 +456,13 @@ def plotErrorConvergence(error,fidelity, xLabel="X", yLabel="Y", plotType="loglo
     fig, axes = plt.subplots(1,1, figsize=figsize)
     for i in range(error.shape[1]):
         if plotType=="loglog":
-            axes.loglog(fidelity[:,i],error[:,i],getLineFormat("line",i),lw=figsize[0],ms=2*figsize[0])
+            axes.loglog(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=figsize[0],ms=2*figsize[0])
         elif plotType=="semilogx":
-            axes.semilogx(fidelity[:,i],error[:,i],getLineFormat("line",i),lw=figsize[0],ms=2*figsize[0])
+            axes.semilogx(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=figsize[0],ms=2*figsize[0])
         elif plotType=="semilog":
-            axes.semilogy(fidelity[:,i],error[:,i],getLineFormat("line",i),lw=figsize[0],ms=2*figsize[0])
+            axes.semilogy(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=figsize[0],ms=2*figsize[0])
         else :
-            axes.plot(fidelity[:,i],error[:,i],getLineFormat("line",i),lw=figsize[0],ms=2*figsize[0])
+            axes.plot(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=figsize[0],ms=2*figsize[0])
     if legends!="null":
         axes.legend(legends,  loc = legendLoc)
     if title!="null":
@@ -382,6 +483,16 @@ def getLineFormat(linetype,iter):
                 return "-.g"
             case 3:
                 return "-*r"
+    if linetype == "line-marker":
+        match iter:
+            case 0:
+                return "-bs"
+            case 1:
+                return "--m*"
+            case 2:
+                return "-.gt"
+            case 3:
+                return "-*ro"
     elif linetype == "point":
         match iter:
             case 0:

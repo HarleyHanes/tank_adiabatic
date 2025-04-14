@@ -672,7 +672,7 @@ class TankModel:
 
     #================================POD-ROM===================================================
 
-    def constructPodRom(self,modelCoeff,x,W,modeThreshold,quadRule="simpson",mean="mean",useEnergyThreshold=True):
+    def constructPodRom(self,modelCoeff,x,W,modeThreshold,quadRule="simpson",mean="mean",useEnergyThreshold=True,adjustModePairs=True):
         #Get Snapshots and derivatives of snapshots
         uEval,vEval = self.eval(x,modelCoeff,output="seperated")
         #Compute Mean, keeping dimension so casting works
@@ -719,10 +719,30 @@ class TankModel:
         uEvalxx,vEvalxx = self.eval(x,modelCoeff, output="seperated", deriv =2)
         uEvalxx-=uMeanxx
         vEvalxx-=vMeanxx
-    
-        uModes, uModesx, uModesxx, uTimeModes, uTruncationError =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold)
-        vModes, vModesx, vModesxx, vTimeModes, vTruncationError =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold)
-        
+        if np.isclose(modelCoeff[:,:self.nElements*self.nCollocation],modelCoeff[:,self.nElements*self.nCollocation:], atol=1e-10).all():
+            print("u and v coeffecients are the same")
+            if not np.isclose(uEval,vEval, atol=1e-10).all():
+                raise ValueError("u and v coeffecients are the same but evaluations are not")
+            if not np.isclose(uEvalx,vEvalx, atol=1e-10).all():
+                raise ValueError("u and v coeffecients are the same but derivatives are not")
+            if not np.isclose(uEvalxx,vEvalxx, atol=1e-10).all():
+                raise ValueError("u and v coeffecients are the same but 2nd derivatives are not")
+        uModes, uModesx, uModesxx, uTimeModes, uTruncationError, uSingularValues =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
+        vModes, vModesx, vModesxx, vTimeModes, vTruncationError, vSingularValues =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
+        if np.isclose(modelCoeff[:,:self.nElements*self.nCollocation],modelCoeff[:,self.nElements*self.nCollocation:], atol=1e-10).all():
+            print("L2 Difference in Modes: ", np.sqrt(np.sum(W@(uModes-vModes)**2)))
+            print("Linf Difference in Modes: ", np.max(np.abs(uModes-vModes)))
+        if self.bounds[0]==x[0]:
+            for i in range(uModes.shape[1]):
+                if not np.isclose(uModes[0,i]-uModesx[0,i]/self.params["PeM"],0,atol=1e-6):
+                    print("Left Boundary Condition not satisfied for uMode", i, "by: ", uModes[0,i]-uModesx[0,i]/self.params["PeM"])
+                if not np.isclose(uModesx[-1,i],0,atol=1e-6):
+                    print("Right Boundary Condition not satisfied for uMode", i, "by: ", uModesx[-1,i])
+            for i in range(vModes.shape[1]):
+                if not np.isclose(vModes[0,i]-vModesx[0,i]/self.params["PeT"]-vModes[-1,i]*self.params["f"],0,atol=1e-6):
+                    print("Left Boundary Condition not satisfied for vMode", i, "by: ", vModes[0,i]-vModesx[0,i]/self.params["PeM"]-vModes[-1,i]*self.params["f"])
+                if not np.isclose(vModesx[-1,i],0,atol=1e-6):
+                    print("Right Boundary Condition not satisfied for vMode", i, "by: ", vModesx[-1,i])
         
         uModesWeighted, uModesInt, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean, uRomSecondOrderMat, uRomSecondOrderMean\
               = self.computeRomMatrices(W,uMean, uMeanx, uMeanxx, uModes, uModesx,uModesxx)
@@ -734,27 +754,27 @@ class TankModel:
                         uRomSecondOrderMat, uRomSecondOrderMean, vTimeModes, vMean,
                         vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
                         vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
-                        vRomSecondOrderMat, vRomSecondOrderMean), truncationError
+                        vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues), truncationError
         
     
-    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,groupSeperations="null"):
+    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,adjustModePairs=True,groupSeperations="null"):
         # INCOMPLETE: Scale each observed response to [0,1] for POD so that sensitivities with large values aren't weighted more, may need setting up this change in TankModel
-        if type(groupSeperations)==np.ndarray:
-            raise ValueError("groupSeperations for mixed inputs incomplete")
-            # Compute norm of each snapshot
-            norms = np.sqrt(np.sum(W@(snapshots**2),axis=0))
-            snapshotScaling = np.zeros(norms.shape)
-            # Preallocate average norms for each group of snapshots
-            groupNorms = np.zeros(groupSeperations.size+1)
-            groupSeperations = np.append(groupSeperations,0)
-            groupSeperations = np.append(groupSeperations,snapshots.shape[1])
-            for iGroup in range(groupSeperations.size):
-                groupNorms[iGroup] = np.mean(norms[groupSeperations[iGroup]:groupSeperations[iGroup+1]])
-                snapshotScaling[groupSeperations[iGroup]:groupSeperations[iGroup+1]] = 1/groupNorms[iGroup]
-            # Relative snapshots to average norm
-            snapshotsRel = snapshots/snapshotScaling
-        elif groupSeperations!="null":
-            raise ValueError("Invalid groupSeperations input")
+        # if type(groupSeperations)==np.ndarray:
+        #     raise ValueError("groupSeperations for mixed inputs incomplete")
+        #     # Compute norm of each snapshot
+        #     norms = np.sqrt(np.sum(W@(snapshots**2),axis=0))
+        #     snapshotScaling = np.zeros(norms.shape)
+        #     # Preallocate average norms for each group of snapshots
+        #     groupNorms = np.zeros(groupSeperations.size+1)
+        #     groupSeperations = np.append(groupSeperations,0)
+        #     groupSeperations = np.append(groupSeperations,snapshots.shape[1])
+        #     for iGroup in range(groupSeperations.size):
+        #         groupNorms[iGroup] = np.mean(norms[groupSeperations[iGroup]:groupSeperations[iGroup+1]])
+        #         snapshotScaling[groupSeperations[iGroup]:groupSeperations[iGroup+1]] = 1/groupNorms[iGroup]
+        #     # Relative snapshots to average norm
+        #     snapshotsRel = snapshots/snapshotScaling
+        # elif groupSeperations!="null":
+        #     raise ValueError("Invalid groupSeperations input")
 
         #Use transpose of evals since eval is time x space but standard snapshot matrix is space x time
         #Get eigen decomp of UtWU
@@ -784,6 +804,16 @@ class TankModel:
             totalEnergy=np.sum(S)
             nModes=modeThreshold
             cumulEnergy=np.sum(S[:nModes])/totalEnergy
+        if adjustModePairs and nModes>1:
+            #print(S[:nModes+1])
+            #adjacent_distance = S[nModes-1:nModes+1]-S[nModes-2:nModes]
+            adjacent_distance = np.abs(np.array([modes[:,nModes-1].transpose()@W@modesx[:,nModes-2],modes[:,nModes-1].transpose()@W@modesx[:,nModes]]))
+            #If S[nModes-1] is closer to S[nModes] than S[nModes-2], add another mode
+            #if adjacent_distance[1]<adjacent_distance[0]:
+            #If inner product of nMode with excluded mode deriv is greater than with included mode, add excluded mode
+            if adjacent_distance[1]>adjacent_distance[0]:
+                nModes+=1
+                cumulEnergy=np.sum(S[:nModes])/totalEnergy
         print("Cumulative Energy of Modes: ", cumulEnergy)
         print("Number of modes used: ", nModes)
         modes = modes[:,:nModes]
@@ -794,13 +824,12 @@ class TankModel:
         if not np.isclose(modes.transpose()@W@modes,np.eye(modes.shape[1])).all():
             print("WARNING: Modes not orthonormal")
             print("Departure from Orthonormality: ", np.sum(np.eye(modes.shape[1])-modes.transpose()@W@modes))
-            print("Modes Mass Matrix: ", modes.transpose()@W@modes)
         #Check the POD decomposition is accurate in FOM space
         podError = np.sqrt(np.sum(W@((snapshots-modes@timeModes.transpose())**2))/np.sum(W@(snapshots**2)))
         podIcError = np.sqrt(np.sum(W@((snapshots[:,0]-(modes@timeModes.transpose())[:,0])**2))/np.sum(W@(snapshots[:,0]**2)))
         print("POD Relative Error: ", podError)
         print("POD IC Relative Error: ", podIcError)
-        return modes, modesx, modesxx, timeModes, podError
+        return modes, modesx, modesxx, timeModes, podError, S[:nModes]
 
     def computeRomMatrices(self,W,mean,  meanx, meanxx, podModes, podModesx,podModesxx):
         podModesWeighted = W @ podModes
@@ -824,20 +853,43 @@ class TankModel:
                 w[2:x.size-2:2]*=2
         elif quadRule == "uniform":
             x=np.linspace(self.bounds[0],self.bounds[1],nPoints)
-            w=np.ones(np.size(x))#/(x.size)*(self.bounds[1]-self.bounds[0])
+            w=np.ones(np.size(x))/(x.size)*(self.bounds[1]-self.bounds[0])
+        elif quadRule == "monte carlo":
+            x=np.array([self.bounds[0]])
+            x=np.append(x,np.sort(np.random.sample(nPoints-2))*(self.bounds[1]-self.bounds[0])+self.bounds[0],axis=0)
+            x=np.append(x,np.array([self.bounds[1]]),axis=0)
+            w=np.ones(np.size(x))/(x.size)*(self.bounds[1]-self.bounds[0])
         elif quadRule == "gauss-legendre":
             x,w= np.polynomial.legendre.leggauss(nPoints)
             x=(x+1)*(self.bounds[1]-self.bounds[0])/2+self.bounds[0]
             w=w*(self.bounds[1]-self.bounds[0])/2
+        elif quadRule == "gauss-legendre adjusted":
+            x,w= np.polynomial.legendre.leggauss(nPoints)
+            x=(x+1)*(self.bounds[1]-self.bounds[0])/2+self.bounds[0]
+            x[0]=self.bounds[0]
+            x[-1]=self.bounds[1]
+            w=np.ones(np.size(x))/(x.size)*(self.bounds[1]-self.bounds[0])
         else:
             raise ValueError("Invalid quadRule")
         return x, np.diag(w)
 
     def dydtPodRom(self,y,t,romData,paramSelect=[],penaltyStrength=0):
+        if type(paramSelect)==str:
+            paramSelect=[paramSelect]
         u=y[0:romData.uNmodes]
         v=y[romData.uNmodes:romData.uNmodes+romData.vNmodes]
         uFull=romData.uModes@u+romData.uMean
         vFull=romData.vModes@v+romData.vMean
+        uFullx=romData.uModesx@u+romData.uMean
+        vFullx=romData.vModesx@v+romData.vMean
+        # dudt=(romData.uRomSecondOrderMat/self.params["PeM"]- romData.uRomFirstOrderMat)@u\
+        #         +romData.uRomSecondOrderMean/self.params["PeM"]-romData.uRomFirstOrderMean    
+        # dvdt=((romData.vRomSecondOrderMat/self.params["PeT"]-romData.vRomFirstOrderMat)@v\
+        #         +romData.vRomSecondOrderMean/self.params["PeT"]-romData.vRomFirstOrderMean)/self.params["Le"]
+        # dvdt=((romData.vRomSecondOrderMat/self.params["PeT"]-romData.vRomFirstOrderMat)@v\
+        #         +romData.vRomSecondOrderMean/self.params["PeT"]-romData.vRomFirstOrderMean\
+        #         +self.params["delta"]*(self.params["vH"]*romData.vModesInt-v-romData.vRomMassMean)\
+        #         +self.params["Da"]*(romData.vModesInt - (romData.vModesWeighted.transpose()@romData.uModes)@u))/self.params["Le"]
         dudt=(romData.uRomSecondOrderMat/self.params["PeM"]- romData.uRomFirstOrderMat)@u\
                 +romData.uRomSecondOrderMean/self.params["PeM"]-romData.uRomFirstOrderMean\
                 +self.params["Da"]*romData.uModesWeighted.transpose()\
@@ -849,6 +901,13 @@ class TankModel:
                 +self.params["Da"]*romData.vModesWeighted.transpose()
                                     @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
                                         *vFull/(1+self.params["beta"]*vFull))))/self.params["Le"]
+        #Boundary Penalty
+        #u
+        dudt -= penaltyStrength*romData.uModes[0,:]*(uFull[0]-uFullx[0]/self.params["PeM"])
+        dudt -= penaltyStrength*romData.uModes[-1,:]*uFull[-1]
+        #v
+        dvdt -= penaltyStrength*romData.vModes[0,:]*(vFull[0]-vFullx[0]/self.params["PeM"]-self.params["f"]*vFull[-1])
+        dvdt -= penaltyStrength*romData.vModes[-1,:]*vFullx[-1]
         dydt = np.append(dudt,dvdt)
         eqCounter=1
         for param in paramSelect:
@@ -859,7 +918,7 @@ class TankModel:
             #Define Advection/ Diffusion terms
             ddudParamdt=(romData.uRomSecondOrderMat /self.params["PeM"]-romData.uRomFirstOrderMat)@ dudParam\
                             +romData.uRomSecondOrderMean/self.params["PeM"]-romData.uRomFirstOrderMean
-            ddvdParamdt=(romData.vRomSecondOrderMat /self.params["PeT"]-romData.vRomFirstOrderMat-self.params["delta"])@ dvdParam\
+            ddvdParamdt=(romData.vRomSecondOrderMat /self.params["PeT"]-romData.vRomFirstOrderMat)@ dvdParam\
                             +romData.vRomSecondOrderMean/self.params["PeT"]-romData.vRomFirstOrderMean
             if param=="PeM":
                 ddudParamdt+=-(romData.uRomSecondOrderMat@u+romData.uRomSecondOrderMean)/(self.params["PeM"]**2)
@@ -867,13 +926,13 @@ class TankModel:
                 ddvdParamdt+=-(romData.vRomSecondOrderMat@v+romData.vRomSecondOrderMean)/(self.params["PeT"]**2)
             #Construct Additional Linear terms
             if param=="vH":
-                ddvdParamdt+=(romData.vModesInt-dvdParam)*self.params["delta"]
+                ddvdParamdt+=(romData.vModesInt-dvdParam)*self.params["delta"] - self.params["delta"]*romData.vRomMassMean
             elif param=="delta":
-                ddvdParamdt+=self.params["vH"]*romData.vModesInt-v-self.params["delta"]*dvdParam
+                ddvdParamdt+=self.params["vH"]*romData.vModesInt-v-self.params["delta"]*dvdParam - self.params["delta"]*romData.vRomMassMean
             elif param=="Le":
-                ddvdParamdt+= -dvdt-self.params["delta"]*dvdParam
+                ddvdParamdt+= -dvdt-self.params["delta"]*dvdParam - self.params["delta"]*romData.vRomMassMean
             else:
-                ddvdParamdt+= -self.params["delta"]*dvdParam
+                ddvdParamdt+= -self.params["delta"]*dvdParam - self.params["delta"]*romData.vRomMassMean
 
 
 
@@ -891,15 +950,15 @@ class TankModel:
                              +(1-uFull))*np.exp(self.params["gamma"]*self.params["beta"]\
                                              *vFull/(1+self.params["beta"]*vFull))
             elif param=="beta":
-                nonLinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
+                nonlinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
                                                        *vFull/(1+self.params["beta"]*vFull))
                 nonlinearTerm*=((1-uFull)*self.params["gamma"]*(vFull+self.params["beta"]*dvdParamFull)\
                                                                 /((1+self.params["beta"]*vFull)**2)\
                                  - dudParamFull)
             elif param=="gamma":
-                nonLinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
+                nonlinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
                                                        *vFull/(1+self.params["beta"]*vFull))
-                nonLinearTerm*=((1-uFull)*self.params["beta"]*(vFull+self.params["beta"]*(vFull**2)+self.params["gamma"]*dvdParamFull)\
+                nonlinearTerm*=((1-uFull)*self.params["beta"]*(vFull+self.params["beta"]*(vFull**2)+self.params["gamma"]*dvdParamFull)\
                                                                 /((1+self.params["beta"]*vFull)**2)\
                                  - dudParamFull)
             else:
@@ -908,22 +967,22 @@ class TankModel:
             ddvdParamdt+=romData.vModesWeighted.transpose() @ nonlinearTerm
             #Construct boundary term
             #NOTE: I think there are currently errors in this, check the BP formulation and then confirm this is implemented correctly
-            dudParamxLeftBoundary=np.dot(romData.uModesx[0,:],dudParam)+romData.uMean[0]
-            dvdParamxLeftBoundary=np.dot(romData.vModesx[0,:],dvdParam)+romData.vMean[0]
-            if param in ["vH", "delta", "Le", "Da","beta","gamma"]:
-                ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
-                ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
-            elif param=="f":
-                ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
-                ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]+vFull[-1]))
-            elif param=="PeM":
-                uxLeftBoundary=np.dot(romData.uModesx[0,:],dudParam)+romData.uMean[0]
-                ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"]+uxLeftBoundary/(self.params["PeM"]**2))
-                ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
-            elif param=="PeT":
-                vxLeftBoundary=np.dot(romData.vModesx[0,:],dvdParam)+romData.vMean[0]
-                ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
-                ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary-vxLeftBoundary/self.params["PeT"])/self.params["PeT"]-self.params["f"]*dvdParamFull[-1])
+            # dudParamxLeftBoundary=np.dot(romData.uModesx[0,:],dudParam)+romData.uMean[0]
+            # dvdParamxLeftBoundary=np.dot(romData.vModesx[0,:],dvdParam)+romData.vMean[0]
+            # if param in ["vH", "delta", "Le", "Da","beta","gamma"]:
+            #     ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
+            #     ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
+            # elif param=="f":
+            #     ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
+            #     ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]+vFull[-1]))
+            # elif param=="PeM":
+            #     uxLeftBoundary=np.dot(romData.uModesx[0,:],dudParam)+romData.uMean[0]
+            #     ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"]+uxLeftBoundary/(self.params["PeM"]**2))
+            #     ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
+            # elif param=="PeT":
+            #     vxLeftBoundary=np.dot(romData.vModesx[0,:],dvdParam)+romData.vMean[0]
+            #     ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
+            #     ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary-vxLeftBoundary/self.params["PeT"])/self.params["PeT"]-self.params["f"]*dvdParamFull[-1])
 
             #Scale RHS of v by Le
             ddvdParamdt/=self.params["Le"]
@@ -934,15 +993,20 @@ class TankModel:
         #print("Step Completed for t=",t)
         return dydt
     
-    def computeRomError(self,uEval,vEval,uRom,vRom, W,norm="Linf"):
+    def computeRomError(self,uEval,vEval,uRom,vRom, W,tPoints,norm="Linf"):
         #Map from romCoeff to rom Solution
         if norm == "L2" or norm==r"$L_2$":
             #Compute joint-error
-            error = np.sqrt(np.sum(np.sum(W @ (uEval-uRom)))**2+np.sum(np.sum(W @(vEval-vRom)))**2)/np.sqrt(np.sum(np.sum(W @uEval))**2+np.sum(np.sum(W @vEval))**2)
+            errorU = np.sqrt(np.sum(W @ (uEval-uRom)**2))/ np.sum(W @ (uEval)**2)
+            errorV = np.sqrt(np.sum(W @ (vEval-vRom)**2))/ np.sum(W @ (vEval)**2)
+            #error = np.sqrt(np.max(np.sum(W @(uEval-uRom)**2,axis=0)))#/np.sum((W @vEval)**2))
+            #error = np.sqrt(np.max(np.sum(W @(vEval-vRom)**2,axis=0)))#/np.sum((W @vEval)**2))
         elif norm == "Linf" or norm==r"$L_\infty$":
-            errorU = np.max(np.abs(uEval-uRom))/np.max(np.abs(uEval))
-            errorV = np.max(np.abs(vEval-vRom))/np.max(np.abs(vEval))
-            error = np.max([errorU,errorV])
+            errorU = np.max(np.abs(uEval-uRom))
+            errorV = np.max(np.abs(vEval-vRom))
+            #error = np.max(np.abs(vEval-vRom))#/np.max(np.abs(vEval))
+            # error = np.max(np.abs(uEval-uRom))#/np.max(np.abs(vEval))
+        error = (errorU+errorV)/2
         return error
 #Class that holds all the data defining a particular POD-ROM model. We define a seperate class to TankModel since
 # a single FOM may have numerous different ROMs computed from it. Properties not common to all ROMs are stored in this class for easier function parsing
