@@ -293,12 +293,21 @@ class TankModel:
             raise Exception("delta not in params dictionary")
         elif type(value["delta"])!= float and type(value["delta"])!= int and type(value["delta"])!= complex:
             raise Exception("Non-numerical value entered for delta: " + str(value["delta"]))
-
         
         if not "vH" in value:
             raise Exception("vH not in params dictionary")
         elif type(value["vH"])!= float and type(value["vH"])!= int and type(value["vH"])!= complex:
             raise Exception("Non-numerical value entered for vH: " + str(value["vH"]))
+        
+        if not "PeM-boundary" in value:
+            value["PeM-boundary"]=value["PeM"]
+        elif type(value["PeM-boundary"])!= float and type(value["PeM-boundary"])!= int and type(value["PeM-boundary"])!= complex:
+            raise Exception("Non-numerical value entered for PeM-boundary: " + str(value["PeM-boundary"]))
+        
+        if not "PeT-boundary" in value:
+            value["PeT-boundary"]=value["PeT"]
+        elif type(value["PeT-boundary"])!= float and type(value["PeT-boundary"])!= int and type(value["PeT-boundary"])!= complex:
+            raise Exception("Non-numerical value entered for PeT-boundary: " + str(value["PeT-boundary"]))
         
         self._params=value
     
@@ -355,10 +364,10 @@ class TankModel:
             #Left BC
             if iRow==0:
                 massBoundaryMat[0,0:self.nCollocation+2]=self.elements[0].basisFirstDeriv(self.bounds[0])
-                massBoundaryMat[0,0]-=self.params["PeM"]
+                massBoundaryMat[0,0]-=self.params["PeM-boundary"]
                 tempBoundaryMat[0,0:self.nCollocation+2]=self.elements[0].basisFirstDeriv(self.bounds[0])
-                tempBoundaryMat[0,0]-=self.params["PeT"]
-                tempBoundaryMat[0,-1]=self.params["f"]*self.params["PeT"]
+                tempBoundaryMat[0,0]-=self.params["PeT-boundary"]
+                tempBoundaryMat[0,-1]=self.params["f"]*self.params["PeT-boundary"]
             #Right BC
             elif iRow==self.nElements*(self.nCollocation+1):
                 massBoundaryMat[iRow,-(self.nCollocation+2):]=self.elements[-1].basisFirstDeriv(self.bounds[1])
@@ -734,12 +743,12 @@ class TankModel:
             print("Linf Difference in Modes: ", np.max(np.abs(uModes-vModes)))
         if self.bounds[0]==x[0]:
             for i in range(uModes.shape[1]):
-                if not np.isclose(uModes[0,i]-uModesx[0,i]/self.params["PeM"],0,atol=1e-6):
+                if not np.isclose(uModes[0,i]-uModesx[0,i]/self.params["PeM-boundary"],0,atol=1e-6):
                     print("Left Boundary Condition not satisfied for uMode", i, "by: ", uModes[0,i]-uModesx[0,i]/self.params["PeM"])
                 if not np.isclose(uModesx[-1,i],0,atol=1e-6):
                     print("Right Boundary Condition not satisfied for uMode", i, "by: ", uModesx[-1,i])
             for i in range(vModes.shape[1]):
-                if not np.isclose(vModes[0,i]-vModesx[0,i]/self.params["PeT"]-vModes[-1,i]*self.params["f"],0,atol=1e-6):
+                if not np.isclose(vModes[0,i]-vModesx[0,i]/self.params["PeT-boundary"]-vModes[-1,i]*self.params["f"],0,atol=1e-6):
                     print("Left Boundary Condition not satisfied for vMode", i, "by: ", vModes[0,i]-vModesx[0,i]/self.params["PeM"]-vModes[-1,i]*self.params["f"])
                 if not np.isclose(vModesx[-1,i],0,atol=1e-6):
                     print("Right Boundary Condition not satisfied for vMode", i, "by: ", vModesx[-1,i])

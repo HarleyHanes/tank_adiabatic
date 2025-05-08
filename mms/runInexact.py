@@ -13,9 +13,9 @@ nCollocations = [2]
 verbosity = 1
 
 #I think there's an error with the higher
-higherOrderTerms=[3]  #Must be greater than 2 to satisfy BC
+higherOrderTerms=[7]  #Must be greater than 2 to satisfy BC
 nElems = np.array([2,4,8,16,32,64,128])  #Cant use nElems=1 due to some dimensionality issues with squeeze
-parameterSet="Bizon2012_stable"
+parameterSet="Bizon2012_stable_noRobin"
 #Parameter limitations:
 # Non-negative: Da, gamma, beta, delta
 # Positive: Le, PeM,
@@ -32,6 +32,9 @@ if parameterSet=="Bizon2012_improvedConditioning":
 #Bizon2012 Parameters for  a stable domain
 elif parameterSet=="Bizon2012_stable":
     params={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.2}
+#Bizon2012 Parameters for  a stable domain
+elif parameterSet=="Bizon2012_stable_noRobin":
+    params={"PeM": 300, "PeT": 300, "PeM-boundary": 1e16, "PeT-boundary": 1e16, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.2}
 #Bizon2012 Parameters without nonlinear effects
 elif parameterSet=="Bizon2012_linear":
     params={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0, "delta": 2, "vH": -.2}

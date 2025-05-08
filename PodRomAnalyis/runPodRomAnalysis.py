@@ -21,7 +21,7 @@ paramSet = "BizonChaotic" #BizonPeriodic, BizonLinear, BizonNonLinear, BizonAdve
 equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
 nCollocation=1
 nElements=128
-odeMethod="BDF" #LSODA, BDF, RK45, RK23, DOP853
+odeMethod="RK23" #LSODA, BDF, RK45, RK23, DOP853
 
 #romParameters
 usePodRom=True
@@ -36,18 +36,19 @@ if useEnergyThreshold==True:
     #modeRetention=[.99,.999]
 else:
     #modeRetention=[1,2,3]
-    #modeRetention = [3,4]
-    #modeRetention = [3,4]
+    #modeRetention = [12,13]
     #modeRetention = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16] #Nonlinear set
-    modeRetention= 23
-    #modeRetention = [4,5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25] #Stable for periodic with mean-decomp
+    #modeRetention= [3,4,5,6]
+    # modeRetention = [5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25] #Stable for periodic with mean-decomp
     # modeRetention = [4,6,8,10,12,14,16,18,20] #Stable for periodic with mean-decomp
     # modeRetention = [5,7,9,11,13,15,17,19] #Stable for periodic with mean-decomp
-    #modeRetention = [1,2,3,5,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24] #Nonlinear
-    #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18] #All modes (stable for periodic with no mean-decomp)
-    #modeRetention = [1,2,3,4,5,6,7,8,9,11,13,14,15,16,17,18,19,20,21,22,23,24] #Chaotic, no mean-decomp (note 12 is not used due to instability in the POD-ROM)
+    #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24] #Nonlinear
+    #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18] #All modes 
+    #modeRetention = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]
+    #modeRetention = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]
+    #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24] #Chaotic, no mean-decomp (note 12 is not used due to instability in the POD-ROM)
     # modeRetention = [3,4,7,9,10,11,13,14,15,16,17,18,19,20,21] #Chaotic, mean decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
-    # modeRetention = [3,4,7,9,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35] #Chaotic, mean decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
+    modeRetention = [9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35] #Chaotic, mean decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
     #modeRetention = [3,4,9,10,11,13,14,15,16,17,18,19] #Chaotic, mean decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
     #modeRetention = [14,15,16,17,18,19,20,21,22,23] #Chaotic, first decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
 nPoints=99
@@ -56,28 +57,66 @@ penaltyStrength=0
 sensInit = ["pod","zero"]
 quadRule = ["simpson"] # simpson, gauss-legendre, uniform, monte carlo
 mean_reduction = ["mean"]
-adjustModePairs=True
+adjustModePairs=False
 error_norm = [r"$L_2$",r"$L_\infty$"]
 
 #Display settings
-showPlots=True
-plotTimeSeries=True
-plotModes=True
-plotConvergence=False
-plotError=True
-makeMovies=True
-plotRomCoeff=True
-plotSingularValues=True
+showPlots= True
+plotTimeSeries=False
+plotModes=False
+plotConvergence=True
+plotError=False
+plotRomCoeff=False
+plotSingularValues=False
 
+makeMovies=False
 
 if paramSet == "BizonChaotic":
     baseParams={"PeM": 700, "PeT": 700, "f": .3, "Le": 1, "Da": .15, "beta": 1.8, "gamma": 10,"delta": 2, "vH":-.065}
     stabalizationTime=150
     tmax=4.1
+elif paramSet == "BizonChaoticUnstabalized":
+    baseParams={"PeM": 700, "PeT": 700, "f": .3, "Le": 1, "Da": .15, "beta": 1.8, "gamma": 10,"delta": 2, "vH":-.065}
+    stabalizationTime=0
+    tmax=1.5
 elif paramSet == "BizonPeriodic":
     baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
-    stabalizationTime=20
+    stabalizationTime=150
     tmax=4.0
+elif paramSet == "BizonPeriodicUnstabalized":
+    baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
+    stabalizationTime=0
+    tmax=1.5
+elif paramSet == "BizonPeriodicReducedUnstabalized":
+    #For tmax=2
+    baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .08966443, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
+    #baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .07, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
+    stabalizationTime=0
+    tmax=1.5
+elif paramSet == "BizonLinearUnstabalized":
+    baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
+    stabalizationTime=0
+    tmax=2.0
+elif paramSet == "BizonLinearUnstabalizedNoRobin":
+    baseParams={"PeM": 300, "PeT": 300, "PeM-boundary": 1e16, "PeT-boundary": 1e16, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
+    stabalizationTime=0
+    tmax=2.0
+elif paramSet == "BizonAdvecDiffusionUnstabalized":
+    baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
+    stabalizationTime=0
+    tmax=2.0
+elif paramSet == "BizonAdvecDiffusionUnstabalizedNoRobin":
+    baseParams={"PeM": 300, "PeT": 300, "PeM-boundary": 1e16, "PeT-boundary": 1e16, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
+    stabalizationTime=0
+    tmax=2.0
+elif paramSet == "BizonAdvecDiffusionUnstabalizedNoRobinNoRecirc":
+    baseParams={"PeM": 300, "PeT": 300, "PeM-boundary": 1e16, "PeT-boundary": 1e16, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
+    stabalizationTime=0
+    tmax=2.0
+elif paramSet == "BizonLinearUnstabalized":
+    baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
+    stabalizationTime=0
+    tmax=2.0
 elif paramSet == "NoRecircExtreme":
     baseParams={"PeM": 300, "PeT": 300, "f": 0, "Le": 1, "Da": .5, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
     stabalizationTime=.1
@@ -116,8 +155,16 @@ elif paramSet == "AdvecDiffusionRecircExtreme":
     baseParams={"PeM": 1e2, "PeT": 1e2, "f": 4, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
     stabalizationTime=.1
     tmax=1.5
+elif paramSet == "AdvecDiffusionRecircExtremeNoRobin":
+    baseParams={"PeM": 1e2, "PeT": 1e2, "PeM-boundary": 1e16, "PeT-boundary": 1e16, "f": 4, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
+    stabalizationTime=.1
+    tmax=1.5
 elif paramSet == "AdvecDiffusionRecirc":
-    baseParams={"PeM": 1e2, "PeT": 1e2, "f": .75, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
+    baseParams={"PeM": 1e2, "PeT": 1e2, "f": 1, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
+    stabalizationTime=.1
+    tmax=1.5
+elif paramSet == "AdvecDiffusionRecircNoRobin":
+    baseParams={"PeM": 1e2, "PeT": 1e2,"PeM-boundary": 1e16, "PeT-boundary": 1e16, "f": 1, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
     stabalizationTime=.1
     tmax=1.5
 elif paramSet == "AdvecRecirc":
@@ -141,6 +188,7 @@ fomSaveFolder = "../../results/podRomAnalysis/"+paramSet +"_nCol" + str(nColloca
 
 
 #Simulation Settings
+bounds = [0,1]
 #Determine parameters to get sensitivity of
 if equationSet == "tankOnly":
     neq=1
@@ -189,33 +237,78 @@ if not os.path.exists(fomSaveFolder):
         os.makedirs(fomSaveFolder)
 #==================================== Setup system ===============================================================================
 print("Setting up system")
-model=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[0,1],params=baseParams)
+model=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=baseParams)
 dydtSens =lambda y,t: model.dydtSens(y,t,paramSelect=paramSelect)
-if paramSet=="BizonChaotic":
-    #For Chaotic, need to run two stabalizations, one to get to the pre-periodic stable case, and another to get to the chaotic case
-    stabalizationParams = baseParams.copy()
-    stabalizationParams["vH"]=-.045
-    stabalizationModel=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[0,1],params=stabalizationParams)
-    modelCoeff=np.ones((1,model.nCollocation*model.nElements*2*neq))*-.045
-    #Run out till stabalizing in periodic domain
-    stabalizationDydtSens =lambda y,t: stabalizationModel.dydtSens(y,t,paramSelect=paramSelect)
-    odeOut= scipy.integrate.solve_ivp(lambda t,y: stabalizationDydtSens(y,t),(0,stabalizationTime),modelCoeff[-1,:], method=odeMethod,atol=1e-6,rtol=1e-6)
-    modelCoeff = odeOut.y[:,[-1]].transpose()
-elif paramSet == "BizonPeriodic" :
-    modelCoeff=np.ones((1,model.nCollocation*model.nElements*2*neq))*baseParams["vH"]
-else :
-    collPoints=np.append(model.collocationPoints,model.collocationPoints,axis=0)
-    modelCoeff=np.array([3/2*collPoints**2-collPoints**3])
-    for i in range(neq-1):
-        #modelCoeff = np.append(modelCoeff,[-collPoints**2+2*collPoints],axis=1)
-        modelCoeff = np.append(modelCoeff,[0*model.collocationPoints],axis=1)
-        modelCoeff = np.append(modelCoeff,[3/2*model.collocationPoints**3-model.collocationPoints**3],axis=1)
+# if paramSet=="BizonChaotic":
+#     #For Chaotic, need to run two stabalizations, one to get to the pre-periodic stable case, and another to get to the chaotic case
+#     stabalizationParams = baseParams.copy()
+#     stabalizationParams["vH"]=-.045
+#     stabalizationModel=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=stabalizationParams)
+#     modelCoeff=np.ones((1,model.nCollocation*model.nElements*2*neq))*-.045
+#     #Run out till stabalizing in periodic domain
+#     stabalizationDydtSens =lambda y,t: stabalizationModel.dydtSens(y,t,paramSelect=paramSelect)
+#     odeOut= scipy.integrate.solve_ivp(lambda t,y: stabalizationDydtSens(y,t),(0,stabalizationTime),modelCoeff[-1,:], method=odeMethod,atol=1e-6,rtol=1e-6)
+#     modelCoeff = odeOut.y[:,[-1]].transpose()
+# elif paramSet == "BizonPeriodic" or paramSet == "BizonPeriodicUnstabalized":
+#     modelCoeff=np.ones((1,model.nCollocation*model.nElements*2*neq))*baseParams["vH"]
+# else :
+# spatialOrder = 3
+# uSpatialCoeff=-np.ones((spatialOrder+1,))
+# vSpatialCoeff=-np.ones((spatialOrder+1,))
+# uSpatialCoeff[1]=-np.sum(np.arange(2,spatialOrder+1)*uSpatialCoeff[2:])
+# vSpatialCoeff[1]=-np.sum(np.arange(2,spatialOrder+1)*vSpatialCoeff[2:])
+# uSpatialCoeff[0]=uSpatialCoeff[1]/baseParams["PeM"]
+# vSpatialCoeff[0]=(vSpatialCoeff[1]/baseParams["PeT"]+baseParams["f"]*(vSpatialCoeff[1]-(spatialOrder-1)))/(1-baseParams["f"])
+# init = lambda x,b: b[0]+b[1]*x+b[2]*np.sin(2*np.pi*x)+b[3]*np.cos(2*np.pi*x)
+# uCoeff=np.empty((4,))
+# uLeftStart = 0
+# vLeftStart = baseParams["vH"]
+
+# uCoeff[1]=0
+# uCoeff[2]=-uCoeff[1]/(2*np.pi)
+# uCoeff[0]=.5
+# uCoeff[3]=-uCoeff[3]
+
+period = 1
+init = lambda x,b: b[0]+b[1]/bounds[1]*x+b[2]*np.cos(2*np.pi*x*period/bounds[1])+b[3]*np.sin(2*np.pi*x*period/bounds[1])
+uCoeff = np.empty((4,))
+uCoeff[0]=0
+uCoeff[1]=1
+uCoeff[2]=-uCoeff[0]
+uCoeff[3]=-uCoeff[1]/(2*np.pi*period)
+
+vCoeff = np.empty((4,))
+vCoeff[0]=.35
+vCoeff[1]=.2
+vCoeff[2]=-vCoeff[0]+(baseParams["f"]*vCoeff[1])/(1-baseParams["f"])
+# vCoeff[2]=-.5
+# vCoeff[1]=(1-baseParams["f"])/(baseParams["f"]*bounds[1])*(vCoeff[0]+vCoeff[2])
+vCoeff[3]=-vCoeff[1]/(2*np.pi*period)
+# vCoeff=np.empty((3,))
+# vCoeff[3]=-.5
+# vCoeff[2]=-.5
+# vCoeff[1]=vCoeff[2]/((bounds[1]+1)**2)
+# vCoeff[0]=((vCoeff[1]-vCoeff[2])/baseParams["PeT"]+baseParams["f"]*(bounds[1]*vCoeff[1]+vCoeff[2]/(bounds[1]+1)))/(1-baseParams["f"])
+# uInit = np.sum(np.power.outer(model.collocationPoints,np.arange(0,spatialOrder+1))*uSpatialCoeff,axis=-1)
+# vInit = np.sum(np.power.outer(model.collocationPoints,np.arange(0,spatialOrder+1))*vSpatialCoeff,axis=-1)
+# uInit =np.ones((model.nCollocation*model.nElements,))*baseParams["vH"]
+# vInit =np.ones((model.nCollocation*model.nElements,))*baseParams["vH"]
+# plt.plot(np.linspace(bounds[0],bounds[1],nPoints),init(np.linspace(bounds[0],bounds[1],nPoints),uCoeff),label="u")
+# plt.plot(np.linspace(bounds[0],bounds[1],nPoints),init(np.linspace(bounds[0],bounds[1],nPoints),vCoeff),label="v")
+# plt.legend()
+# plt.show()
+modelCoeff=np.append(init(model.collocationPoints,uCoeff),init(model.collocationPoints,vCoeff),axis=0)
+for i in range(neq-1):
+    #modelCoeff = np.append(modelCoeff,[-collPoints**2+2*collPoints],axis=1)
+    modelCoeff = np.append(modelCoeff,[0*model.collocationPoints],axis=0)
+    modelCoeff = np.append(modelCoeff,[3/2*model.collocationPoints**3-model.collocationPoints**3],axis=0)
 
 #=================================== Run Stabalization ===========================================================================
 print("Running Stabalization")
 if not stabalizationTime==0:
     #Run out till stabalizing in periodic domain
-    odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(0,stabalizationTime),modelCoeff[-1,:], method=odeMethod,atol=1e-6,rtol=1e-6)
+    odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(0,stabalizationTime),modelCoeff, method=odeMethod,atol=1e-6,rtol=1e-6)
+    print(odeOut.y.shape)
     modelCoeff = odeOut.y[:,-1].transpose()
 #=================================== Get Simulation Data ================================================================
 print("Getting Simulation Data")
@@ -229,6 +322,7 @@ print("Getting Simulation Data")
 #     print(t)
 odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(0,tmax), modelCoeff, t_eval = tPoints, method=odeMethod,atol=1e-10,rtol=1e-10)
 modelCoeff=odeOut.y.transpose()
+print(modelCoeff.shape)
 #pre-allocation results storage
 if usePodRom:
     uResults = np.empty((neq,modelCoeff.shape[0],3,nPoints))
@@ -280,28 +374,30 @@ for iquad in range(len(quadRule)):
                         print("             Running POD-ROM for mode retention ", modeRetention[iret], " and mean reduction ", mean_reduction[imean])
                         #------------------------------- Make Folder to save data
                         if equationSet != "tankOnly":
-                            romSaveFolder = fomSaveFolder + "_" + romSensitivityApproach[isens] + "_" + sensInit[iInit]
+                            podSaveFolder = fomSaveFolder + "_" + romSensitivityApproach[isens] + "_" + sensInit[iInit]
                             if romSensitivityApproach[isens] == "finite":
-                                romSaveFolder += "_d"+str(finiteDelta)
+                                podSaveFolder += "_d"+str(finiteDelta)
                             elif romSensitivityApproach[isens] == "complex":
-                                romSaveFolder += "_d"+str(complexDelta)
+                                podSaveFolder += "_d"+str(complexDelta)
                         else:
-                            romSaveFolder = fomSaveFolder
+                            podSaveFolder = fomSaveFolder
                         if penaltyStrength != 0:
-                            romSaveFolder += "/"+mean_reduction[imean] + "_"+quadRule[iquad]+"_n"+str(nPoints)+"_p"+str(penaltyStrength)
+                            podSaveFolder += "/"+mean_reduction[imean] + "_"+quadRule[iquad]+"_n"+str(nPoints)+"_p"+str(penaltyStrength)
                         else:
-                            romSaveFolder += "/"+mean_reduction[imean] + "_"+quadRule[iquad]+"_n"+str(nPoints)
+                            podSaveFolder += "/"+mean_reduction[imean] + "_"+quadRule[iquad]+"_n"+str(nPoints)
                         
                         if adjustModePairs ==True:
-                            romSaveFolder+= "_adjusted/"
+                            podSaveFolder+= "_adjusted/"
                         else:
-                            romSaveFolder+="/"
+                            podSaveFolder+="/"
                         if useEnergyThreshold:
-                            romSaveFolder += "e"+str(modeRetention[iret])+"/"
+                            romSaveFolder = podSaveFolder + "e"+str(modeRetention[iret])+"/"
                         else :
-                            romSaveFolder += "m"+str(modeRetention[iret]) +"/"
+                            romSaveFolder = podSaveFolder + "m"+str(modeRetention[iret]) +"/"
 
-                        if not os.path.exists(romSaveFolder):
+                        if not os.path.exists(podSaveFolder):
+                            os.makedirs(podSaveFolder)
+                        if not os.path.exists(romSaveFolder) and (plotTimeSeries or plotModes or plotError or plotRomCoeff or plotSingularValues):
                             os.makedirs(romSaveFolder)
                         if iret ==0 and plotSingularValues:
                             romData, null =model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,min(nT,nPoints),mean=mean_reduction[imean],useEnergyThreshold=False)
@@ -390,7 +486,7 @@ for iquad in range(len(quadRule)):
                                         perturbedRomCoeff = romCoeff[0,:romData.uNmodes+romData.vNmodes]
                                     perturbedParams = baseParams.copy()
                                     perturbedParams[paramSelect[iparam]]+= finiteDelta
-                                    perturbedModel=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[0,1],params=perturbedParams)
+                                    perturbedModel=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=perturbedParams)
                                     dydtPodRom = lambda y,t: perturbedModel.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=penaltyStrength)
                                     odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax),perturbedRomCoeff, t_eval = tPoints, method=odeMethod,atol=1e-10,rtol=1e-10)
                                     #Compute Sensitivity in POD space
@@ -412,7 +508,7 @@ for iquad in range(len(quadRule)):
                                         perturbedRomCoeff = romCoeff[0,:romData.uNmodes+romData.vNmodes].astype(complex)
                                     perturbedParams = baseParams.copy()
                                     perturbedParams[paramSelect[iparam]]+= complexDelta*1j
-                                    perturbedModel=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[0,1],params=perturbedParams)
+                                    perturbedModel=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=perturbedParams)
                                     dydtPodRom = lambda y,t: perturbedModel.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=penaltyStrength)
                                     odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax), perturbedRomCoeff, t_eval = tPoints, method=odeMethod,atol=1e-10,rtol=1e-10)
                                         
@@ -593,7 +689,7 @@ for iquad in range(len(quadRule)):
                         legends=error_norm
                         error=np.squeeze(error)
                     fig,axs = plotErrorConvergence(error,truncationError,xLabel="Proportion Information Truncated in POD",yLabel="Relative ROM Error",legends=legends) 
-                    plt.savefig(romSaveFolder + "../errorConvergence.pdf", format="pdf")
-                    plt.savefig(romSaveFolder + "../errorConvergence.png", format="png")
+                    plt.savefig(podSaveFolder + "errorConvergence.pdf", format="pdf")
+                    plt.savefig(podSaveFolder + "errorConvergence.png", format="png")
 if showPlots:
     plt.show()
