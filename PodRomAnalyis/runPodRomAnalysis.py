@@ -18,10 +18,11 @@ import matplotlib.pyplot as plt
 #Set run details
 #FOM parameters
 paramSet = "BizonChaotic" #BizonPeriodic, BizonLinear, BizonNonLinear, BizonAdvecDiffusion
+stabalized=False
 equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
 nCollocation=1
 nElements=128
-odeMethod="RK23" #LSODA, BDF, RK45, RK23, DOP853
+odeMethod="BDF" #LSODA, BDF, RK45, RK23, DOP853
 
 #romParameters
 usePodRom=True
@@ -29,28 +30,7 @@ romSensitivityApproach = ["finite","sensEq","complex"] #none, finite, sensEq, DE
 finiteDelta = 1e-6   #Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
 complexDelta = 1e-10 #Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
 useEnergyThreshold=False
-if useEnergyThreshold==True:
-    #modeRetention=[.85,.885,.925,.95,.975,.99,.999]
-    modeRetention=[.85,.99,.999]
-    #modeRetention=[.99]
-    #modeRetention=[.99,.999]
-else:
-    #modeRetention=[1,2,3]
-    #modeRetention = [12,13]
-    #modeRetention = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16] #Nonlinear set
-    #modeRetention= [3,4,5,6]
-    # modeRetention = [5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25] #Stable for periodic with mean-decomp
-    # modeRetention = [4,6,8,10,12,14,16,18,20] #Stable for periodic with mean-decomp
-    # modeRetention = [5,7,9,11,13,15,17,19] #Stable for periodic with mean-decomp
-    #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24] #Nonlinear
-    #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18] #All modes 
-    #modeRetention = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]
-    #modeRetention = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]
-    #modeRetention = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24] #Chaotic, no mean-decomp (note 12 is not used due to instability in the POD-ROM)
-    # modeRetention = [3,4,7,9,10,11,13,14,15,16,17,18,19,20,21] #Chaotic, mean decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
-    modeRetention = [9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35] #Chaotic, mean decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
-    #modeRetention = [3,4,9,10,11,13,14,15,16,17,18,19] #Chaotic, mean decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
-    #modeRetention = [14,15,16,17,18,19,20,21,22,23] #Chaotic, first decomp (note many smaller, even modes are not used due to instability in the POD-ROM)
+
 nPoints=99
 nT=200
 penaltyStrength=0
@@ -62,128 +42,109 @@ error_norm = [r"$L_2$",r"$L_\infty$"]
 
 #Display settings
 showPlots= True
-plotTimeSeries=False
-plotModes=False
-plotConvergence=True
-plotError=False
-plotRomCoeff=False
-plotSingularValues=False
+
+
+plotConvergence=False
+
+plotTimeSeries=True
+plotModes=True
+plotError=True
+plotRomCoeff=True
+plotSingularValues=True
+
+# plotTimeSeries=False
+# plotModes=False
+# plotError=False
+# plotRomCoeff=False
+# plotSingularValues=False
 
 makeMovies=False
 
-if paramSet == "BizonChaotic":
-    baseParams={"PeM": 700, "PeT": 700, "f": .3, "Le": 1, "Da": .15, "beta": 1.8, "gamma": 10,"delta": 2, "vH":-.065}
+
+if useEnergyThreshold==True:
+    #modeRetention=[.85,.885,.925,.95,.975,.99,.999]
+    modeRetention=[.85,.99,.999]
+    #modeRetention=[.99]
+    #modeRetention=[.99,.999]
+#Set-up planned convergence ranges to better keep track of stable domains for each case
+elif plotConvergence:
+    if stabalized:
+        if paramSet=="BizonChaotic":
+            modeRetention = list(range(6,29))
+        elif paramSet=="BizonPeriodic":
+            modeRetention = list(range(6,19))
+    else: 
+        if paramSet=="BizonLinear":
+            modeRetention = list(range(1,15))
+        elif paramSet== "BizonPeriodic":
+            modeRetention = list(range(1,23))
+        elif paramSet == "BizonChaotic":
+            modeRetention = list(range(1,33))
+else:
+    modeRetention=6
+
+if stabalized:
     stabalizationTime=150
     tmax=4.1
-elif paramSet == "BizonChaoticUnstabalized":
-    baseParams={"PeM": 700, "PeT": 700, "f": .3, "Le": 1, "Da": .15, "beta": 1.8, "gamma": 10,"delta": 2, "vH":-.065}
-    stabalizationTime=0
+else:
     tmax=1.5
+
+tPoints= np.linspace(0,tmax,num=nT)
+if paramSet == "BizonChaotic":
+    baseParams={"PeM": 700, "PeT": 700, "f": .3, "Le": 1, "Da": .15, "beta": 1.8, "gamma": 10,"delta": 2, "vH":-.065}
 elif paramSet == "BizonPeriodic":
     baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
-    stabalizationTime=150
-    tmax=4.0
-elif paramSet == "BizonPeriodicUnstabalized":
-    baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
-    stabalizationTime=0
-    tmax=1.5
-elif paramSet == "BizonPeriodicReducedUnstabalized":
-    #For tmax=2
+elif paramSet == "BizonPeriodicReduced":
     baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .08966443, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
-    #baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .07, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
-    stabalizationTime=0
-    tmax=1.5
-elif paramSet == "BizonLinearUnstabalized":
+elif paramSet == "BizonLinear":
     baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
-    stabalizationTime=0
-    tmax=2.0
-elif paramSet == "BizonLinearUnstabalizedNoRobin":
+elif paramSet == "BizonLinearNoRobin":
     baseParams={"PeM": 300, "PeT": 300, "PeM-boundary": 1e16, "PeT-boundary": 1e16, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
-    stabalizationTime=0
-    tmax=2.0
-elif paramSet == "BizonAdvecDiffusionUnstabalized":
+elif paramSet == "BizonAdvecDiffusion":
     baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
-    stabalizationTime=0
-    tmax=2.0
-elif paramSet == "BizonAdvecDiffusionUnstabalizedNoRobin":
+elif paramSet == "BizonAdvecDiffusionNoRobin":
     baseParams={"PeM": 300, "PeT": 300, "PeM-boundary": 1e16, "PeT-boundary": 1e16, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
-    stabalizationTime=0
-    tmax=2.0
-elif paramSet == "BizonAdvecDiffusionUnstabalizedNoRobinNoRecirc":
+elif paramSet == "BizonAdvecDiffusionNoRobinNoRecirc":
     baseParams={"PeM": 300, "PeT": 300, "PeM-boundary": 1e16, "PeT-boundary": 1e16, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
-    stabalizationTime=0
-    tmax=2.0
-elif paramSet == "BizonLinearUnstabalized":
-    baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
-    stabalizationTime=0
-    tmax=2.0
 elif paramSet == "NoRecircExtreme":
     baseParams={"PeM": 300, "PeT": 300, "f": 0, "Le": 1, "Da": .5, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
-    stabalizationTime=.1
-    tmax=1.5
 elif paramSet == "NoRecirc":
     baseParams={"PeM": 1e2, "PeT": 1e2, "f": 0, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
-    stabalizationTime=.1
-    tmax=1.5
 elif paramSet == "AdvecDiffusionNonLinear":
-    #baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 0, "vH":0}
     baseParams={"PeM": 1e2, "PeT": 1e2, "f": 0, "Le": 1, "Da": .15, "beta": 1.5, "gamma": 10,"delta": 0, "vH":0}
-    stabalizationTime=.1
-    tmax=1.5
 elif paramSet == "AdvecNonLinear":
-    #baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 0, "vH":0}
     baseParams={"PeM": 1e16, "PeT": 1e16, "f": 0, "Le": 1, "Da": .15, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
-    stabalizationTime=.1
-    tmax=1.5
 elif paramSet == "AdvecDiffusionLinearRecirc":
     baseParams={"PeM": 1e2, "PeT": 1e2, "f": .75, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
-    stabalizationTime=.1
-    tmax=1.5
 elif paramSet == "AdvecDiffusionLinear":
     baseParams={"PeM": 1e2, "PeT": 1e2, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
-    stabalizationTime=.1
-    tmax=1.5
 elif paramSet == "AdvecLinearRecirc":
     baseParams={"PeM": 1e16, "PeT": 1e16, "f": .75, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
-    stabalizationTime=.1
-    tmax=1.5
 elif paramSet == "AdvecLinear":
     baseParams={"PeM": 1e16, "PeT": 1e16, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 2, "vH":-.045}
-    stabalizationTime=.1
-    tmax=1.5
 elif paramSet == "AdvecDiffusionRecircExtreme":
     baseParams={"PeM": 1e2, "PeT": 1e2, "f": 4, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
-    stabalizationTime=.1
-    tmax=1.5
 elif paramSet == "AdvecDiffusionRecircExtremeNoRobin":
     baseParams={"PeM": 1e2, "PeT": 1e2, "PeM-boundary": 1e16, "PeT-boundary": 1e16, "f": 4, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
     stabalizationTime=.1
     tmax=1.5
 elif paramSet == "AdvecDiffusionRecirc":
     baseParams={"PeM": 1e2, "PeT": 1e2, "f": 1, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
-    stabalizationTime=.1
-    tmax=1.5
 elif paramSet == "AdvecDiffusionRecircNoRobin":
     baseParams={"PeM": 1e2, "PeT": 1e2,"PeM-boundary": 1e16, "PeT-boundary": 1e16, "f": 1, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
-    stabalizationTime=.1
-    tmax=1.5
 elif paramSet == "AdvecRecirc":
     baseParams={"PeM": 1e16, "PeT": 1e16, "f": .75, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
-    stabalizationTime=.1
-    tmax=1.5
 elif paramSet == "AdvecDiffusion":
     baseParams={"PeM": 1e2, "PeT": 1e2, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
-    stabalizationTime=.1
-    tmax=1.5
 elif paramSet == "Advec":
     baseParams={"PeM": 1e16, "PeT": 1e16, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
-    stabalizationTime=.1
-    tmax=1.5
 else: 
     raise ValueError("Invalid paramSet entered: " + str(equationSet))
 
-tPoints= np.linspace(0,tmax,num=nT)    
-fomSaveFolder = "../../results/podRomAnalysis/"+paramSet +"_nCol" + str(nCollocation) + "_nElem"+str(nElements) + "_nT" + str(nT) +"/"+equationSet
+fomSaveFolder = "../../results/podRomAnalysis/"+paramSet
+if not stabalized:
+    fomSaveFolder+="Unstabalized"    
+fomSaveFolder += "_nCol" + str(nCollocation) + "_nElem"+str(nElements) + "_nT" + str(nT) +"/"+equationSet
         
 
 
@@ -239,35 +200,6 @@ if not os.path.exists(fomSaveFolder):
 print("Setting up system")
 model=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=baseParams)
 dydtSens =lambda y,t: model.dydtSens(y,t,paramSelect=paramSelect)
-# if paramSet=="BizonChaotic":
-#     #For Chaotic, need to run two stabalizations, one to get to the pre-periodic stable case, and another to get to the chaotic case
-#     stabalizationParams = baseParams.copy()
-#     stabalizationParams["vH"]=-.045
-#     stabalizationModel=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=stabalizationParams)
-#     modelCoeff=np.ones((1,model.nCollocation*model.nElements*2*neq))*-.045
-#     #Run out till stabalizing in periodic domain
-#     stabalizationDydtSens =lambda y,t: stabalizationModel.dydtSens(y,t,paramSelect=paramSelect)
-#     odeOut= scipy.integrate.solve_ivp(lambda t,y: stabalizationDydtSens(y,t),(0,stabalizationTime),modelCoeff[-1,:], method=odeMethod,atol=1e-6,rtol=1e-6)
-#     modelCoeff = odeOut.y[:,[-1]].transpose()
-# elif paramSet == "BizonPeriodic" or paramSet == "BizonPeriodicUnstabalized":
-#     modelCoeff=np.ones((1,model.nCollocation*model.nElements*2*neq))*baseParams["vH"]
-# else :
-# spatialOrder = 3
-# uSpatialCoeff=-np.ones((spatialOrder+1,))
-# vSpatialCoeff=-np.ones((spatialOrder+1,))
-# uSpatialCoeff[1]=-np.sum(np.arange(2,spatialOrder+1)*uSpatialCoeff[2:])
-# vSpatialCoeff[1]=-np.sum(np.arange(2,spatialOrder+1)*vSpatialCoeff[2:])
-# uSpatialCoeff[0]=uSpatialCoeff[1]/baseParams["PeM"]
-# vSpatialCoeff[0]=(vSpatialCoeff[1]/baseParams["PeT"]+baseParams["f"]*(vSpatialCoeff[1]-(spatialOrder-1)))/(1-baseParams["f"])
-# init = lambda x,b: b[0]+b[1]*x+b[2]*np.sin(2*np.pi*x)+b[3]*np.cos(2*np.pi*x)
-# uCoeff=np.empty((4,))
-# uLeftStart = 0
-# vLeftStart = baseParams["vH"]
-
-# uCoeff[1]=0
-# uCoeff[2]=-uCoeff[1]/(2*np.pi)
-# uCoeff[0]=.5
-# uCoeff[3]=-uCoeff[3]
 
 period = 1
 init = lambda x,b: b[0]+b[1]/bounds[1]*x+b[2]*np.cos(2*np.pi*x*period/bounds[1])+b[3]*np.sin(2*np.pi*x*period/bounds[1])
@@ -281,45 +213,21 @@ vCoeff = np.empty((4,))
 vCoeff[0]=.35
 vCoeff[1]=.2
 vCoeff[2]=-vCoeff[0]+(baseParams["f"]*vCoeff[1])/(1-baseParams["f"])
-# vCoeff[2]=-.5
-# vCoeff[1]=(1-baseParams["f"])/(baseParams["f"]*bounds[1])*(vCoeff[0]+vCoeff[2])
 vCoeff[3]=-vCoeff[1]/(2*np.pi*period)
-# vCoeff=np.empty((3,))
-# vCoeff[3]=-.5
-# vCoeff[2]=-.5
-# vCoeff[1]=vCoeff[2]/((bounds[1]+1)**2)
-# vCoeff[0]=((vCoeff[1]-vCoeff[2])/baseParams["PeT"]+baseParams["f"]*(bounds[1]*vCoeff[1]+vCoeff[2]/(bounds[1]+1)))/(1-baseParams["f"])
-# uInit = np.sum(np.power.outer(model.collocationPoints,np.arange(0,spatialOrder+1))*uSpatialCoeff,axis=-1)
-# vInit = np.sum(np.power.outer(model.collocationPoints,np.arange(0,spatialOrder+1))*vSpatialCoeff,axis=-1)
-# uInit =np.ones((model.nCollocation*model.nElements,))*baseParams["vH"]
-# vInit =np.ones((model.nCollocation*model.nElements,))*baseParams["vH"]
-# plt.plot(np.linspace(bounds[0],bounds[1],nPoints),init(np.linspace(bounds[0],bounds[1],nPoints),uCoeff),label="u")
-# plt.plot(np.linspace(bounds[0],bounds[1],nPoints),init(np.linspace(bounds[0],bounds[1],nPoints),vCoeff),label="v")
-# plt.legend()
-# plt.show()
 modelCoeff=np.append(init(model.collocationPoints,uCoeff),init(model.collocationPoints,vCoeff),axis=0)
 for i in range(neq-1):
-    #modelCoeff = np.append(modelCoeff,[-collPoints**2+2*collPoints],axis=1)
     modelCoeff = np.append(modelCoeff,[0*model.collocationPoints],axis=0)
     modelCoeff = np.append(modelCoeff,[3/2*model.collocationPoints**3-model.collocationPoints**3],axis=0)
 
 #=================================== Run Stabalization ===========================================================================
 print("Running Stabalization")
-if not stabalizationTime==0:
+if stabalized:
     #Run out till stabalizing in periodic domain
     odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(0,stabalizationTime),modelCoeff, method=odeMethod,atol=1e-6,rtol=1e-6)
     print(odeOut.y.shape)
     modelCoeff = odeOut.y[:,-1].transpose()
 #=================================== Get Simulation Data ================================================================
 print("Getting Simulation Data")
-# t=0
-# while t<tmax:
-#     odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(t,t+tstep),modelCoeff[-1], method=odeMethod,atol=1e-10,rtol=1e-10)
-#     change = np.max(np.abs(odeOut.y[:,-1]-modelCoeff[-1,:]))
-#     modelCoeff=np.append(modelCoeff,odeOut.y[:,[-1]].transpose(),axis=0)
-#     #print("(t,change): (", t,", ", change, ")")
-#     t+=tstep
-#     print(t)
 odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(0,tmax), modelCoeff, t_eval = tPoints, method=odeMethod,atol=1e-10,rtol=1e-10)
 modelCoeff=odeOut.y.transpose()
 print(modelCoeff.shape)
@@ -637,6 +545,31 @@ for iquad in range(len(quadRule)):
                             fig,axs = subplot(vCoeffData, tPoints, xLabels="t", yLabels=coeffLabels,legends=legends[1:3], subplotSize=(2.65, 2),lineTypeStart=1)
                             plt.savefig(romSaveFolder + "vRomCoeff.pdf", format="pdf")
                             plt.savefig(romSaveFolder + "vRomCoeff.png", format="png")
+                        if plotModes:
+                            #Compute linearization of nonlinear term
+                            nonLinearTerm = lambda u, v: baseParams["Da"]*romData.vModesWeighted.transpose()\
+                                        @((1-(romData.uModes@u+romData.uMean))*np.exp(baseParams["gamma"]*baseParams["beta"]\
+                                        *(romData.vModes@v+romData.vMean)/(1+baseParams["beta"]*(romData.vModes@v+romData.vMean))))
+                            nonLinearLinearized = [None]*tplot.size
+                            for it in range(tplot.size):
+                                nonLinearLinearized[it] =np.empty((romData.vNmodes,romData.vNmodes))
+                                baseU=romCoeff[tplot[it],:romData.uNmodes]
+                                baseV=romCoeff[tplot[it],romData.uNmodes:romData.uNmodes+romData.vNmodes]
+                                for i in range(romData.vNmodes):
+                                    adjustedV=baseV.copy()
+                                    adjustedV[i]+=1e-6
+                                    print(adjustedV-baseV)
+                                    print(nonLinearTerm(baseU,baseV))
+                                    print((nonLinearTerm(baseU,adjustedV)-nonLinearTerm(baseU,baseV))/1e-6)
+                                    nonLinearLinearized[it][i,:]=(nonLinearTerm(baseU,adjustedV)-nonLinearTerm(baseU,baseV))/1e-6
+                            
+                            fig, axes = plotRomMatrices(nonLinearLinearized,\
+                                                        xLabels=r"$v_j$",yLabels=[r"$\frac{\partial \mathcal{N}(v_i)}{\partial v_j}$"," "," ", " "],\
+                                                        title=["t=" + str(round(1000*tPoints[it])/1000) for it in tplot],\
+                                                        cmap="coolwarm")
+                            plt.savefig(romSaveFolder + "vRomMatrices_linearization.pdf", format="pdf")
+                            plt.savefig(romSaveFolder + "vRomMatrices_linearization.png", format="png")
+
                     #================================================== Plot POD Modes ============================================================
                     if plotModes and usePodRom:
                         subplot([mode for mode in romData.uModes.transpose()], x, xLabels="x", yLabels=["Mode " + str(i+1) for i in range(romData.uNmodes)])
@@ -647,6 +580,18 @@ for iquad in range(len(quadRule)):
                         plt.savefig(romSaveFolder + "vModes.png", format="png")
 
 
+                        fig, axes = plotRomMatrices(romData.vRomFirstOrderMat,\
+                                                    xLabels=r"$\phi'_{v,j}$",yLabels=r"$\phi_{v,i}$",\
+                                                    title=r"1st Order v ROM matrix: $\langle\phi_{v,i},\phi'_{v,j}\rangle_{L^2}$",\
+                                                    cmap="coolwarm")
+                        plt.savefig(romSaveFolder + "vRomMatrices_1stOrder.pdf", format="pdf")
+                        plt.savefig(romSaveFolder + "vRomMatrices_1stOrder.png", format="png")
+                        fig, axes = plotRomMatrices(romData.vRomSecondOrderMat,\
+                                                    xLabels=r"$\phi''_{v,j}$",yLabels=r"$\phi_{v,i}$",\
+                                                    title=r"2nd Order v ROM matrix: $\langle\phi_{v,i},\phi''_{v,j}\rangle_{L^2}$",\
+                                                    cmap="coolwarm")
+                        plt.savefig(romSaveFolder + "vRomMatrices_2ndOrder.pdf", format="pdf")
+                        plt.savefig(romSaveFolder + "vRomMatrices_2ndOrder.png", format="png")
                         fig, axes = plotRomMatrices([romData.vRomFirstOrderMat,romData.vRomSecondOrderMat],\
                                                     xLabels=[r"$\phi'_{v,j}$",r"$\phi''_{v,j}$"],yLabels=r"$\phi_{v,i}$",\
                                                     title=[r"1st Order v ROM matrix: $\langle\phi_{v,i},\phi'_{v,j}\rangle_{L^2}$",\
@@ -654,6 +599,19 @@ for iquad in range(len(quadRule)):
                                                     cmap="coolwarm")
                         plt.savefig(romSaveFolder + "vRomMatrices.pdf", format="pdf")
                         plt.savefig(romSaveFolder + "vRomMatrices.png", format="png")
+
+                        fig, axes = plotRomMatrices(romData.uRomFirstOrderMat,\
+                                                    xLabels=r"$\phi'_{u,j}$",yLabels=r"$\phi_{u,i}$",\
+                                                    title=r"1st Order u ROM matrix: $\langle\phi_{u,i},\phi'_{u,j}\rangle_{L^2}$",\
+                                                    cmap="coolwarm")
+                        plt.savefig(romSaveFolder + "uRomMatrices_1stOrder.pdf", format="pdf")
+                        plt.savefig(romSaveFolder + "uRomMatrices_1stOrder.png", format="png")
+                        fig, axes = plotRomMatrices(romData.uRomSecondOrderMat,\
+                                                    xLabels=r"$\phi''_{u,j}$",yLabels=r"$\phi_{u,i}$",\
+                                                    title=r"2nd Order u ROM matrix: $\langle\phi_{u,i},\phi''_{u,j}\rangle_{L^2}$",\
+                                                    cmap="coolwarm")
+                        plt.savefig(romSaveFolder + "uRomMatrices_2ndOrder.pdf", format="pdf")
+                        plt.savefig(romSaveFolder + "uRomMatrices_2ndOrder.png", format="png")
                         fig, axes = plotRomMatrices([romData.uRomFirstOrderMat,romData.uRomSecondOrderMat],\
                                                     xLabels=[r"$\phi'_{u,j}$",r"$\phi''_{u,j}$"],yLabels=r"$\phi_{u,i}$",\
                                                     title=[r"1st Order u ROM matrix: $\langle\phi_{u,i},\phi'_{u,j}\rangle_{L^2}$",\
@@ -661,6 +619,7 @@ for iquad in range(len(quadRule)):
                                                     cmap="coolwarm")
                         plt.savefig(romSaveFolder + "uRomMatrices.pdf", format="pdf")
                         plt.savefig(romSaveFolder + "uRomMatrices.png", format="png")
+                        
 
                     #================================================== Plot Singular Values =======================================================
                     if plotSingularValues:
@@ -689,7 +648,7 @@ for iquad in range(len(quadRule)):
                         legends=error_norm
                         error=np.squeeze(error)
                     fig,axs = plotErrorConvergence(error,truncationError,xLabel="Proportion Information Truncated in POD",yLabel="Relative ROM Error",legends=legends) 
-                    plt.savefig(podSaveFolder + "errorConvergence.pdf", format="pdf")
-                    plt.savefig(podSaveFolder + "errorConvergence.png", format="png")
+                    plt.savefig(podSaveFolder + "errorConvergence_s"+str(modeRetention[0])+"_e" + str(modeRetention[-1])+".pdf", format="pdf")
+                    plt.savefig(podSaveFolder + "errorConvergence_s"+str(modeRetention[0])+"_e" + str(modeRetention[-1])+".png", format="png")
 if showPlots:
     plt.show()

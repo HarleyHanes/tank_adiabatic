@@ -815,7 +815,9 @@ class TankModel:
             cumulEnergy=np.sum(S[:nModes])/totalEnergy
         if adjustModePairs and nModes>1:
             #print(S[:nModes+1])
+            #Approach 1: Compare distance in singular values
             #adjacent_distance = S[nModes-1:nModes+1]-S[nModes-2:nModes]
+            #Appraoch 2: Compare innerproducts between last mode and derivative of next and preceeding mode
             adjacent_distance = np.abs(np.array([modes[:,nModes-1].transpose()@W@modesx[:,nModes-2],modes[:,nModes-1].transpose()@W@modesx[:,nModes]]))
             #If S[nModes-1] is closer to S[nModes] than S[nModes-2], add another mode
             #if adjacent_distance[1]<adjacent_distance[0]:

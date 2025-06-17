@@ -332,7 +332,7 @@ def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="n
 
 def plotRomMatrices(matrices,xLabels="null",yLabels="null",title="null",cmap="coolwarm",sharedColorBar=False,subplotSize=(5,4)):
 
-    if type(matrices==list):
+    if type(matrices)==list:
         for i in range(len(matrices)):
             if not isinstance(matrices[i],np.ndarray):
                 raise ValueError("All elements in matrices must be numpy arrays.")
@@ -370,6 +370,8 @@ def plotRomMatrices(matrices,xLabels="null",yLabels="null",title="null",cmap="co
             raise ValueError("Invalid type entered for title: " + str(type(title)))
         
     fig, axes = plt.subplots(1,nPlots, figsize=(nPlots*subplotSize[0], subplotSize[1]))
+    if nPlots ==1:
+        axes= [axes]
     if sharedColorBar:
         if cmap =="hot":
             vmin = matrices[0].min()
@@ -397,6 +399,7 @@ def plotRomMatrices(matrices,xLabels="null",yLabels="null",title="null",cmap="co
             axes[i].set_xlabel(xLabels[i])
         if yLabels!="null":
             axes[i].set_ylabel(yLabels[i])
+            axes[i].yaxis.label.set(rotation='horizontal', ha='right')
         if title!="null":
             axes[i].set_title(title[i])
         
