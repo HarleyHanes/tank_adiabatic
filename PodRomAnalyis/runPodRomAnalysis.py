@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 #Set run details
 #FOM parameters
 paramSet = "BizonChaotic" #BizonPeriodic, BizonLinear, BizonNonLinear, BizonAdvecDiffusion
-stabalized=False
+stabalized=True
 equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
 nCollocation=1
 nElements=128
@@ -30,6 +30,7 @@ romSensitivityApproach = ["finite","sensEq","complex"] #none, finite, sensEq, DE
 finiteDelta = 1e-6   #Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
 complexDelta = 1e-10 #Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
 useEnergyThreshold=False
+nonlinDim=.4
 
 nPoints=99
 nT=200
@@ -44,13 +45,13 @@ error_norm = [r"$L_2$",r"$L_\infty$"]
 showPlots= True
 
 
-plotConvergence=False
+plotConvergence=True
 
-plotTimeSeries=True
-plotModes=True
-plotError=True
-plotRomCoeff=True
-plotSingularValues=True
+plotTimeSeries=False
+plotModes=False
+plotError=False
+plotRomCoeff=False
+plotSingularValues=False
 
 # plotTimeSeries=False
 # plotModes=False
@@ -295,13 +296,21 @@ for iquad in range(len(quadRule)):
                             podSaveFolder += "/"+mean_reduction[imean] + "_"+quadRule[iquad]+"_n"+str(nPoints)
                         
                         if adjustModePairs ==True:
-                            podSaveFolder+= "_adjusted/"
+                            podSaveFolder+= "_adjusted"
+
+                        if nonlinDim == "max":
+                            podSaveFolder +="/"
                         else:
-                            podSaveFolder+="/"
+                            podSaveFolder +="_nDim" + str(nonlinDim) + "/"
                         if useEnergyThreshold:
-                            romSaveFolder = podSaveFolder + "e"+str(modeRetention[iret])+"/"
+                            romSaveFolder = podSaveFolder + "e"+str(modeRetention[iret])
                         else :
-                            romSaveFolder = podSaveFolder + "m"+str(modeRetention[iret]) +"/"
+                            romSaveFolder = podSaveFolder + "m"+str(modeRetention[iret])
+
+                        if nonlinDim == "max":
+                            romSaveFolder +="/"
+                        else:
+                            romSaveFolder +="_nDim" + str(nonlinDim) + "/"
 
                         if not os.path.exists(podSaveFolder):
                             os.makedirs(podSaveFolder)
@@ -327,7 +336,7 @@ for iquad in range(len(quadRule)):
                             raise ValueError("DEPOD not yet implemented")
                             romData, truncationError[iret,:]=model.constructPodRom(modelCoeff,x,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold)
                         else :
-                            romData, truncationError[iret,:]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
+                            romData, truncationError[iret,:]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,nonlinDim=nonlinDim)
                         if np.isclose(uFomResult,vFomResult).all():
                             if not np.isclose(romData.uModes,romData.vModes).all():
                                 print("Warning: u and v identical but POD modes don't match")
@@ -373,6 +382,7 @@ for iquad in range(len(quadRule)):
                                 =romData.vTimeModes[0,:romData.vNmodes]
                             dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=penaltyStrength)
                         #Compute Base Rom Value
+                        print("nNonlinDim: ", romData.vNonlinDim)
                         odeOut = scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax),romInit, t_eval=tPoints, method=odeMethod,atol=1e-10,rtol=1e-10)
                         romCoeff = np.empty((modelCoeff.shape[0],neq*(romData.uNmodes+romData.vNmodes)))
                         romCoeff[:,:romData.uNmodes+romData.vNmodes] = odeOut.y.transpose()

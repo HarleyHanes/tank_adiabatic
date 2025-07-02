@@ -6,7 +6,7 @@ class RomData:
                  uRomSecondOrderMat, uRomSecondOrderMean, vTimeModes, vMean,
                  vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
                  vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
-                 vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues):
+                 vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues,uNonlinDim,vNonlinDim):
         
         self.x = x
         self.nPoints = len(x)
@@ -41,6 +41,8 @@ class RomData:
         self.vRomSecondOrderMean = vRomSecondOrderMean
         self.uSingularValues = uSingularValues
         self.vSingularValues = vSingularValues
+        self.uNonlinDim=uNonlinDim
+        self.vNonlinDim=vNonlinDim
 
     # Getter and setter methods with validation
     @property
@@ -298,3 +300,29 @@ class RomData:
     def vRomSecondOrderMean(self, value):
         self._validate_shape(value, (self.vNmodes,), "vRomSecondOrderMean")
         self._vRomSecondOrderMean = value
+
+    @property
+    def uNonlinDim(self):
+        return self._uNonlinDim
+
+    @uNonlinDim.setter
+    def uNonlinDim(self, value):
+        if type(value)!= int:
+            raise ValueError("Incorrect type for uNonlinDim: ", type(value))
+        elif value <1 or value>self.uNmodes:
+            raise ValueError("Icompatible value for uNonlinDim: ",value)
+        else:
+            self._uNonlinDim = value
+
+    @property
+    def vNonlinDim(self):
+        return self._vNonlinDim
+
+    @vNonlinDim.setter
+    def vNonlinDim(self, value):
+        if type(value)!= int:
+            raise ValueError("Incorrect type for vNonlinDim: ", type(value))
+        elif value <1 or value>self.vNmodes:
+            raise ValueError("Icompatible value for vNonlinDim: ",value)
+        else:
+            self._vNonlinDim = value

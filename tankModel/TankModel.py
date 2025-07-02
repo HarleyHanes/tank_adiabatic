@@ -681,7 +681,7 @@ class TankModel:
 
     #================================POD-ROM===================================================
 
-    def constructPodRom(self,modelCoeff,x,W,modeThreshold,quadRule="simpson",mean="mean",useEnergyThreshold=True,adjustModePairs=True):
+    def constructPodRom(self,modelCoeff,x,W,modeThreshold,nonlinDim = "max",quadRule="simpson",mean="mean",useEnergyThreshold=True,adjustModePairs=True):
         #Get Snapshots and derivatives of snapshots
         uEval,vEval = self.eval(x,modelCoeff,output="seperated")
         #Compute Mean, keeping dimension so casting works
@@ -758,12 +758,24 @@ class TankModel:
         vModesWeighted, vModesInt, vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean, vRomSecondOrderMat, vRomSecondOrderMean\
               = self.computeRomMatrices(W,vMean, vMeanx, vMeanxx, vModes, vModesx,vModesxx)
         truncationError=np.mean([uTruncationError,vTruncationError])
+        print(nonlinDim)
+        if nonlinDim=="max":
+            uNonlinDim = uModes.shape[1]
+            vNonlinDim = vModes.shape[1]
+        elif nonlinDim<1:
+            uNonlinDim = int(np.ceil(uModes.shape[1]*nonlinDim))
+            vNonlinDim = int(np.ceil(vModes.shape[1]*nonlinDim))
+        elif nonlinDim>1:
+            uNonlinDim = nonlinDim
+            vNonlinDim = nonlinDim
+        else:
+            raise ValueError("Unrecognized value for nonlinDim: ", nonlinDim)
         return RomData(x, W, uTimeModes, uMean, uModes, uModesx, uModesxx, uModesWeighted,
                         uModesInt, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean,
                         uRomSecondOrderMat, uRomSecondOrderMean, vTimeModes, vMean,
                         vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
                         vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
-                        vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues), truncationError
+                        vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues, uNonlinDim,vNonlinDim), truncationError
         
     
     def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,adjustModePairs=True,groupSeperations="null"):
@@ -786,20 +798,25 @@ class TankModel:
         #     raise ValueError("Invalid groupSeperations input")
 
         #Use transpose of evals since eval is time x space but standard snapshot matrix is space x time
-        #Get eigen decomp of UtWU
-        timeModes,S,null= np.linalg.svd(snapshots.transpose()@W@snapshots)
-        #Check symmetry of eigen decomp
-        if not np.isclose(timeModes@S,S@null).all():
-            print("WARNING: Singular value scaled time eigen decomp not symmetric")
-            print("Error: ", np.sqrt(np.sum(np.sum((timeModes@S-S@null.transpose())**2))/np.sum(np.sum((timeModes@S)**2))))
-            print("W: ", W)
-            print("timeModes-timeModesT: ",timeModes-null.transpose())
-        #Have to take squareroot of S for scaling
-        S=np.sqrt(S)
+        if np.isclose(W/W[0,0],np.eye(W.shape[0])).all():
+            modes, S, timeModes = np.linalg.svd(snapshots*W[0,0],full_matrices=False)
+            timeModes=timeModes.transpose()
+        else:
+            #Get eigen decomp of UtWU
+            timeModes,S,null= np.linalg.svd(snapshots.transpose()@W@snapshots,full_matrices=False)
+            #Check symmetry of eigen decomp
+            if not np.isclose(timeModes@S,S@null).all():
+                print("WARNING: Singular value scaled time eigen decomp not symmetric")
+                print("Error: ", np.sqrt(np.sum(np.sum((timeModes@S-S@null.transpose())**2))/np.sum(np.sum((timeModes@S)**2))))
+                print("W: ", W)
+                print("timeModes-timeModesT: ",timeModes-null.transpose())
+            #Have to take squareroot of S for scaling
+            S=np.sqrt(S)
+            modes = snapshots@timeModes@np.diag(1/S)
         #Compute modes for derivatives
-        modes = snapshots@timeModes@np.diag(1/S)
         modesx = snapshotsx @ timeModes @ (np.diag(1/S))
         modesxx = snapshotsxx @ timeModes @ (np.diag(1/S))
+
         #Rescale time-modes by average norms
         if useEnergyThreshold:
             #Create threshold for S
@@ -889,6 +906,8 @@ class TankModel:
             paramSelect=[paramSelect]
         u=y[0:romData.uNmodes]
         v=y[romData.uNmodes:romData.uNmodes+romData.vNmodes]
+        uNonlin=romData.uModes[:,:romData.uNonlinDim]@u[:romData.uNonlinDim]+romData.uMean
+        vNonlin=romData.vModes[:,:romData.vNonlinDim]@v[:romData.vNonlinDim]+romData.vMean
         uFull=romData.uModes@u+romData.uMean
         vFull=romData.vModes@v+romData.vMean
         uFullx=romData.uModesx@u+romData.uMean
@@ -904,14 +923,14 @@ class TankModel:
         dudt=(romData.uRomSecondOrderMat/self.params["PeM"]- romData.uRomFirstOrderMat)@u\
                 +romData.uRomSecondOrderMean/self.params["PeM"]-romData.uRomFirstOrderMean\
                 +self.params["Da"]*romData.uModesWeighted.transpose()\
-                                    @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
-                                      *vFull/(1+self.params["beta"]*vFull)))
+                                    @((1-uNonlin)*np.exp(self.params["gamma"]*self.params["beta"]\
+                                      *vNonlin/(1+self.params["beta"]*vNonlin)))
         dvdt=((romData.vRomSecondOrderMat/self.params["PeT"]-romData.vRomFirstOrderMat)@v\
                 +romData.vRomSecondOrderMean/self.params["PeT"]-romData.vRomFirstOrderMean\
                 +self.params["delta"]*(self.params["vH"]*romData.vModesInt-v-romData.vRomMassMean)\
                 +self.params["Da"]*romData.vModesWeighted.transpose()
-                                    @((1-uFull)*np.exp(self.params["gamma"]*self.params["beta"]\
-                                        *vFull/(1+self.params["beta"]*vFull))))/self.params["Le"]
+                                    @((1-uNonlin)*np.exp(self.params["gamma"]*self.params["beta"]\
+                                        *vNonlin/(1+self.params["beta"]*vNonlin))))/self.params["Le"]
         #Boundary Penalty
         #u
         dudt -= penaltyStrength*romData.uModes[0,:]*(uFull[0]-uFullx[0]/self.params["PeM"])
