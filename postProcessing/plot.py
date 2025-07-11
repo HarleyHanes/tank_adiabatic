@@ -377,17 +377,18 @@ def plotRomMatrices(matrices,xLabels="null",yLabels="null",title="null",cmap="co
             vmin = matrices[0].min()
             vmax = matrices[0].max()
             for i in range(1,nPlots):
-                vmin = min(vmin, matrices[i].min())
-                vmax = max(vmax, matrices[i].max())
+                vmin = min(vmin, np.min(matrices[i]))
+                vmax = max(vmax, np.max(matrices[i]))
         elif cmap == "coolwarm":
-            vmax = matrices[0].abs().max()
+            print("using coolwarm")
+            vmax = np.max(np.abs(matrices[0]))
             for i in range(1,nPlots):
-                vmax = min(vmax, matrices[i].abs().min())
+                vmax = max(vmax, matrices[i].abs().min())
             vmin = -vmax
     for i in range(nPlots):
         if not sharedColorBar:
-            vmin = matrices[i].min()
-            vmax = matrices[i].max()
+            vmax = np.max(np.abs(matrices[i]))
+            vmin = -vmax
         im = axes[i].imshow(matrices[i],cmap =cmap,vmin=vmin,vmax=vmax)
         if not sharedColorBar:
             fig.colorbar(im)

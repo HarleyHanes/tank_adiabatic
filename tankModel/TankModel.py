@@ -681,7 +681,7 @@ class TankModel:
 
     #================================POD-ROM===================================================
 
-    def constructPodRom(self,modelCoeff,x,W,modeThreshold,nonlinDim = "max",quadRule="simpson",mean="mean",useEnergyThreshold=True,adjustModePairs=True):
+    def constructPodRom(self,modelCoeff,x,W,modeThreshold,nonlinDim = "max",quadRule="simpson",mean="mean",useEnergyThreshold=True,adjustModePairs=False):
         #Get Snapshots and derivatives of snapshots
         uEval,vEval = self.eval(x,modelCoeff,output="seperated")
         #Compute Mean, keeping dimension so casting works
@@ -752,7 +752,6 @@ class TankModel:
                     print("Left Boundary Condition not satisfied for vMode", i, "by: ", vModes[0,i]-vModesx[0,i]/self.params["PeM"]-vModes[-1,i]*self.params["f"])
                 if not np.isclose(vModesx[-1,i],0,atol=1e-6):
                     print("Right Boundary Condition not satisfied for vMode", i, "by: ", vModesx[-1,i])
-        
         uModesWeighted, uModesInt, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean, uRomSecondOrderMat, uRomSecondOrderMean\
               = self.computeRomMatrices(W,uMean, uMeanx, uMeanxx, uModes, uModesx,uModesxx)
         vModesWeighted, vModesInt, vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean, vRomSecondOrderMat, vRomSecondOrderMean\
@@ -778,7 +777,7 @@ class TankModel:
                         vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues, uNonlinDim,vNonlinDim), truncationError
         
     
-    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,adjustModePairs=True,groupSeperations="null"):
+    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,adjustModePairs=False,groupSeperations="null"):
         # INCOMPLETE: Scale each observed response to [0,1] for POD so that sensitivities with large values aren't weighted more, may need setting up this change in TankModel
         # if type(groupSeperations)==np.ndarray:
         #     raise ValueError("groupSeperations for mixed inputs incomplete")
@@ -799,7 +798,7 @@ class TankModel:
 
         #Use transpose of evals since eval is time x space but standard snapshot matrix is space x time
         if np.isclose(W/W[0,0],np.eye(W.shape[0])).all():
-            modes, S, timeModes = np.linalg.svd(snapshots*W[0,0],full_matrices=False)
+            modes, S, timeModes = np.linalg.svd(snapshots*np.sqrt(W[0,0]),full_matrices=False)
             timeModes=timeModes.transpose()
         else:
             #Get eigen decomp of UtWU
@@ -812,7 +811,9 @@ class TankModel:
                 print("timeModes-timeModesT: ",timeModes-null.transpose())
             #Have to take squareroot of S for scaling
             S=np.sqrt(S)
-            modes = snapshots@timeModes@np.diag(1/S)
+        modes = snapshots@timeModes@np.diag(1/S)
+        
+        print("Minimum Singular Value: ", np.min(S))
         #Compute modes for derivatives
         modesx = snapshotsx @ timeModes @ (np.diag(1/S))
         modesxx = snapshotsxx @ timeModes @ (np.diag(1/S))
@@ -851,6 +852,7 @@ class TankModel:
         #Check Orthonormality of modes
         if not np.isclose(modes.transpose()@W@modes,np.eye(modes.shape[1])).all():
             print("WARNING: Modes not orthonormal")
+            print("Phi^TWPhi = ", modes.transpose()@W@modes)
             print("Departure from Orthonormality: ", np.sum(np.eye(modes.shape[1])-modes.transpose()@W@modes))
         #Check the POD decomposition is accurate in FOM space
         podError = np.sqrt(np.sum(W@((snapshots-modes@timeModes.transpose())**2))/np.sum(W@(snapshots**2)))
@@ -870,18 +872,19 @@ class TankModel:
         return podModesWeighted, podModesInt, romMassMean, romFirstOrderMat, romFirstOrderMean, romSecondOrderMat, romSecondOrderMean
 
     def getQuadWeights(self,nPoints,quadRule):
-        if quadRule == "simpson" and nPoints%2==0:
-            raise ValueError("Simpson's rule requires an odd number of points")
-        if quadRule == "simpson":
-            x=np.linspace(self.bounds[0],self.bounds[1],nPoints)
-            #Get quadrature weights using simpson's rule
-            w=np.ones(x.size)/3*(self.bounds[1]-self.bounds[0])/(x.size-1)
-            w[1:x.size-1:2]*=4
-            if np.size(x)>=5:
-                w[2:x.size-2:2]*=2
+        if quadRule == "simpson" :
+            if nPoints%2==0:
+                raise ValueError("Simpson's rule requires an odd number of points")
+            else:
+                x=np.linspace(self.bounds[0],self.bounds[1],nPoints)
+                #Get quadrature weights using simpson's rule
+                w=np.ones(x.size)/3*(self.bounds[1]-self.bounds[0])/(x.size-1)
+                w[1:x.size-1:2]*=4
+                if np.size(x)>=5:
+                    w[2:x.size-2:2]*=2
         elif quadRule == "uniform":
             x=np.linspace(self.bounds[0],self.bounds[1],nPoints)
-            w=np.ones(np.size(x))/(x.size)*(self.bounds[1]-self.bounds[0])
+            w=np.ones(np.size(x))/((x.size)*(self.bounds[1]-self.bounds[0]))
         elif quadRule == "monte carlo":
             x=np.array([self.bounds[0]])
             x=np.append(x,np.sort(np.random.sample(nPoints-2))*(self.bounds[1]-self.bounds[0])+self.bounds[0],axis=0)

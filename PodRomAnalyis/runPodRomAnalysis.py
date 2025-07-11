@@ -17,8 +17,8 @@ import matplotlib.pyplot as plt
 
 #Set run details
 #FOM parameters
-paramSet = "BizonChaotic" #BizonPeriodic, BizonLinear, BizonNonLinear, BizonAdvecDiffusion
-stabalized=True
+paramSet = "BizonLinear" #BizonPeriodic, BizonLinear, BizonNonLinear, BizonAdvecDiffusion
+stabalized=False
 equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
 nCollocation=1
 nElements=128
@@ -30,13 +30,13 @@ romSensitivityApproach = ["finite","sensEq","complex"] #none, finite, sensEq, DE
 finiteDelta = 1e-6   #Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
 complexDelta = 1e-10 #Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
 useEnergyThreshold=False
-nonlinDim=.4
+nonlinDim="max"
 
 nPoints=99
 nT=200
 penaltyStrength=0
 sensInit = ["pod","zero"]
-quadRule = ["simpson"] # simpson, gauss-legendre, uniform, monte carlo
+quadRule = ["uniform"] # simpson, gauss-legendre, uniform, monte carlo
 mean_reduction = ["mean"]
 adjustModePairs=False
 error_norm = [r"$L_2$",r"$L_\infty$"]
@@ -45,13 +45,13 @@ error_norm = [r"$L_2$",r"$L_\infty$"]
 showPlots= True
 
 
-plotConvergence=True
+plotConvergence=False
 
 plotTimeSeries=False
-plotModes=False
+plotModes=True
 plotError=False
-plotRomCoeff=False
-plotSingularValues=False
+plotRomCoeff=True
+plotSingularValues=True
 
 # plotTimeSeries=False
 # plotModes=False
@@ -72,17 +72,19 @@ elif plotConvergence:
     if stabalized:
         if paramSet=="BizonChaotic":
             modeRetention = list(range(6,29))
+            #modeRetention = list(range(6,7))
         elif paramSet=="BizonPeriodic":
             modeRetention = list(range(6,19))
     else: 
         if paramSet=="BizonLinear":
-            modeRetention = list(range(1,15))
+            #modeRetention = list(range(1,15))
+            modeRetention = list(range(1,25))
         elif paramSet== "BizonPeriodic":
             modeRetention = list(range(1,23))
         elif paramSet == "BizonChaotic":
             modeRetention = list(range(1,33))
 else:
-    modeRetention=6
+    modeRetention=25
 
 if stabalized:
     stabalizationTime=150
