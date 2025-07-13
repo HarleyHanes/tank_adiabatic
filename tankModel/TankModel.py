@@ -775,7 +775,33 @@ class TankModel:
                         vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
                         vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
                         vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues, uNonlinDim,vNonlinDim), truncationError
+
+    def computeDEIMbasis(self,nonLinData,nDeimModes):
+        #Compute basis for non-linear evaluationd data using POD
+        Psi,sigma,V = np.linalg.svd(nonLinData)
+        # Initialize DEIM Algorithm
+        deimBasis = Psi[:,[0]]
+        P=np.eye(Psi.shape[0])[:,[np.argmax(np.abs(Psi[:,-1]))]]
+        # Loop through DEIM modes
+        for i in range(1,nDeimModes):
+            #Solve for nonlin Coeff
+            q = np.linalg.solve(P.transpose()@deimBasis,P.transpose()@Psi[:,i] )
+            #Compute residual
+            r=Psi[:,i]-deimBasis@q
+            #Update DEIM matrices
+            P=np.append(P,np.eye(Psi.shape[0])[:,[np.argmax(np.abs(r))]],axis=1)
+            deimBasis = np.append(deimBasis,Psi[:,[i]],axis=1)
+
+        return deimBasis, P
+
+    def computeDEIMmatrices(self,podBasis,deimBasis, P):
+        #System is A=Phi'Psi(P'Psi)^(-1), to do standard linear solve need to transfrom it to (Psi'P)A'=Psi'Phi
+        print((podBasis.transpose()@deimBasis)@np.linalg.inv(P.transpose()@deimBasis))
+        deimProjection = np.linalg.solve(deimBasis.transpose()@P, deimBasis.transpose()@podBasis).transpose()
+        podProjection = P.transpose()@podBasis
         
+        return deimProjection, podProjection
+
     
     def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,adjustModePairs=False,groupSeperations="null"):
         # INCOMPLETE: Scale each observed response to [0,1] for POD so that sensitivities with large values aren't weighted more, may need setting up this change in TankModel
