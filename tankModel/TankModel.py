@@ -681,7 +681,7 @@ class TankModel:
 
     #================================POD-ROM===================================================
 
-    def constructPodRom(self,modelCoeff,x,W,modeThreshold,nonlinDim = "max",quadRule="simpson",mean="mean",useEnergyThreshold=True,adjustModePairs=False):
+    def constructPodRom(self,modelCoeff,x,W,modeThreshold,nonlinDim = "max",mean="mean",useEnergyThreshold=True,adjustModePairs=False,nDeimPoints="none"):
         #Get Snapshots and derivatives of snapshots
         uEval,vEval = self.eval(x,modelCoeff,output="seperated")
         #Compute Mean, keeping dimension so casting works
@@ -708,7 +708,7 @@ class TankModel:
             uMean,vMean = self.eval(x,modelCoeff[0],output="seperated")
             uMeanx,vMeanx = self.eval(x,modelCoeff[0],output="seperated",deriv=1)
             uMeanxx,vMeanxx = self.eval(x,modelCoeff[0],output="seperated",deriv=2)
-        elif mean==np.ndarry:
+        elif mean==np.ndarray:
             if mean.ndim==1:
                 if mean.size==self.collocationPoints.size:
                     uMean,vMean = self.eval(x,mean,output="seperated")
@@ -757,7 +757,7 @@ class TankModel:
         vModesWeighted, vModesInt, vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean, vRomSecondOrderMat, vRomSecondOrderMean\
               = self.computeRomMatrices(W,vMean, vMeanx, vMeanxx, vModes, vModesx,vModesxx)
         truncationError=np.mean([uTruncationError,vTruncationError])
-        print(nonlinDim)
+        
         if nonlinDim=="max":
             uNonlinDim = uModes.shape[1]
             vNonlinDim = vModes.shape[1]
@@ -769,12 +769,29 @@ class TankModel:
             vNonlinDim = nonlinDim
         else:
             raise ValueError("Unrecognized value for nonlinDim: ", nonlinDim)
+        
+        #Compute DEIM Projection
+        # If any string input is entered for nDEIMpoints assume not using DEIM
+
+        if type(nDeimPoints) == str:
+            deimProjection = np.eye(uModes.shape[0])
+            uNonLinProjection = uModesWeighted.transpose()
+            vNonLinProjection = vModesWeighted.transpose()
+        else:
+            u = uModes@uTimeModes.transpose()+uMean.reshape((x.size,1))
+            v = vModes@vTimeModes.transpose()+vMean.reshape((x.size,1))
+            nonLinData = (1-u)*np.exp(self.params["gamma"]*self.params["beta"]\
+                                        *v/(1+self.params["beta"]*v))
+            deimBasis,deimProjection = self.computeDEIMbasis(nonLinData,nDeimPoints)
+            uNonLinProjection = self.computeDEIMmatrices(uModesWeighted,deimBasis,deimProjection)
+            vNonLinProjection = self.computeDEIMmatrices(vModesWeighted,deimBasis,deimProjection)
+            
         return RomData(x, W, uTimeModes, uMean, uModes, uModesx, uModesxx, uModesWeighted,
                         uModesInt, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean,
                         uRomSecondOrderMat, uRomSecondOrderMean, vTimeModes, vMean,
                         vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
                         vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
-                        vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues, uNonlinDim,vNonlinDim), truncationError
+                        vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues, uNonlinDim,vNonlinDim,deimProjection,uNonLinProjection,vNonLinProjection), truncationError
 
     def computeDEIMbasis(self,nonLinData,nDeimModes):
         #Compute basis for non-linear evaluationd data using POD
@@ -794,13 +811,14 @@ class TankModel:
 
         return deimBasis, P
 
-    def computeDEIMmatrices(self,podBasis,deimBasis, P):
-        #System is A=Phi'Psi(P'Psi)^(-1), to do standard linear solve need to transfrom it to (Psi'P)A'=Psi'Phi
-        print((podBasis.transpose()@deimBasis)@np.linalg.inv(P.transpose()@deimBasis))
-        deimProjection = np.linalg.solve(deimBasis.transpose()@P, deimBasis.transpose()@podBasis).transpose()
-        podProjection = P.transpose()@podBasis
+    def computeDEIMmatrices(self,podBasisWeighted,deimBasis, P):
+        #System is A=(PhiW)'Psi(P'Psi)^(-1), to do standard linear solve need to transfrom it to (Psi'P)A'=Psi'(PhiW)
+        deimProjection = np.linalg.solve(deimBasis.transpose()@P, deimBasis.transpose()@podBasisWeighted).transpose()
+        #Note: Not currently computing projection because we're still computing projection at each step to simplify dydt implementation,
+        #       If want to improve in future will need to compute this here and pass unweighted POD modes as well.
+        #podProjection = P.transpose()@podBasis
         
-        return deimProjection, podProjection
+        return deimProjection
 
     
     def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,adjustModePairs=False,groupSeperations="null"):
@@ -935,8 +953,10 @@ class TankModel:
             paramSelect=[paramSelect]
         u=y[0:romData.uNmodes]
         v=y[romData.uNmodes:romData.uNmodes+romData.vNmodes]
-        uNonlin=romData.uModes[:,:romData.uNonlinDim]@u[:romData.uNonlinDim]+romData.uMean
-        vNonlin=romData.vModes[:,:romData.vNonlinDim]@v[:romData.vNonlinDim]+romData.vMean
+        #Note: This step below is not optimal for computation time, keeping it currently because it simplifies implementation for
+        #       for switching DEIM on and off. Optimal would be pre-computing P^T@modes and P^T@mean for u and v
+        uNonlin=romData.deimProjection@(romData.uModes[:,:romData.uNonlinDim]@u[:romData.uNonlinDim]+romData.uMean)
+        vNonlin=romData.deimProjection@(romData.vModes[:,:romData.vNonlinDim]@v[:romData.vNonlinDim]+romData.vMean)
         uFull=romData.uModes@u+romData.uMean
         vFull=romData.vModes@v+romData.vMean
         uFullx=romData.uModesx@u+romData.uMean
@@ -951,13 +971,13 @@ class TankModel:
         #         +self.params["Da"]*(romData.vModesInt - (romData.vModesWeighted.transpose()@romData.uModes)@u))/self.params["Le"]
         dudt=(romData.uRomSecondOrderMat/self.params["PeM"]- romData.uRomFirstOrderMat)@u\
                 +romData.uRomSecondOrderMean/self.params["PeM"]-romData.uRomFirstOrderMean\
-                +self.params["Da"]*romData.uModesWeighted.transpose()\
+                +self.params["Da"]*romData.uNonLinProjection\
                                     @((1-uNonlin)*np.exp(self.params["gamma"]*self.params["beta"]\
                                       *vNonlin/(1+self.params["beta"]*vNonlin)))
         dvdt=((romData.vRomSecondOrderMat/self.params["PeT"]-romData.vRomFirstOrderMat)@v\
                 +romData.vRomSecondOrderMean/self.params["PeT"]-romData.vRomFirstOrderMean\
                 +self.params["delta"]*(self.params["vH"]*romData.vModesInt-v-romData.vRomMassMean)\
-                +self.params["Da"]*romData.vModesWeighted.transpose()
+                +self.params["Da"]*romData.vNonLinProjection
                                     @((1-uNonlin)*np.exp(self.params["gamma"]*self.params["beta"]\
                                         *vNonlin/(1+self.params["beta"]*vNonlin))))/self.params["Le"]
         #Boundary Penalty
