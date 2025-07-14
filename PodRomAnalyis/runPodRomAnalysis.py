@@ -31,13 +31,13 @@ finiteDelta = 1e-6   #Only used if equationSet!=tankOnly and romSensitivityAppro
 complexDelta = 1e-10 #Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
 useEnergyThreshold=False
 nonlinDim="max"
-nDeimPoints="max"
+nDeimPoints=25
 
 nPoints=99
 nT=200
 penaltyStrength=0
 sensInit = ["pod","zero"]
-quadRule = ["uniform"] # simpson, gauss-legendre, uniform, monte carlo
+quadRule = ["simpson"] # simpson, gauss-legendre, uniform, monte carlo
 mean_reduction = ["mean"]
 adjustModePairs=False
 error_norm = [r"$L_2$",r"$L_\infty$"]
@@ -301,15 +301,15 @@ for iquad in range(len(quadRule)):
                         if adjustModePairs ==True:
                             podSaveFolder+= "_adjusted"
 
-                        if nonlinDim == "max":
+                        if type(nonlinDim) == str and type(nDeimPoints)==str:
                             podSaveFolder +="/"
-                        else:
+                        elif type(nDeimPoints)==str:
                             podSaveFolder +="_nDim" + str(nonlinDim) + "/"
-
-                        if type(nDeimPoints)==str:
-                            podSaveFolder +="/"
-                        else:
+                        elif type(nonlinDim)==str:
                             podSaveFolder +="_nDEIM" + str(nDeimPoints) + "/"
+                        else:
+                            podSaveFolder +="_nDim" + str(nonlinDim) +"_nDEIM" + str(nDeimPoints) + "/"
+                            
                         if useEnergyThreshold:
                             romSaveFolder = podSaveFolder + "e"+str(modeRetention[iret])
                         else :
@@ -344,7 +344,7 @@ for iquad in range(len(quadRule)):
                             raise ValueError("DEPOD not yet implemented")
                             romData, truncationError[iret,:]=model.constructPodRom(modelCoeff,x,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold)
                         else :
-                            romData, truncationError[iret,:]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,nonlinDim=nonlinDim)
+                            romData, truncationError[iret,:]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,nonlinDim=nonlinDim,nDeimPoints=nDeimPoints)
                         if np.isclose(uFomResult,vFomResult).all():
                             if not np.isclose(romData.uModes,romData.vModes).all():
                                 print("Warning: u and v identical but POD modes don't match")

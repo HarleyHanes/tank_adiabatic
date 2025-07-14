@@ -955,8 +955,8 @@ class TankModel:
         v=y[romData.uNmodes:romData.uNmodes+romData.vNmodes]
         #Note: This step below is not optimal for computation time, keeping it currently because it simplifies implementation for
         #       for switching DEIM on and off. Optimal would be pre-computing P^T@modes and P^T@mean for u and v
-        uNonlin=romData.deimProjection@(romData.uModes[:,:romData.uNonlinDim]@u[:romData.uNonlinDim]+romData.uMean)
-        vNonlin=romData.deimProjection@(romData.vModes[:,:romData.vNonlinDim]@v[:romData.vNonlinDim]+romData.vMean)
+        uNonlin=romData.deimProjection.transpose()@(romData.uModes[:,:romData.uNonlinDim]@u[:romData.uNonlinDim]+romData.uMean)
+        vNonlin=romData.deimProjection.transpose()@(romData.vModes[:,:romData.vNonlinDim]@v[:romData.vNonlinDim]+romData.vMean)
         uFull=romData.uModes@u+romData.uMean
         vFull=romData.vModes@v+romData.vMean
         uFullx=romData.uModesx@u+romData.uMean
