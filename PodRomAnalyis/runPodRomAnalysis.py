@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 #Set run details
 #FOM parameters
-paramSet = "BizonLinear" #BizonPeriodic, BizonLinear, BizonNonLinear, BizonAdvecDiffusion
+paramSet = "BizonChaotic" #BizonPeriodic, BizonLinear, BizonNonLinear, BizonAdvecDiffusion
 stabalized=False
 equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
 nCollocation=1
@@ -36,7 +36,7 @@ nPoints=99
 nT=200
 penaltyStrength=0
 sensInit = ["pod","zero"]
-quadRule = ["uniform"] # simpson, gauss-legendre, uniform, monte carlo
+quadRule = ["simpson"] # simpson, gauss-legendre, uniform, monte carlo
 mean_reduction = ["mean"]
 adjustModePairs=False
 error_norm = [r"$L_2$",r"$L_\infty$"]
@@ -45,13 +45,13 @@ error_norm = [r"$L_2$",r"$L_\infty$"]
 showPlots= True
 
 
-plotConvergence=False
+plotConvergence=True
 
 plotTimeSeries=False
-plotModes=True
+plotModes=False
 plotError=False
-plotRomCoeff=True
-plotSingularValues=True
+plotRomCoeff=False
+plotSingularValues=False
 
 # plotTimeSeries=False
 # plotModes=False
