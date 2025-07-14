@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 #Set run details
 #FOM parameters
-paramSet = "BizonChaotic" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
+paramSet = "BizonLinear" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
 stabalized=False
 equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
 nCollocation=1
@@ -31,9 +31,9 @@ finiteDelta = 1e-6   #Only used if equationSet!=tankOnly and romSensitivityAppro
 complexDelta = 1e-10 #Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
 useEnergyThreshold=False
 nonlinDim="max"
-nDeimPoints=25
+nDeimPoints="max"
 
-nPoints=99
+nPoints=199
 nT=200
 penaltyStrength=0
 sensInit = ["pod","zero"]
