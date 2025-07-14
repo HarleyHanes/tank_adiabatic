@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 #Set run details
 #FOM parameters
-paramSet = "BizonLinear" #BizonPeriodic, BizonLinear, BizonNonLinear, BizonAdvecDiffusion
+paramSet = "BizonChaotic" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
 stabalized=False
 equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
 nCollocation=1
@@ -31,6 +31,7 @@ finiteDelta = 1e-6   #Only used if equationSet!=tankOnly and romSensitivityAppro
 complexDelta = 1e-10 #Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
 useEnergyThreshold=False
 nonlinDim="max"
+nDeimPoints="max"
 
 nPoints=99
 nT=200
@@ -45,13 +46,13 @@ error_norm = [r"$L_2$",r"$L_\infty$"]
 showPlots= True
 
 
-plotConvergence=False
+plotConvergence=True
 
 plotTimeSeries=False
-plotModes=True
+plotModes=False
 plotError=False
-plotRomCoeff=True
-plotSingularValues=True
+plotRomCoeff=False
+plotSingularValues=False
 
 # plotTimeSeries=False
 # plotModes=False
@@ -304,6 +305,11 @@ for iquad in range(len(quadRule)):
                             podSaveFolder +="/"
                         else:
                             podSaveFolder +="_nDim" + str(nonlinDim) + "/"
+
+                        if type(nDeimPoints)==str:
+                            podSaveFolder +="/"
+                        else:
+                            podSaveFolder +="_nDEIM" + str(nDeimPoints) + "/"
                         if useEnergyThreshold:
                             romSaveFolder = podSaveFolder + "e"+str(modeRetention[iret])
                         else :
@@ -319,7 +325,7 @@ for iquad in range(len(quadRule)):
                         if not os.path.exists(romSaveFolder) and (plotTimeSeries or plotModes or plotError or plotRomCoeff or plotSingularValues):
                             os.makedirs(romSaveFolder)
                         if iret ==0 and plotSingularValues:
-                            romData, null =model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,min(nT,nPoints),mean=mean_reduction[imean],useEnergyThreshold=False)
+                            romData, null =model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,min(nT,nPoints),mean=mean_reduction[imean],useEnergyThreshold=False,nDeimPoints=nDeimPoints)
                             fig, axes = plt.subplots(1,1, figsize=(5,4))
                             axes.loglog(romData.uSingularValues,"-b",lw=5,ms=8)
                             axes.loglog(romData.vSingularValues,"--m",lw=5,ms=8)
