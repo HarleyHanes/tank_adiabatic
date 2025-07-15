@@ -6,7 +6,8 @@ class RomData:
                  uRomSecondOrderMat, uRomSecondOrderMean, vTimeModes, vMean,
                  vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
                  vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
-                 vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues,uNonlinDim,vNonlinDim):
+                 vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues,uNonlinDim,vNonlinDim,
+                 deimProjection,uNonLinProjection,vNonLinProjection):
         
         self.x = x
         self.nPoints = len(x)
@@ -43,6 +44,9 @@ class RomData:
         self.vSingularValues = vSingularValues
         self.uNonlinDim=uNonlinDim
         self.vNonlinDim=vNonlinDim
+        self.deimProjection = deimProjection
+        self.uNonLinProjection = uNonLinProjection
+        self.vNonLinProjection = vNonLinProjection
 
     # Getter and setter methods with validation
     @property
@@ -326,3 +330,29 @@ class RomData:
             raise ValueError("Icompatible value for vNonlinDim: ",value)
         else:
             self._vNonlinDim = value
+
+
+    @property
+    def deimProjection(self):
+        return self._deimProjection
+
+    @deimProjection.setter
+    def deimProjection(self, value):
+        self._deimProjection = value
+
+    @property
+    def uNonLinProjection(self):
+        return self._uNonLinProjection
+
+    @uNonLinProjection.setter
+    def uNonLinProjection(self, value):
+        self._uNonLinProjection = value
+
+    @property
+    def vNonLinProjection(self):
+        return self._vNonLinProjection
+
+    @vNonLinProjection.setter
+    def vNonLinProjection(self, value):
+        self._vNonLinProjection = value
+            
