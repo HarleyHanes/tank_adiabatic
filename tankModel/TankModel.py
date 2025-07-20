@@ -761,14 +761,9 @@ class TankModel:
         if nonlinDim=="max":
             uNonlinDim = uModes.shape[1]
             vNonlinDim = vModes.shape[1]
-        elif nonlinDim<1:
+        else:
             uNonlinDim = int(np.ceil(uModes.shape[1]*nonlinDim))
             vNonlinDim = int(np.ceil(vModes.shape[1]*nonlinDim))
-        elif nonlinDim>1:
-            uNonlinDim = nonlinDim
-            vNonlinDim = nonlinDim
-        else:
-            raise ValueError("Unrecognized value for nonlinDim: ", nonlinDim)
         
         #Compute DEIM Projection
         # If any string input is entered for nDEIMpoints assume not using DEIM
