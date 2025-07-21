@@ -761,13 +761,14 @@ class TankModel:
         if nonlinDim=="max":
             uNonlinDim = uModes.shape[1]
             vNonlinDim = vModes.shape[1]
-        else:
+        elif uNonlinDim<=1:
             uNonlinDim = int(np.ceil(uModes.shape[1]*nonlinDim))
             vNonlinDim = int(np.ceil(vModes.shape[1]*nonlinDim))
+        else: 
+            raise Exception("Error: Nonlinear reduced dimension greater than 1 entered. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
         
         #Compute DEIM Projection
         # If any string input is entered for nDEIMpoints assume not using DEIM
-
         if type(nDeimPoints) == str:
             deimProjection = np.eye(uModes.shape[0])
             uNonLinProjection = uModesWeighted.transpose()
@@ -777,6 +778,7 @@ class TankModel:
             v = vModes@vTimeModes.transpose()+vMean.reshape((x.size,1))
             nonLinData = (1-u)*np.exp(self.params["gamma"]*self.params["beta"]\
                                         *v/(1+self.params["beta"]*v))
+            nDeimPoints = int(np.ceil(nDeimPoints*max(uModes.shape[1],vModes.shape[1])))
             deimBasis,deimProjection = self.computeDEIMbasis(nonLinData,nDeimPoints)
             uNonLinProjection = self.computeDEIMmatrices(uModesWeighted,deimBasis,deimProjection)
             vNonLinProjection = self.computeDEIMmatrices(vModesWeighted,deimBasis,deimProjection)

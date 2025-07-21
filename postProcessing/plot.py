@@ -432,21 +432,28 @@ def plotRomMatrices(matrices,xLabels="null",yLabels="null",title="null",cmap="co
     return fig, axes
 
 def plotErrorConvergence(error,fidelity, xLabel="X", yLabel="Y", plotType="loglog", title="null", legends="null",legendLoc="best",figsize=(4,3.3)):
+    #Parse input data types
     if not isinstance(error,np.ndarray):
-        raise(ValueError("error must be a numpy array"))
+        raise(ValueError("error must be a 1D or 2D numpy array"))
     if isinstance(fidelity,list):
         fidelity = np.array(fidelity)
-    if not isinstance(fidelity,np.ndarray):
+    elif not isinstance(fidelity,np.ndarray):
         print("fidelity: ",fidelity)
         raise(ValueError("fidelity must be a 1D numpy array or list"))
+    # Parse error input size
+    if error.ndim==1:
+        error=error.reshape((error.size,1))
+    elif error.ndim!=2:
+        raise(ValueError("error must be a 1D or 2D numpy array"))
+    # Parse fidelity/ error input size
     if fidelity.ndim==1:
         if error.shape[0] != fidelity.shape[0]:
             print("error shape: ", error.shape)
             print("fidelity shape: ", fidelity.shape)
             raise(ValueError("error and fidelity must have the same number of columns"))
         else:
-            fidelity=np.tile(fidelity[:,None],error.shape[2])
-    if fidelity.shape != error.shape:
+            fidelity=np.tile(fidelity[:,None],error.shape[1])
+    elif fidelity.shape != error.shape:
         raise(ValueError("error and fidelity must have the same shape"))
     if legends!="null":
         if isinstance(legends,str):
@@ -494,9 +501,9 @@ def getLineFormat(linetype,iter):
             case 1:
                 return "--m*"
             case 2:
-                return "-.gt"
+                return "-.g^"
             case 3:
-                return "-*ro"
+                return "-ro"
     elif linetype == "point":
         match iter:
             case 0:
