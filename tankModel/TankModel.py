@@ -778,7 +778,7 @@ class TankModel:
             v = vModes@vTimeModes.transpose()+vMean.reshape((x.size,1))
             nonLinData = (1-u)*np.exp(self.params["gamma"]*self.params["beta"]\
                                         *v/(1+self.params["beta"]*v))
-            nDeimPoints = int(np.ceil(nDeimPoints*max(uModes.shape[1],vModes.shape[1])))
+            nDeimPoints = min(int(np.ceil(nDeimPoints*max(uModes.shape[1],vModes.shape[1]))),uModes.shape[0])
             deimBasis,deimProjection = self.computeDEIMbasis(nonLinData,nDeimPoints)
             uNonLinProjection = self.computeDEIMmatrices(uModesWeighted,deimBasis,deimProjection)
             vNonLinProjection = self.computeDEIMmatrices(vModesWeighted,deimBasis,deimProjection)
@@ -818,7 +818,7 @@ class TankModel:
         return deimProjection
 
     
-    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,adjustModePairs=False,groupSeperations="null"):
+    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,adjustModePairs=False,groupSeperations="null",):
         # INCOMPLETE: Scale each observed response to [0,1] for POD so that sensitivities with large values aren't weighted more, may need setting up this change in TankModel
         # if type(groupSeperations)==np.ndarray:
         #     raise ValueError("groupSeperations for mixed inputs incomplete")
@@ -848,13 +848,14 @@ class TankModel:
             if not np.isclose(timeModes@S,S@null).all():
                 print("WARNING: Singular value scaled time eigen decomp not symmetric")
                 print("Error: ", np.sqrt(np.sum(np.sum((timeModes@S-S@null.transpose())**2))/np.sum(np.sum((timeModes@S)**2))))
-                print("W: ", W)
-                print("timeModes-timeModesT: ",timeModes-null.transpose())
+                if self.verbosity >=3:
+                    print("W: ", W)
+                    print("timeModes-timeModesT: ",timeModes-null.transpose())
             #Have to take squareroot of S for scaling
             S=np.sqrt(S)
         modes = snapshots@timeModes@np.diag(1/S)
-        
-        print("Minimum Singular Value: ", np.min(S))
+        if self.verbosity >= 3:
+            print("Minimum Singular Value: ", np.min(S))
         #Compute modes for derivatives
         modesx = snapshotsx @ timeModes @ (np.diag(1/S))
         modesxx = snapshotsxx @ timeModes @ (np.diag(1/S))
@@ -884,8 +885,8 @@ class TankModel:
             if adjacent_distance[1]>adjacent_distance[0]:
                 nModes+=1
                 cumulEnergy=np.sum(S[:nModes])/totalEnergy
-        print("Cumulative Energy of Modes: ", cumulEnergy)
-        print("Number of modes used: ", nModes)
+        # print("Cumulative Energy of Modes: ", cumulEnergy)
+        # print("Number of modes used: ", nModes)
         modes = modes[:,:nModes]
         modesx = modesx[:,:nModes]
         modesxx = modesxx[:,:nModes]
@@ -893,13 +894,14 @@ class TankModel:
         #Check Orthonormality of modes
         if not np.isclose(modes.transpose()@W@modes,np.eye(modes.shape[1])).all():
             print("WARNING: Modes not orthonormal")
-            print("Phi^TWPhi = ", modes.transpose()@W@modes)
-            print("Departure from Orthonormality: ", np.sum(np.eye(modes.shape[1])-modes.transpose()@W@modes))
+            if self.verbosity>=3:
+                print("Phi^TWPhi = ", modes.transpose()@W@modes)
+                print("Departure from Orthonormality: ", np.sum(np.eye(modes.shape[1])-modes.transpose()@W@modes))
         #Check the POD decomposition is accurate in FOM space
         podError = np.sqrt(np.sum(W@((snapshots-modes@timeModes.transpose())**2))/np.sum(W@(snapshots**2)))
         podIcError = np.sqrt(np.sum(W@((snapshots[:,0]-(modes@timeModes.transpose())[:,0])**2))/np.sum(W@(snapshots[:,0]**2)))
-        print("POD Relative Error: ", podError)
-        print("POD IC Relative Error: ", podIcError)
+        # print("POD Relative Error: ", podError)
+        # print("POD IC Relative Error: ", podIcError)
         return modes, modesx, modesxx, timeModes, podError, S[:nModes]
 
     def computeRomMatrices(self,W,mean,  meanx, meanxx, podModes, podModesx,podModesxx):

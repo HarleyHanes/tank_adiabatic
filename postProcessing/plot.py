@@ -470,7 +470,7 @@ def plotErrorConvergence(error,fidelity, xLabel="X", yLabel="Y", plotType="loglo
             axes.loglog(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=figsize[0],ms=2*figsize[0])
         elif plotType=="semilogx":
             axes.semilogx(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=figsize[0],ms=2*figsize[0])
-        elif plotType=="semilog":
+        elif plotType=="semilogy":
             axes.semilogy(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=figsize[0],ms=2*figsize[0])
         else :
             axes.plot(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=figsize[0],ms=2*figsize[0])
