@@ -13,6 +13,7 @@
 import numpy as np
 from collocationElement.CollocationElement import Element
 from tankModel.romData import RomData
+from mpmath import mp
 
 class TankModel:
     _verbosity=""
@@ -838,21 +839,34 @@ class TankModel:
         #     raise ValueError("Invalid groupSeperations input")
 
         #Use transpose of evals since eval is time x space but standard snapshot matrix is space x time
+
         if np.isclose(W/W[0,0],np.eye(W.shape[0])).all():
             modes, S, timeModes = np.linalg.svd(snapshots*np.sqrt(W[0,0]),full_matrices=False)
             timeModes=timeModes.transpose()
         else:
+            #Cast snapshots to mp 128-bit precision to avoid roundoff error in square-root of S
+            mp.dps = 34
+            snapshots_mpf = mp.matrix([[mp.mpf(x) for x in row] for row in snapshots])
+            W_mpf = mp.matrix([[mp.mpf(x) for x in row] for row in W])
             #Get eigen decomp of UtWU
-            timeModes,S,null= np.linalg.svd(snapshots.transpose()@W@snapshots,full_matrices=False)
+            #timeModes,S,null= np.linalg.svd(snapshots.transpose()@W@snapshots,full_matrices=False)
+            timeModes_mpf,S_mpf,null= mp.svd(snapshots_mpf.transpose()@W_mpf@snapshots_mpf,compute_uv=True)
             #Check symmetry of eigen decomp
-            if not np.isclose(timeModes@S,S@null).all():
-                print("WARNING: Singular value scaled time eigen decomp not symmetric")
-                print("Error: ", np.sqrt(np.sum(np.sum((timeModes@S-S@null.transpose())**2))/np.sum(np.sum((timeModes@S)**2))))
-                if self.verbosity >=3:
-                    print("W: ", W)
-                    print("timeModes-timeModesT: ",timeModes-null.transpose())
+            # if not np.isclose(timeModes@S,S@null).all():
+            #     print("WARNING: Singular value scaled time eigen decomp not symmetric")
+            #     print("Error: ", np.sqrt(np.sum(np.sum((timeModes@S-S@null.transpose())**2))/np.sum(np.sum((timeModes@S)**2))))
+            #     if self.verbosity >=3:
+            #         print("W: ", W)
+            #         print("timeModes-timeModesT: ",timeModes-null.transpose())
             #Have to take squareroot of S for scaling
-            S=np.sqrt(S)
+            S_mpf=np.sqrt(S_mpf)
+            #S=np.sqrt(S)
+            #Cast back to 64-bit precision
+            S = np.array([float(x) for x in S_mpf], dtype=np.float64)
+            timeModes = np.empty((timeModes_mpf.rows,timeModes_mpf.cols))
+            for row in range(timeModes_mpf.rows):
+                for col in range(timeModes_mpf.cols): 
+                    timeModes[row,col]=float(timeModes_mpf[row,col])
         modes = snapshots@timeModes@np.diag(1/S)
         if self.verbosity >= 3:
             print("Minimum Singular Value: ", np.min(S))
