@@ -504,6 +504,8 @@ def getLineFormat(linetype,iter):
                 return "-.g^"
             case 3:
                 return "-ro"
+            case 4:
+                return "--c*"
     elif linetype == "point":
         match iter:
             case 0:

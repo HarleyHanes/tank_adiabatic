@@ -761,7 +761,7 @@ class TankModel:
         if nonlinDim=="max":
             uNonlinDim = uModes.shape[1]
             vNonlinDim = vModes.shape[1]
-        elif uNonlinDim<=1:
+        elif nonlinDim<=1:
             uNonlinDim = int(np.ceil(uModes.shape[1]*nonlinDim))
             vNonlinDim = int(np.ceil(vModes.shape[1]*nonlinDim))
         else: 
@@ -860,7 +860,7 @@ class TankModel:
         modesx = snapshotsx @ timeModes @ (np.diag(1/S))
         modesxx = snapshotsxx @ timeModes @ (np.diag(1/S))
 
-        #Rescale time-modes by average norms
+        #Get number of modes to use
         if useEnergyThreshold:
             #Create threshold for S
             totalEnergy=np.sum(S)

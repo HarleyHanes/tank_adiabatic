@@ -14,52 +14,10 @@ from tankModel.TankModel import TankModel
 import matplotlib.pyplot as plt
 
 def main():
-    #Set run details
+    #================================================================Define Simulation Details===============================================================================================
     verbosity =1
-    #FOM parameters
-    paramSet = "BizonNonLinear" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
-    stabalized=False
-    equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
-    nCollocation=2
-    nElements=64
-    odeMethod="LSODA" #LSODA, BDF, RK45, RK23, DOP853, Note: because we're often dealing with the limit of unstable ROMS, the ODE solver we select is very important
-
-    #romParameters
-    usePodRom=True
-    romSensitivityApproach = ["finite","sensEq","complex"] #none, finite, sensEq, DEPOD (unfinished), complex, only used if equationSet!=tankOnly
-    finiteDelta = 1e-6   #Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
-    complexDelta = 1e-9 #Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
-    useEnergyThreshold=False
-    controlApproach = "none"
-    if controlApproach == "DEIM":
-       if stabalized:
-            controlParam = [3,4,5]
-       else: 
-            if odeMethod == "BDF" and nCollocation == 1 and nElements == 128:
-                    controlParam = [1.45,1.475,1.5,1.525,1.55,1.575,1.6,1.65,1.7,1.75,1.8,1.9,2,3,4,5]
-            elif odeMethod == "LSODA" and nCollocation == 2 and nElements == 64:
-                    controlParam = [1.45,1.475,1.5,1.525,1.55,1.575,1.6,1.65,1.7,1.75,1.8,1.9,2,3,4,5]
-            elif odeMethod == "LSODA" and nCollocation == 1 and nElements == 128:
-                    controlParam = [1.45,1.475,1.5,1.525,1.55,1.575,1.6,1.65,1.7,1.75,1.8,1.9,2,3,4,5]
-            elif odeMethod == "BDF" and nCollocation == 2 and nElements == 64:
-                    controlParam = [1.475,1.5,1.525,1.55,1.575,1.6,1.65,1.7,1.75,1.8,1.9,2,3,4,5]
-    else:
-        controlParam = ["none"]
-       #controlParam = [1.45,1.475]
-    controlMetric= ["Number Error Increases", "Max Error Increase","Sum of Error Increases"]
-
-    nPoints=399
-    nT=400
-    penaltyStrength=0
-    sensInit = ["pod","zero"]
-    quadRule = ["simpson"] # simpson, gauss-legendre, uniform, monte carlo
-    mean_reduction = ["mean"]
-    adjustModePairs=False
-    error_norm = [r"$L_2$",r"$L_\infty$"]
-
-    #Display settings
     showPlots= True
-
+    #Run Types
     plotControl=False
     plotConvergence=True
 
@@ -69,22 +27,37 @@ def main():
     plotRomCoeff=False
     plotSingularValues=False
 
-    # plotTimeSeries=False
-    # plotModes=False
-    # plotError=False
-    # plotRomCoeff=False
-    # plotSingularValues=False=] 
     makeMovies=False
+    #FOM parameters
+    paramSet = "BizonPeriodic" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
+    equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
+    nCollocation=2
+    nElements=64
+    odeMethod="LSODA" #LSODA, BDF, RK45, RK23, DOP853, Note: because we're often dealing with the limit of unstable ROMS, the ODE solver we select is very important
+    nPoints=599
+    nT=600
 
+    #ROM parameters
+    usePodRom=True
+    useEnergyThreshold=False
+    controlApproach = "nonLinReduction" #none, DEIM, nonLinReduction
+    controlMetric= ["Error at 99% Retention","Error at 99.9% Retention","Error at 99.99% Retention","Sum of Relative Error Increases"]
+    penaltyStrength=0
+    sensInit = ["pod","zero"]
+    quadRule = ["gauss-legendre"] # simpson, gauss-legendre, uniform, monte carlo
+    mean_reduction = ["mean"]
+    adjustModePairs=False
+    error_norm = [r"$L_2$",r"$L_\infty$"]
+    romSensitivityApproach = ["finite","sensEq","complex"] #none, finite, sensEq, DEPOD (unfinished), complex, only used if equationSet!=tankOnly
+    finiteDelta = 1e-6   #Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
+    complexDelta = 1e-9 #Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
 
+    #================================================================= Set simulation parameters ==============================================================================================
+    #Set POD Retention
     if useEnergyThreshold==True:
-        #modeRetention=[.85,.885,.925,.95,.975,.99,.999]
         modeRetention=[.85,.99,.999]
-        #modeRetention=[.99]
-        #modeRetention=[.99,.999]
-    #Set-up planned convergence ranges to better keep track of stable domains for each case
     else:
-        if stabalized:
+        if plotConvergence or plotControl:
             if paramSet=="BizonChaotic":
                 modeRetention = list(range(6,53)) #1e-1 to 1e-5
                 #modeRetention = list(range(6,39)) #1e-1 to 1e-4
@@ -92,31 +65,53 @@ def main():
             elif paramSet=="BizonPeriodic":
                 modeRetention = list(range(5,32)) #1e-1 to 1e-5
                 #modeRetention = list(range(6,29))
-        else: 
-            if paramSet=="BizonLinear" or paramSet == "BizonLinearChaotic":
+            elif paramSet=="BizonLinear":
                 #modeRetention = list(range(1,15))
                 #modeRetention = list(range(2,15)) #1e-1 to 1e-5
                 modeRetention = list(range(2,20)) #1e-1 to 1e-5
-            elif paramSet== "BizonPeriodic":
-                #modeRetention = list(range(1,23))
-                 modeRetention = list(range(7,59))
             elif paramSet== "BizonNonLinear":
                 modeRetention = list(range(7,59))
-            elif paramSet == "BizonChaotic":
-                modeRetention = list(range(7,59))
-                #modeRetention = list(range(1,33))
-    #modeRetention=[7]
-    if stabalized:
-        stabalizationTime=150
-        tmax=4.1
-    else:
-        tmax=1.5
+        else:
+            modeRetention = [6,7]
 
-    tPoints= np.linspace(0,tmax,num=nT)
+    #Set Contol Parameters
+    if controlApproach == "DEIM":
+        if plotControl:
+            if odeMethod == "BDF" and nCollocation == 1 and nElements == 128:
+                    controlParam = [1.45,1.475,1.5,1.525,1.55,1.575,1.6,1.65,1.7,1.75,1.8,1.9,2,3,4,5]
+            elif odeMethod == "LSODA" and nCollocation == 2 and nElements == 64:
+                    controlParam = [1.45,1.475,1.5,1.525,1.55,1.575,1.6,1.65,1.7,1.75,1.8,1.9,2,3,4,5]
+            elif odeMethod == "LSODA" and nCollocation == 1 and nElements == 128:
+                    controlParam = [1.45,1.475,1.5,1.525,1.55,1.575,1.6,1.65,1.7,1.75,1.8,1.9,2,3,4,5]
+            elif odeMethod == "BDF" and nCollocation == 2 and nElements == 64:
+                    controlParam = [1.475,1.5,1.525,1.55,1.575,1.6,1.65,1.7,1.75,1.8,1.9,2,3,4,5]
+        else:
+            controlParam=[1.55]
+    elif controlApproach == "nonLinReduction":
+        if plotControl:
+            controlParam = np.arange(.45,1.04,.05).tolist()
+        else:
+            if paramSet == "BizonChaotic":
+                controlParam=[.8]
+            else:
+                controlParam=[.85]
+    elif controlApproach == "none":
+        controlParam = ["none"]
+    else:
+        raise ValueError("Invalid controlApproach entered: " + str(controlApproach))
+
+       #controlParam = [1.45,1.475]
+
+
+    
+    #Get Parameter Set
+    stabalized=False #Default No Stabalization
     if paramSet == "BizonChaotic":
         baseParams={"PeM": 700, "PeT": 700, "f": .3, "Le": 1, "Da": .15, "beta": 1.8, "gamma": 10,"delta": 2, "vH":-.065}
+        stabalized = True
     elif paramSet == "BizonPeriodic":
         baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .15, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
+        stabalized = True
     elif paramSet == "BizonPeriodicReduced":
         baseParams={"PeM": 300, "PeT": 300, "f": .3, "Le": 1, "Da": .08966443, "beta": 1.4, "gamma": 10,"delta": 2, "vH":-.045}
     elif paramSet == "BizonLinear":
@@ -151,8 +146,6 @@ def main():
         baseParams={"PeM": 1e2, "PeT": 1e2, "f": 4, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
     elif paramSet == "AdvecDiffusionRecircExtremeNoRobin":
         baseParams={"PeM": 1e2, "PeT": 1e2, "PeM-boundary": 1e16, "PeT-boundary": 1e16, "f": 4, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
-        stabalizationTime=.1
-        tmax=1.5
     elif paramSet == "AdvecDiffusionRecirc":
         baseParams={"PeM": 1e2, "PeT": 1e2, "f": 1, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
     elif paramSet == "AdvecDiffusionRecircNoRobin":
@@ -164,17 +157,22 @@ def main():
     elif paramSet == "Advec":
         baseParams={"PeM": 1e16, "PeT": 1e16, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0,"delta": 0, "vH":0}
     else: 
-        raise ValueError("Invalid paramSet entered: " + str(equationSet))
+        raise ValueError("Invalid paramSet entered: " + str(paramSet))
 
     fomSaveFolder = "../../results/podRomAnalysis/"+paramSet
-    if not stabalized:
-        fomSaveFolder+="Unstabalized"    
+    
     fomSaveFolder += "_nCol" + str(nCollocation) + "_nElem"+str(nElements) + "_nT" + str(nT) +"_nX"+str(nPoints)+"_"+odeMethod+"/"+equationSet
             
 
 
     #Simulation Settings
     bounds = [0,1]
+    if stabalized:
+        stabalizationTime=150
+        tmax=4.1
+    else:
+        tmax=1.5
+    tPoints= np.linspace(0,tmax,num=nT)
     #Determine parameters to get sensitivity of
     if equationSet == "tankOnly":
         neq=1
@@ -308,7 +306,7 @@ def main():
                     print("         Using ", sensInit[iInit], " sensitivity initialization")
                 for imean in range(len(mean_reduction)):
                     error = np.empty((len(modeRetention),len(error_norm)))
-                    truncationError=np.empty((len(modeRetention),len(error_norm)))
+                    truncationError=np.empty((len(modeRetention),))
                     controlResult = np.empty((len(controlMetric),len(controlParam),len(error_norm)))
                     for iControlParam in range((len(controlParam))):
                         for iret in range(len(modeRetention)):
@@ -376,11 +374,12 @@ def main():
                                     romData, truncationError[iret,:]=model.constructPodRom(modelCoeff,x,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold)
                                 else :
                                     if controlApproach == "DEIM":
-                                        romData, truncationError[iret,:]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,nDeimPoints=controlParam[iControlParam])
+                                        romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,nDeimPoints=controlParam[iControlParam])
                                     elif controlApproach == "nonLinReduction":
-                                        romData, truncationError[iret,:]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,nonlinDim=controlParam[iControlParam])
+                                        romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,nonlinDim=controlParam[iControlParam])
                                     else:
-                                        romData, truncationError[iret,:]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
+                                        romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
+                                
                                 if np.isclose(uFomResult,vFomResult).all():
                                     if not np.isclose(romData.uModes,romData.vModes).all():
                                         print("Warning: u and v identical but POD modes don't match")
@@ -694,13 +693,12 @@ def main():
                         if plotControl:
                             for iMetric in range(len(controlMetric)):
                                 #Compute control metric
-                                controlResult[iMetric,iControlParam,:] = computeControlMetric(error,modeRetention,controlMetric[iMetric])
+                                controlResult[iMetric,iControlParam,:] = computeControlMetric(error,truncationError,controlMetric[iMetric])
                             
                         #=========================================== Plot Convergence ===================================================================
                         if usePodRom and plotConvergence and error.size>1:
                             if error.ndim>2: 
                                 error = error.reshape((error.shape[0],error.shape[1]*error.shape[2]))
-                                truncationError = truncationError.reshape((error.shape[0],error.shape[1]))
 
                                 if len(mean_reduction)>1:
                                     legends = [mean_method +", "+ norm for mean_method in mean_reduction for norm in error_norm]
@@ -712,13 +710,14 @@ def main():
                             fig,axs = plotErrorConvergence(error,truncationError,xLabel="Proportion Information Truncated in POD",yLabel="Relative ROM Error",legends=legends) 
                             plt.savefig(controlSaveFolder + "errorConvergence_s"+str(modeRetention[0])+"_e" + str(modeRetention[-1])+".pdf", format="pdf")
                             plt.savefig(controlSaveFolder + "errorConvergence_s"+str(modeRetention[0])+"_e" + str(modeRetention[-1])+".png", format="png")
+                    #=========================================== Plot Control ===========================================================================
                     if usePodRom and plotControl and len(controlMetric)>1:
                             if controlApproach == "DEIM":
                                 xLabel="DEIM Proportional Dimension"
                             elif controlApproach == "nonLinReduction":
                                 xLabel="Nonlinear Term Proportional Dimension"
                             for inorm in range(len(error_norm)):
-                                fig, axs = plotErrorConvergence(controlResult[:,:,i].transpose(),controlParam, xLabel =xLabel,legends=controlMetric,plotType = "semilogy") 
+                                fig, axs = plotErrorConvergence(controlResult[:,:,inorm].transpose(),controlParam, yLabel = error_norm[inorm], xLabel =xLabel,legends=controlMetric,plotType = "semilogy") 
                                 if error_norm[inorm] == r"$L_2$":
                                     plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_L2_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".pdf", format="pdf")
                                     plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_L2_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".png", format="png")
@@ -732,23 +731,38 @@ def main():
         plt.show()
 
 
-def computeControlMetric(error,podRetention,metric):
+def computeControlMetric(error,truncationError,metric):
     if metric == "Min Error":
-        metricResult = np.min(error,axis =0)
+        metricResult = np.min(error,axis=0)
     elif metric == "Mean Error":
-        metricResult = np.mean(error,axis =0)
+        metricResult = np.mean(error,axis=0)
     elif metric == "Error at 90% Retention":
-        index = np.argmax(podRetention > .9) if np.any(podRetention > .9) else -1
+        if np.any(truncationError < .1):
+            index = np.argmax(truncationError < .1)
+        else:
+            index=-1
         metricResult = error[index,:]
     elif metric == "Error at 99% Retention":
-        index = np.argmax(podRetention > .99) if np.any(podRetention > .99) else -1
+        if np.any(truncationError < .01):
+            index = np.argmax(truncationError < .01)
+        else:
+            index=-1
         metricResult = error[index,:]
     elif metric == "Error at 99.9% Retention":
-        index = np.argmax(podRetention > .999) if np.any(podRetention > .999) else -1
+        if np.any(truncationError < .001):
+            index = np.argmax(truncationError < .001)
+        else:
+            index=-1
+        metricResult = error[index,:]
+    elif metric == "Error at 99.99% Retention":
+        if np.any(truncationError < .0001):
+            index = np.argmax(truncationError < .0001)
+        else:
+            index=-1
         metricResult = error[index,:]
     elif metric == "Max Error Increase":
         metricResult = np.max((error[1:,:]-error[:-1,:])/error[:-1,:])
-    elif metric == "Sum of Error Increases":
+    elif metric == "Sum of Relative Error Increases":
         errorChanges = (error[1:,:]-error[:-1,:])/error[:-1,:]
         errorChanges[errorChanges<0]=0
         metricResult = np.sum(errorChanges,axis=0)
