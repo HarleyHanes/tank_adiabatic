@@ -9,7 +9,54 @@ from tankModel.TankModel import TankModel
 import scipy
 
 print("Running testTankModel.py")
-print("     Testing Boundary Matrices")
+print("     Testing Computation Tools")
+#Check Eval
+nCollocation=2
+nElements=2
+params={"PeM": 10, "PeT": 1, "f": 0, "Le": 1, "Da": 0, "beta":0, "gamma": 0,"delta": 0, "vH":0}
+model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[0,1], params=params)
+# Have to use f that satisfied boundary conditions
+f=lambda x: -x**2+2*x+2/10
+fx = lambda x: -2*x+2
+fxx = lambda x: -2+x*0
+modelCoeff = f(np.append(model.collocationPoints,model.collocationPoints,axis=0))
+xEval = np.linspace(0,1,10)
+fEval = model.eval(xEval,modelCoeff,output="u")
+fxEval = model.eval(xEval,modelCoeff,output="u",deriv=1)
+fxxEval = model.eval(xEval,modelCoeff,output="u",deriv=2)
+assert(np.isclose(fEval,f(xEval)).all())
+assert(np.isclose(fxEval,fx(xEval)).all())
+assert(np.isclose(fxxEval,fxx(xEval)).all())
+print("         Model Evaluation Passing")
+
+
+#Check Integration: Spatial Integration Only
+nCollocation=2
+nElements=2
+model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[-2,2])
+f=lambda x: x**2+x+1
+fint = 9+1/3
+integral=model.integrateSpace(f)
+
+nCollocation=3
+nElements=2
+model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[0,2])
+f=lambda x: x**3+x**2+x+1
+fint = 10+2/3
+integral=model.integrateSpace(f)
+assert(np.isclose(fint,integral))
+#Check Integration: Spatial at multiple points and temporal
+nCollocation=2
+nElements=2
+model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[-2,2])
+f=lambda x: np.outer(np.array([0,1,2]),x**2+x+1).flatten()
+fint = np.array([0,9+1/3, 18+2/3])
+fTempint = 18+2/3
+integral,integralSpace=model.integrate(f,np.array([0,1,2]))
+assert(np.isclose(fTempint,integral))
+assert(np.isclose(fint,integralSpace).all())
+print("         Integration Passsing")
+print("     Testing Model Matrices")
 params={"PeM": 1, "PeT": 1, "f": 1, "Le": 1, "Da": 1, "beta": 1, "gamma": 1,"delta": 1, "vH":1}
 model = TankModel(nCollocation=1,nElements=2,spacing="legendre",bounds=[0,1],params=params)
 x=np.array([0, 1, 2, 3, 4])/4
@@ -41,9 +88,8 @@ trueTempBoundaryMat=np.array([[l10x[0]-params["PeT"], l11x[0], l12x[0], 0 , para
 assert(np.isclose(trueMassBoundaryMat, model.massBoundaryMat).all())
 assert(np.isclose(trueTempBoundaryMat, model.tempBoundaryMat).all())
 
-print("     Boundary Matrices Passing")
+print("         Boundary Matrices Passing")
 
-print("     Testing Advec/ Diffusion Matrices")
 model = TankModel(nCollocation=2,nElements=2,spacing="uniform",bounds=[-3,3],params=params)
 x = model.collocationPoints
 l10=-1/6*(x**3+3*x**2+2*x)
@@ -84,9 +130,8 @@ expectedSecondOrderMat[1,0:4]=np.array([l10xx[1], l11xx[1],l12xx[1],l13xx[1]])
 expectedSecondOrderMat[2,3:7]=np.array([l20xx[2], l21xx[2],l22xx[2],l23xx[2]])       
 expectedSecondOrderMat[3,3:7]=np.array([l20xx[3], l21xx[3],l22xx[3],l23xx[3]]) 
 assert(np.isclose(expectedSecondOrderMat, model.secondOrderMat).all())
-print("     Advec/ Diffusion Matrices Passing")
+print("         Advec/ Diffusion Matrices Passing")
 
-print("     Testing PeM Sensitivity Boundary Matrix")
 params={"PeM": 10, "PeT": 12, "f": 1, "Le": 1, "Da": 1, "beta": 1, "gamma": 1,"delta": 1, "vH":1}
 model = TankModel(nCollocation=1,nElements=2,spacing="legendre",bounds=[0,1],params=params)
 x=np.array([0, 1, 2, 3, 4])/4
@@ -113,9 +158,8 @@ peMsensBoundaryMat[5:,5:]=peMsensBoundaryMat[0:5,0:5]
 peMsensBoundaryMat[5,0]=-1
 #Check Boundary matrices
 assert(np.isclose(model.dudPeMboundaryMat,peMsensBoundaryMat).all())
-print("     PeM Sensitivity Boundary Matrix Passed")
+print("         PeM Sensitivity Boundary Matrix Passing")
 
-print("     Testing PeT Sensitivity Boundary Matrix")
 params={"PeM": 10, "PeT": 12, "f": 2, "Le": 1, "Da": 1, "beta": 1, "gamma": 1,"delta": 1, "vH":1}
 model = TankModel(nCollocation=1,nElements=2,spacing="legendre",bounds=[0,1],params=params)
 x=np.array([0, 1, 2, 3, 4])/4
@@ -145,7 +189,7 @@ peTsensBoundaryMat[5,4]=params["f"]
 # print(model.dvdPeTboundaryMat)
 # print(peTsensBoundaryMat)
 assert(np.isclose(model.dvdPeTboundaryMat,peTsensBoundaryMat).all())
-print("     PeT Sensitivity Boundary Matrix Passed")
+print("         PeT Sensitivity Boundary Matrix Passing")
 
 print("     Testing dydt Computation")
 #Check dydt computed values
@@ -258,34 +302,7 @@ print("         Full Model Passing")
 
 
 
-print("     Testing Integration")
-#Check Integration: Spatial Integration Only
-nCollocation=2
-nElements=2
-model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[-2,2],params=params)
-f=lambda x: x**2+x+1
-fint = 9+1/3
-integral=model.integrateSpace(f)
 
-nCollocation=3
-nElements=2
-model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[0,2],params=params)
-f=lambda x: x**3+x**2+x+1
-fint = 10+2/3
-integral=model.integrateSpace(f)
-assert(np.isclose(fint,integral))
-
-#Check Integration: Spatial at multiple points and temporal
-nCollocation=2
-nElements=2
-model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=[-2,2],params=params)
-f=lambda x: np.outer(np.array([0,1,2]),x**2+x+1).flatten()
-fint = np.array([0,9+1/3, 18+2/3])
-fTempint = 18+2/3
-integral,integralSpace=model.integrate(f,np.array([0,1,2]))
-assert(np.isclose(fTempint,integral))
-assert(np.isclose(fint,integralSpace).all())
-print("     Integration Passsing")
 
 #Check Integration: Spatial and Temporal Integration
 print("testTankModely.py passes")

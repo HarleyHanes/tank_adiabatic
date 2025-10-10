@@ -22,6 +22,8 @@ def runMMStest(higherOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 
                 print("Testing for (collocation points, elements): (" + str(nCollocations[iColl])+ ", " + str(nElems[iElem])+ ")")
             # Generate tankModel
             model = TankModel(nCollocation=nCollocations[iColl],nElements=nElems[iElem],spacing="legendre",bounds=[0,1],params=params, verbosity =verbosity)
+            #Read back params so that boundary Peclets are saved if entered params vector did not include them
+            params=model.params
             # Set discretization
             x = model.collocationPoints
             #Loop through exact monomial cases
@@ -126,14 +128,13 @@ def computeConvergenceRates(discretizations,errors):
 
 
 def constructPolynomialMMSsolutionFunction(spatialOrder,params,temporal,temporaldt):
-
     uSpatialCoeff=-np.ones((spatialOrder+1,))
     vSpatialCoeff=-np.ones((spatialOrder+1,))
     
     uSpatialCoeff[1]=np.dot(np.arange(2,spatialOrder+1),np.ones((spatialOrder-1)))
     vSpatialCoeff[1]=np.dot(np.arange(2,spatialOrder+1),np.ones((spatialOrder-1)))
-    uSpatialCoeff[0]=uSpatialCoeff[1]/params["PeM"]
-    vSpatialCoeff[0]=(vSpatialCoeff[1]/params["PeT"]+params["f"]*(vSpatialCoeff[1]-(spatialOrder-1)))/(1-params["f"])
+    uSpatialCoeff[0]=uSpatialCoeff[1]/params["PeM-boundary"]
+    vSpatialCoeff[0]=(vSpatialCoeff[1]/params["PeT-boundary"]+params["f"]*(vSpatialCoeff[1]-(spatialOrder-1)))/(1-params["f"])
     
     dudxSpatialCoeff=uSpatialCoeff[1:]*np.arange(1,spatialOrder+1)
     dvdxSpatialCoeff=vSpatialCoeff[1:]*np.arange(1,spatialOrder+1)
@@ -166,8 +167,8 @@ def constructSinMMssolutionFunction(params,temporal,temporaldt):
     weight=1
 
     linearCoeff = -freq*weight*np.cos(freq)
-    uConstCoeff = 1/params["PeM"]*(freq*weight+linearCoeff)
-    vConstCoeff = ((freq*weight+linearCoeff)/params["PeT"]+params["f"]*(weight*np.sin(freq)+linearCoeff))/(1-params["f"])
+    uConstCoeff = 1/params["PeM-boundary"]*(freq*weight+linearCoeff)
+    vConstCoeff = ((freq*weight+linearCoeff)/params["PeT-boundary"]+params["f"]*(weight*np.sin(freq)+linearCoeff))/(1-params["f"])
 
 
     u= lambda t,x: np.outer(temporal(t),weight*np.sin(freq*x)+linearCoeff*x+uConstCoeff).squeeze()

@@ -12,6 +12,7 @@
 
 import numpy as np
 from collocationElement.CollocationElement import Element
+from tankModel.romData import RomData
 
 class TankModel:
     _verbosity=""
@@ -253,66 +254,60 @@ class TankModel:
         
         if not "PeM" in value:
             raise Exception("PeM not in params dictionary")
-        elif type(value["PeM"])!= float and type(value["PeM"])!= int:
+        elif type(value["PeM"])!= float and type(value["PeM"])!= int and type(value["PeM"])!= complex:
             raise Exception("Non-numerical value entered for PeM: " + str(value["PeM"]))
-        elif value["PeM"] < 0:
-            raise Exception("Negative value eneter for PeM: " + str(value["PeM"]))
         
         if not "PeT" in value:
             raise Exception("PeT not in params dictionary")
-        elif type(value["PeT"])!= float and type(value["PeT"])!= int:
+        elif type(value["PeT"])!= float and type(value["PeT"])!= int and type(value["PeT"])!= complex:
             raise Exception("Non-numerical value entered for PeT: " + str(value["PeT"]))
-        elif value["PeT"] < 0:
-            raise Exception("Negative value eneter for PeT: " + str(value["PeT"]))
-        
+       
         if not "f" in value:
             raise Exception("f not in params dictionary")
-        elif type(value["f"])!= float and type(value["f"])!= int:
+        elif type(value["f"])!= float and type(value["f"])!= int and type(value["f"])!= complex:
             raise Exception("Non-numerical value entered for f: " + str(value["f"]))
-        elif value["f"] < 0:
-            raise Exception("Negative value eneter for f: " + str(value["f"]))
         
         
         if not "Le" in value:
             raise Exception("Le not in params dictionary")
-        elif type(value["Le"])!= float and type(value["Le"])!= int:
+        elif type(value["Le"])!= float and type(value["Le"])!= int and type(value["Le"])!= complex:
             raise Exception("Non-numerical value entered for Le: " + str(value["Le"]))
-        elif value["Le"] < 0:
-            raise Exception("Negative value eneter for Le: " + str(value["Le"]))
-        
+       
         if not "Da" in value:
             raise Exception("Da not in params dictionary")
-        elif type(value["Da"])!= float and type(value["Da"])!= int:
+        elif type(value["Da"])!= float and type(value["Da"])!= int and type(value["Da"])!= complex:
             raise Exception("Non-numerical value entered for Da: " + str(value["Da"]))
-        elif value["Da"] < 0:
-            raise Exception("Negative value eneter for Da: " + str(value["Da"]))
-
+        
         if not "beta" in value:
             raise Exception("beta not in params dictionary")
-        elif type(value["beta"])!= float and type(value["beta"])!= int:
+        elif type(value["beta"])!= float and type(value["beta"])!= int and type(value["beta"])!= complex:
             raise Exception("Non-numerical value entered for beta: " + str(value["beta"]))
-        elif value["beta"] < 0:
-            raise Exception("Negative value eneter for beta: " + str(value["beta"]))
         
 
         if not "gamma" in value:
             raise Exception("gamma not in params dictionary")
-        elif type(value["gamma"])!= float and type(value["gamma"])!= int:
+        elif type(value["gamma"])!= float and type(value["gamma"])!= int and type(value["gamma"])!= complex:
             raise Exception("Non-numerical value entered for gamma: " + str(value["gamma"]))
-        elif value["gamma"] < 0:
-            raise Exception("Negative value eneter for gamma: " + str(value["gamma"]))
         
         if not "delta" in value:
             raise Exception("delta not in params dictionary")
-        elif type(value["delta"])!= float and type(value["delta"])!= int:
+        elif type(value["delta"])!= float and type(value["delta"])!= int and type(value["delta"])!= complex:
             raise Exception("Non-numerical value entered for delta: " + str(value["delta"]))
-        elif value["delta"] < 0:
-            raise Exception("Negative value eneter for delta: " + str(value["delta"]))
         
         if not "vH" in value:
             raise Exception("vH not in params dictionary")
-        elif type(value["vH"])!= float and type(value["vH"])!= int:
+        elif type(value["vH"])!= float and type(value["vH"])!= int and type(value["vH"])!= complex:
             raise Exception("Non-numerical value entered for vH: " + str(value["vH"]))
+        
+        if not "PeM-boundary" in value:
+            value["PeM-boundary"]=value["PeM"]
+        elif type(value["PeM-boundary"])!= float and type(value["PeM-boundary"])!= int and type(value["PeM-boundary"])!= complex:
+            raise Exception("Non-numerical value entered for PeM-boundary: " + str(value["PeM-boundary"]))
+        
+        if not "PeT-boundary" in value:
+            value["PeT-boundary"]=value["PeT"]
+        elif type(value["PeT-boundary"])!= float and type(value["PeT-boundary"])!= int and type(value["PeT-boundary"])!= complex:
+            raise Exception("Non-numerical value entered for PeT-boundary: " + str(value["PeT-boundary"]))
         
         self._params=value
     
@@ -369,10 +364,10 @@ class TankModel:
             #Left BC
             if iRow==0:
                 massBoundaryMat[0,0:self.nCollocation+2]=self.elements[0].basisFirstDeriv(self.bounds[0])
-                massBoundaryMat[0,0]-=self.params["PeM"]
+                massBoundaryMat[0,0]-=self.params["PeM-boundary"]
                 tempBoundaryMat[0,0:self.nCollocation+2]=self.elements[0].basisFirstDeriv(self.bounds[0])
-                tempBoundaryMat[0,0]-=self.params["PeT"]
-                tempBoundaryMat[0,-1]=self.params["f"]*self.params["PeT"]
+                tempBoundaryMat[0,0]-=self.params["PeT-boundary"]
+                tempBoundaryMat[0,-1]=self.params["f"]*self.params["PeT-boundary"]
             #Right BC
             elif iRow==self.nElements*(self.nCollocation+1):
                 massBoundaryMat[iRow,-(self.nCollocation+2):]=self.elements[-1].basisFirstDeriv(self.bounds[1])
@@ -494,106 +489,68 @@ class TankModel:
     def dydtSource(self,y,t,source):
         return self.dydt(y,t) + source(t)
     
-    def dydtSens(self,y,t,paramSelect=["PeM", "PeT", "f", "Le", "Da", "beta", "gamma", "delta", "vH"]):
+    def dydtSens(self,y,t,paramSelect=[]):
         """Defines the differential equation for sensitivity equations"""
         nPoints=self.nElements*self.nCollocation
         u=y[0:nPoints]
         v=y[nPoints:2*nPoints]
         dydt=self.dydt(y[0:2*nPoints],t)
+        dvdt=dydt[nPoints:]
         eqCounter=2
         for param in paramSelect:
             dudParam = y[eqCounter*nPoints:(eqCounter+1)*nPoints]
             dvdParam = y[(eqCounter+1)*nPoints:(eqCounter+2)*nPoints]
+                #Linear Piece
             match param:
-                case "vH":
-                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)
-                    ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
-                                +self.params["delta"]*(1-dvdParam))/self.params["Le"]
-                    dydt=np.append(dydt,ddudParamdt)
-                    dydt=np.append(dydt,ddvdParamdt)
-                case "delta":
-                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)
-                    ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
-                                +self.params["vH"]-v-self.params["delta"]*dvdParam)/self.params["Le"]
-                    dydt=np.append(dydt,ddudParamdt)
-                    dydt=np.append(dydt,ddvdParamdt)
-                case "Da":
-                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
-                                    +np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))*(1-u)
-                    ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
-                                    +np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))*(1-u)-self.params["delta"]*dvdParam)/self.params["Le"]
-                    dydt=np.append(dydt,ddudParamdt)
-                    dydt=np.append(dydt,ddvdParamdt)
-                case "gamma":
-                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*self.params["beta"]*(self.params["gamma"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2\
-                                                                 +(v+self.params["gamma"]*dvdParam)/(1+self.params["beta"]*v))-dudParam)
-                    ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*self.params["beta"]*(self.params["gamma"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2\
-                                                                 +(v+self.params["gamma"]*dvdParam)/(1+self.params["beta"]*v))-dudParam)\
-                                   -self.params["delta"]*dvdParam)/self.params["Le"]
-                    dydt=np.append(dydt,ddudParamdt)
-                    dydt=np.append(dydt,ddvdParamdt)
-                case "beta":
-                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*self.params["gamma"]*(v+self.params["beta"]*dvdParam)/(1+self.params["beta"]*v)\
-                                      *(1+(self.params["beta"]*v)/(1+self.params["beta"]*v))-dudParam)
-                    ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*self.params["gamma"]*(v+self.params["beta"]*dvdParam)/(1+self.params["beta"]*v)\
-                                      *(1+(self.params["beta"]*v)/(1+self.params["beta"]*v))-dudParam)\
-                                   -self.params["delta"]*dvdParam)/self.params["Le"]
-                    dydt=np.append(dydt,ddudParamdt)
-                    dydt=np.append(dydt,ddvdParamdt)
-                case "Le":
-                    dvdt = dydt[self.nCollocation*self.nElements:2*self.nCollocation*self.nElements]
-                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)
-                    ddvdParamdt=(-dvdt+np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
-                                    -self.params["delta"]*dvdParam)/self.params["Le"]
-                    dydt=np.append(dydt,ddudParamdt)
-                    dydt=np.append(dydt,ddvdParamdt)
                 case "PeM":
                     uCombined = np.append(u,dudParam)
-                    ddudParamdt=np.dot(self.dudPeMrhsMat,uCombined)-np.dot(self.dudPeMSecondOrderMat,u)\
-                                    +self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)
-                    ddvdParamdt=(np.dot(self.tempRHSmat,dvdParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
-                                    -self.params["delta"]*dvdParam)/self.params["Le"]
-                    dydt=np.append(dydt,ddudParamdt)
-                    dydt=np.append(dydt,ddvdParamdt)
+                    ddudParamdt=np.dot(self.dudPeMrhsMat,uCombined)-np.dot(self.dudPeMSecondOrderMat,u)
+                    ddvdParamdt=np.dot(self.tempRHSmat,dvdParam)
                 case "PeT":
                     vCombined = np.append(v,dvdParam)
-                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)
-                    ddvdParamdt=(np.dot(self.dvdPeTrhsMat,vCombined)-np.dot(self.dvdPeTSecondOrderMat,v)\
-                                 +self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
-                                -self.params["delta"]*dvdParam)/self.params["Le"]
-                    dydt=np.append(dydt,ddudParamdt)
-                    dydt=np.append(dydt,ddvdParamdt)
+                    ddudParamdt=np.dot(self.massRHSmat,dudParam)
+                    ddvdParamdt=np.dot(self.dvdPeTrhsMat,vCombined)-np.dot(self.dvdPeTSecondOrderMat,v)
                 case "f":
                     vCombined = np.append(v,dvdParam)
-                    ddudParamdt=np.dot(self.massRHSmat,dudParam)+self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)
-                    ddvdParamdt=(np.dot(self.dvdfrhsMat,vCombined)\
-                                 +self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))\
-                                    *((1-u)*(self.params["gamma"]*self.params["beta"]*(1+2*self.params["beta"]*v*dvdParam)/(1+self.params["beta"]*v)**2)-dudParam)\
-                                -self.params["delta"]*dvdParam)/self.params["Le"]
-                    dydt=np.append(dydt,ddudParamdt)
-                    dydt=np.append(dydt,ddvdParamdt)
+                    ddudParamdt=np.dot(self.massRHSmat,dudParam)
+                    ddvdParamdt=np.dot(self.dvdfrhsMat,vCombined)
+                case _:
+                    ddudParamdt=np.dot(self.massRHSmat,dudParam)
+                    ddvdParamdt=np.dot(self.tempRHSmat,dvdParam)
+            #Linear Source Piece
+            match param:
+                case "delta":
+                    linearTerm = (self.params["vH"]-v-self.params["delta"]*dvdParam)
+                case "vH":
+                    linearTerm = self.params["delta"]*(1-dvdParam)
+                case "Le":
+                    linearTerm = -dvdt-self.params["delta"]*dvdParam
+                case _:
+                    linearTerm = -self.params["delta"]*dvdParam
+            ddvdParamdt+=linearTerm
+            #Nonlinear Source Piece
+            match param:
+                case "Da":
+                    nonLinearTerm = np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))*\
+                                        (1-u+self.params["Da"]*(-dudParam+(1-u)*self.params["gamma"]*self.params["beta"]*dvdParam/(1+self.params["beta"]*v)**2))
+                case "beta":
+                    nonLinearTerm = self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))*\
+                                        (-dudParam+(1-u)*self.params["gamma"]*(v+self.params["beta"]*dvdParam)/(1+self.params["beta"]*v)**2)
+                case "gamma":
+                    nonLinearTerm = self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))*\
+                                        (-dudParam+(1-u)*self.params["beta"]*(v+self.params["beta"]*(v**2)+self.params["gamma"]*dvdParam)/(1+self.params["beta"]*v)**2)
+                case _:
+                    nonLinearTerm = self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]*v/(1+self.params["beta"]*v))*\
+                                        (-dudParam+(1-u)*self.params["gamma"]*self.params["beta"]*dvdParam/(1+self.params["beta"]*v)**2)
+            ddudParamdt+=nonLinearTerm
+            ddvdParamdt+=nonLinearTerm
+            dydt=np.append(dydt,ddudParamdt)
+            dydt=np.append(dydt,ddvdParamdt/self.params["Le"])
             eqCounter+=2
         return dydt
     
 
-    def eval(self,xEval,modelCoeff, output="full"):
+    def eval(self,xEval,modelCoeff, output="full",deriv=0):
         """eval computes the value of u and v at every point in xEval given the collocation element expression provided by modelCoeff"""
         if output not in ("full","seperated","u","v"):
             raise(Exception("Invalid entry for output used, must be full, seperated, u, or v"))
@@ -623,7 +580,12 @@ class TankModel:
             # print(xElementIndices)
             xElement=xEval[xElementIndices]
             #Compute the values of the basis polynomials at each x location
-            basisValues = element.basisFunctions(xElement)
+            if deriv==0:
+                basisValues = element.basisFunctions(xElement)
+            elif deriv==1:
+                basisValues = element.basisFirstDeriv(xElement)
+            elif deriv==2:
+                basisValues = element.basisSecondDeriv(xElement)
 
             
             if modelCoeff.ndim==1:
@@ -717,3 +679,412 @@ class TankModel:
             return integralSpace
     
 
+    #================================POD-ROM===================================================
+
+    def constructPodRom(self,modelCoeff,x,W,modeThreshold,nonlinDim = "max",mean="mean",useEnergyThreshold=True,adjustModePairs=False,nDeimPoints="none"):
+        #Get Snapshots and derivatives of snapshots
+        uEval,vEval = self.eval(x,modelCoeff,output="seperated")
+        #Compute Mean, keeping dimension so casting works
+        if mean =="mean":
+            meanCoeff = np.mean(modelCoeff,axis=0)
+            uMean,vMean = self.eval(x,meanCoeff,output="seperated")
+            uMeanx,vMeanx = self.eval(x,meanCoeff,output="seperated",deriv=1)
+            uMeanxx,vMeanxx = self.eval(x,meanCoeff,output="seperated",deriv=2)
+        elif mean =="zero":
+            uMean = np.zeros(uEval.shape[1])
+            vMean = np.zeros(vEval.shape[1])
+            uMeanx = np.zeros(uEval.shape[1])
+            vMeanx = np.zeros(vEval.shape[1])
+            uMeanxx = np.zeros(uEval.shape[1])
+            vMeanxx = np.zeros(vEval.shape[1])
+        elif mean =="ones":
+            uMean = np.ones(uEval.shape[1])
+            vMean = np.ones(vEval.shape[1])
+            uMeanx = np.zeros(uEval.shape[1])
+            vMeanx = np.zeros(vEval.shape[1])
+            uMeanxx = np.zeros(uEval.shape[1])
+            vMeanxx = np.zeros(vEval.shape[1])
+        elif mean =="first":
+            uMean,vMean = self.eval(x,modelCoeff[0],output="seperated")
+            uMeanx,vMeanx = self.eval(x,modelCoeff[0],output="seperated",deriv=1)
+            uMeanxx,vMeanxx = self.eval(x,modelCoeff[0],output="seperated",deriv=2)
+        elif mean==np.ndarray:
+            if mean.ndim==1:
+                if mean.size==self.collocationPoints.size:
+                    uMean,vMean = self.eval(x,mean,output="seperated")
+                    uMeanx,vMeanx = self.eval(x,mean,output="seperated",deriv=1)
+                    uMeanxx,vMeanxx = self.eval(x,mean,output="seperated",deriv=2)
+                else:
+                    raise ValueError("Invalid size for mean")
+            else:
+                raise ValueError("Invalid dimension for mean")
+
+        uEval-=uMean
+        vEval-=vMean
+        uEvalx,vEvalx = self.eval(x,modelCoeff, output="seperated", deriv =1)
+        uEvalx-=uMeanx
+        vEvalx-=vMeanx
+
+        uEvalxx,vEvalxx = self.eval(x,modelCoeff, output="seperated", deriv =2)
+        uEvalxx-=uMeanxx
+        vEvalxx-=vMeanxx
+        if np.isclose(modelCoeff[:,:self.nElements*self.nCollocation],modelCoeff[:,self.nElements*self.nCollocation:], atol=1e-10).all():
+            print("u and v coeffecients are the same")
+            if not np.isclose(uEval,vEval, atol=1e-10).all():
+                raise ValueError("u and v coeffecients are the same but evaluations are not")
+            if not np.isclose(uEvalx,vEvalx, atol=1e-10).all():
+                raise ValueError("u and v coeffecients are the same but derivatives are not")
+            if not np.isclose(uEvalxx,vEvalxx, atol=1e-10).all():
+                raise ValueError("u and v coeffecients are the same but 2nd derivatives are not")
+        uModes, uModesx, uModesxx, uTimeModes, uTruncationError, uSingularValues =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
+        vModes, vModesx, vModesxx, vTimeModes, vTruncationError, vSingularValues =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
+        if np.isclose(modelCoeff[:,:self.nElements*self.nCollocation],modelCoeff[:,self.nElements*self.nCollocation:], atol=1e-10).all():
+            print("L2 Difference in Modes: ", np.sqrt(np.sum(W@(uModes-vModes)**2)))
+            print("Linf Difference in Modes: ", np.max(np.abs(uModes-vModes)))
+        if self.bounds[0]==x[0]:
+            for i in range(uModes.shape[1]):
+                if not np.isclose(uModes[0,i]-uModesx[0,i]/self.params["PeM-boundary"],0,atol=1e-6):
+                    print("Left Boundary Condition not satisfied for uMode", i, "by: ", uModes[0,i]-uModesx[0,i]/self.params["PeM"])
+                if not np.isclose(uModesx[-1,i],0,atol=1e-6):
+                    print("Right Boundary Condition not satisfied for uMode", i, "by: ", uModesx[-1,i])
+            for i in range(vModes.shape[1]):
+                if not np.isclose(vModes[0,i]-vModesx[0,i]/self.params["PeT-boundary"]-vModes[-1,i]*self.params["f"],0,atol=1e-6):
+                    print("Left Boundary Condition not satisfied for vMode", i, "by: ", vModes[0,i]-vModesx[0,i]/self.params["PeM"]-vModes[-1,i]*self.params["f"])
+                if not np.isclose(vModesx[-1,i],0,atol=1e-6):
+                    print("Right Boundary Condition not satisfied for vMode", i, "by: ", vModesx[-1,i])
+        uModesWeighted, uModesInt, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean, uRomSecondOrderMat, uRomSecondOrderMean\
+              = self.computeRomMatrices(W,uMean, uMeanx, uMeanxx, uModes, uModesx,uModesxx)
+        vModesWeighted, vModesInt, vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean, vRomSecondOrderMat, vRomSecondOrderMean\
+              = self.computeRomMatrices(W,vMean, vMeanx, vMeanxx, vModes, vModesx,vModesxx)
+        truncationError=np.mean([uTruncationError,vTruncationError])
+        
+        if nonlinDim=="max":
+            uNonlinDim = uModes.shape[1]
+            vNonlinDim = vModes.shape[1]
+        elif nonlinDim<=1:
+            uNonlinDim = int(np.ceil(uModes.shape[1]*nonlinDim))
+            vNonlinDim = int(np.ceil(vModes.shape[1]*nonlinDim))
+        else: 
+            raise Exception("Error: Nonlinear reduced dimension greater than 1 entered. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
+        
+        #Compute DEIM Projection
+        # If any string input is entered for nDEIMpoints assume not using DEIM
+        if type(nDeimPoints) == str:
+            deimProjection = np.eye(uModes.shape[0])
+            uNonLinProjection = uModesWeighted.transpose()
+            vNonLinProjection = vModesWeighted.transpose()
+        else:
+            u = uModes@uTimeModes.transpose()+uMean.reshape((x.size,1))
+            v = vModes@vTimeModes.transpose()+vMean.reshape((x.size,1))
+            nonLinData = (1-u)*np.exp(self.params["gamma"]*self.params["beta"]\
+                                        *v/(1+self.params["beta"]*v))
+            nDeimPoints = min(int(np.ceil(nDeimPoints*max(uModes.shape[1],vModes.shape[1]))),uModes.shape[0])
+            deimBasis,deimProjection = self.computeDEIMbasis(nonLinData,nDeimPoints)
+            uNonLinProjection = self.computeDEIMmatrices(uModesWeighted,deimBasis,deimProjection)
+            vNonLinProjection = self.computeDEIMmatrices(vModesWeighted,deimBasis,deimProjection)
+            
+        return RomData(x, W, uTimeModes, uMean, uModes, uModesx, uModesxx, uModesWeighted,
+                        uModesInt, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean,
+                        uRomSecondOrderMat, uRomSecondOrderMean, vTimeModes, vMean,
+                        vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
+                        vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
+                        vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues, uNonlinDim,vNonlinDim,deimProjection,uNonLinProjection,vNonLinProjection), truncationError
+
+    def computeDEIMbasis(self,nonLinData,nDeimModes):
+        #Compute basis for non-linear evaluationd data using POD
+        Psi,sigma,V = np.linalg.svd(nonLinData)
+        # Initialize DEIM Algorithm
+        deimBasis = Psi[:,[0]]
+        P=np.eye(Psi.shape[0])[:,[np.argmax(np.abs(Psi[:,-1]))]]
+        # Loop through DEIM modes
+        for i in range(1,nDeimModes):
+            #Solve for nonlin Coeff
+            q = np.linalg.solve(P.transpose()@deimBasis,P.transpose()@Psi[:,i] )
+            #Compute residual
+            r=Psi[:,i]-deimBasis@q
+            #Update DEIM matrices
+            P=np.append(P,np.eye(Psi.shape[0])[:,[np.argmax(np.abs(r))]],axis=1)
+            deimBasis = np.append(deimBasis,Psi[:,[i]],axis=1)
+
+        return deimBasis, P
+
+    def computeDEIMmatrices(self,podBasisWeighted,deimBasis, P):
+        #System is A=(PhiW)'Psi(P'Psi)^(-1), to do standard linear solve need to transfrom it to (Psi'P)A'=Psi'(PhiW)
+        deimProjection = np.linalg.solve(deimBasis.transpose()@P, deimBasis.transpose()@podBasisWeighted).transpose()
+        #Note: Not currently computing projection because we're still computing projection at each step to simplify dydt implementation,
+        #       If want to improve in future will need to compute this here and pass unweighted POD modes as well.
+        #podProjection = P.transpose()@podBasis
+        
+        return deimProjection
+
+    
+    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,adjustModePairs=False,groupSeperations="null",):
+        # INCOMPLETE: Scale each observed response to [0,1] for POD so that sensitivities with large values aren't weighted more, may need setting up this change in TankModel
+        # if type(groupSeperations)==np.ndarray:
+        #     raise ValueError("groupSeperations for mixed inputs incomplete")
+        #     # Compute norm of each snapshot
+        #     norms = np.sqrt(np.sum(W@(snapshots**2),axis=0))
+        #     snapshotScaling = np.zeros(norms.shape)
+        #     # Preallocate average norms for each group of snapshots
+        #     groupNorms = np.zeros(groupSeperations.size+1)
+        #     groupSeperations = np.append(groupSeperations,0)
+        #     groupSeperations = np.append(groupSeperations,snapshots.shape[1])
+        #     for iGroup in range(groupSeperations.size):
+        #         groupNorms[iGroup] = np.mean(norms[groupSeperations[iGroup]:groupSeperations[iGroup+1]])
+        #         snapshotScaling[groupSeperations[iGroup]:groupSeperations[iGroup+1]] = 1/groupNorms[iGroup]
+        #     # Relative snapshots to average norm
+        #     snapshotsRel = snapshots/snapshotScaling
+        # elif groupSeperations!="null":
+        #     raise ValueError("Invalid groupSeperations input")
+
+        #Use transpose of evals since eval is time x space but standard snapshot matrix is space x time
+        if np.isclose(W/W[0,0],np.eye(W.shape[0])).all():
+            modes, S, timeModes = np.linalg.svd(snapshots*np.sqrt(W[0,0]),full_matrices=False)
+            timeModes=timeModes.transpose()
+        else:
+            #Get eigen decomp of UtWU
+            timeModes,S,null= np.linalg.svd(snapshots.transpose()@W@snapshots,full_matrices=False)
+            #Check symmetry of eigen decomp
+            if not np.isclose(timeModes@S,S@null).all():
+                print("WARNING: Singular value scaled time eigen decomp not symmetric")
+                print("Error: ", np.sqrt(np.sum(np.sum((timeModes@S-S@null.transpose())**2))/np.sum(np.sum((timeModes@S)**2))))
+                if self.verbosity >=3:
+                    print("W: ", W)
+                    print("timeModes-timeModesT: ",timeModes-null.transpose())
+            #Have to take squareroot of S for scaling
+            S=np.sqrt(S)
+        modes = snapshots@timeModes@np.diag(1/S)
+        if self.verbosity >= 3:
+            print("Minimum Singular Value: ", np.min(S))
+        #Compute modes for derivatives
+        modesx = snapshotsx @ timeModes @ (np.diag(1/S))
+        modesxx = snapshotsxx @ timeModes @ (np.diag(1/S))
+
+        #Get number of modes to use
+        if useEnergyThreshold:
+            #Create threshold for S
+            totalEnergy=np.sum(S)
+            cumulEnergy=0
+            nModes=0
+            while (cumulEnergy<modeThreshold)and(nModes<S.size):
+                nModes+=1
+                cumulEnergy=np.sum(S[:nModes])/totalEnergy
+        else:
+            totalEnergy=np.sum(S)
+            nModes=modeThreshold
+            cumulEnergy=np.sum(S[:nModes])/totalEnergy
+        if adjustModePairs and nModes>1:
+            #print(S[:nModes+1])
+            #Approach 1: Compare distance in singular values
+            #adjacent_distance = S[nModes-1:nModes+1]-S[nModes-2:nModes]
+            #Appraoch 2: Compare innerproducts between last mode and derivative of next and preceeding mode
+            adjacent_distance = np.abs(np.array([modes[:,nModes-1].transpose()@W@modesx[:,nModes-2],modes[:,nModes-1].transpose()@W@modesx[:,nModes]]))
+            #If S[nModes-1] is closer to S[nModes] than S[nModes-2], add another mode
+            #if adjacent_distance[1]<adjacent_distance[0]:
+            #If inner product of nMode with excluded mode deriv is greater than with included mode, add excluded mode
+            if adjacent_distance[1]>adjacent_distance[0]:
+                nModes+=1
+                cumulEnergy=np.sum(S[:nModes])/totalEnergy
+        # print("Cumulative Energy of Modes: ", cumulEnergy)
+        # print("Number of modes used: ", nModes)
+        modes = modes[:,:nModes]
+        modesx = modesx[:,:nModes]
+        modesxx = modesxx[:,:nModes]
+        timeModes = (timeModes@np.diag(S))[:,:nModes]
+        #Check Orthonormality of modes
+        if not np.isclose(modes.transpose()@W@modes,np.eye(modes.shape[1])).all():
+            print("WARNING: Modes not orthonormal")
+            if self.verbosity>=3:
+                print("Phi^TWPhi = ", modes.transpose()@W@modes)
+                print("Departure from Orthonormality: ", np.sum(np.eye(modes.shape[1])-modes.transpose()@W@modes))
+        #Check the POD decomposition is accurate in FOM space
+        podError = np.sqrt(np.sum(W@((snapshots-modes@timeModes.transpose())**2))/np.sum(W@(snapshots**2)))
+        podIcError = np.sqrt(np.sum(W@((snapshots[:,0]-(modes@timeModes.transpose())[:,0])**2))/np.sum(W@(snapshots[:,0]**2)))
+        # print("POD Relative Error: ", podError)
+        # print("POD IC Relative Error: ", podIcError)
+        return modes, modesx, modesxx, timeModes, podError, S[:nModes]
+
+    def computeRomMatrices(self,W,mean,  meanx, meanxx, podModes, podModesx,podModesxx):
+        podModesWeighted = W @ podModes
+        podModesInt = np.sum(podModesWeighted.transpose(),axis=1) 
+        romMassMean = podModesWeighted.transpose() @ mean
+        romFirstOrderMat = podModesWeighted.transpose() @ podModesx
+        romFirstOrderMean = podModesWeighted.transpose() @ meanx
+        romSecondOrderMat = podModesWeighted.transpose() @ podModesxx
+        romSecondOrderMean = podModesWeighted.transpose() @ meanxx
+        return podModesWeighted, podModesInt, romMassMean, romFirstOrderMat, romFirstOrderMean, romSecondOrderMat, romSecondOrderMean
+
+    def getQuadWeights(self,nPoints,quadRule):
+        if quadRule == "simpson" :
+            if nPoints%2==0:
+                raise ValueError("Simpson's rule requires an odd number of points")
+            else:
+                x=np.linspace(self.bounds[0],self.bounds[1],nPoints)
+                #Get quadrature weights using simpson's rule
+                w=np.ones(x.size)/3*(self.bounds[1]-self.bounds[0])/(x.size-1)
+                w[1:x.size-1:2]*=4
+                if np.size(x)>=5:
+                    w[2:x.size-2:2]*=2
+        elif quadRule == "uniform":
+            x=np.linspace(self.bounds[0],self.bounds[1],nPoints)
+            w=np.ones(np.size(x))/((x.size)*(self.bounds[1]-self.bounds[0]))
+        elif quadRule == "monte carlo":
+            x=np.array([self.bounds[0]])
+            x=np.append(x,np.sort(np.random.sample(nPoints-2))*(self.bounds[1]-self.bounds[0])+self.bounds[0],axis=0)
+            x=np.append(x,np.array([self.bounds[1]]),axis=0)
+            w=np.ones(np.size(x))/(x.size)*(self.bounds[1]-self.bounds[0])
+        elif quadRule == "gauss-legendre":
+            x,w= np.polynomial.legendre.leggauss(nPoints)
+            x=(x+1)*(self.bounds[1]-self.bounds[0])/2+self.bounds[0]
+            w=w*(self.bounds[1]-self.bounds[0])/2
+        elif quadRule == "gauss-legendre adjusted":
+            x,w= np.polynomial.legendre.leggauss(nPoints)
+            x=(x+1)*(self.bounds[1]-self.bounds[0])/2+self.bounds[0]
+            x[0]=self.bounds[0]
+            x[-1]=self.bounds[1]
+            w=np.ones(np.size(x))/(x.size)*(self.bounds[1]-self.bounds[0])
+        else:
+            raise ValueError("Invalid quadRule")
+        return x, np.diag(w)
+
+    def dydtPodRom(self,y,t,romData,paramSelect=[],penaltyStrength=0):
+        if type(paramSelect)==str:
+            paramSelect=[paramSelect]
+        u=y[0:romData.uNmodes]
+        v=y[romData.uNmodes:romData.uNmodes+romData.vNmodes]
+        #Note: This step below is not optimal for computation time, keeping it currently because it simplifies implementation for
+        #       for switching DEIM on and off. Optimal would be pre-computing P^T@modes and P^T@mean for u and v
+        uNonlin=romData.deimProjection.transpose()@(romData.uModes[:,:romData.uNonlinDim]@u[:romData.uNonlinDim]+romData.uMean)
+        vNonlin=romData.deimProjection.transpose()@(romData.vModes[:,:romData.vNonlinDim]@v[:romData.vNonlinDim]+romData.vMean)
+        uFull=romData.uModes@u+romData.uMean
+        vFull=romData.vModes@v+romData.vMean
+        uFullx=romData.uModesx@u+romData.uMean
+        vFullx=romData.vModesx@v+romData.vMean
+        # dudt=(romData.uRomSecondOrderMat/self.params["PeM"]- romData.uRomFirstOrderMat)@u\
+        #         +romData.uRomSecondOrderMean/self.params["PeM"]-romData.uRomFirstOrderMean    
+        # dvdt=((romData.vRomSecondOrderMat/self.params["PeT"]-romData.vRomFirstOrderMat)@v\
+        #         +romData.vRomSecondOrderMean/self.params["PeT"]-romData.vRomFirstOrderMean)/self.params["Le"]
+        # dvdt=((romData.vRomSecondOrderMat/self.params["PeT"]-romData.vRomFirstOrderMat)@v\
+        #         +romData.vRomSecondOrderMean/self.params["PeT"]-romData.vRomFirstOrderMean\
+        #         +self.params["delta"]*(self.params["vH"]*romData.vModesInt-v-romData.vRomMassMean)\
+        #         +self.params["Da"]*(romData.vModesInt - (romData.vModesWeighted.transpose()@romData.uModes)@u))/self.params["Le"]
+        dudt=(romData.uRomSecondOrderMat/self.params["PeM"]- romData.uRomFirstOrderMat)@u\
+                +romData.uRomSecondOrderMean/self.params["PeM"]-romData.uRomFirstOrderMean\
+                +self.params["Da"]*romData.uNonLinProjection\
+                                    @((1-uNonlin)*np.exp(self.params["gamma"]*self.params["beta"]\
+                                      *vNonlin/(1+self.params["beta"]*vNonlin)))
+        dvdt=((romData.vRomSecondOrderMat/self.params["PeT"]-romData.vRomFirstOrderMat)@v\
+                +romData.vRomSecondOrderMean/self.params["PeT"]-romData.vRomFirstOrderMean\
+                +self.params["delta"]*(self.params["vH"]*romData.vModesInt-v-romData.vRomMassMean)\
+                +self.params["Da"]*romData.vNonLinProjection
+                                    @((1-uNonlin)*np.exp(self.params["gamma"]*self.params["beta"]\
+                                        *vNonlin/(1+self.params["beta"]*vNonlin))))/self.params["Le"]
+        #Boundary Penalty
+        #u
+        dudt -= penaltyStrength*romData.uModes[0,:]*(uFull[0]-uFullx[0]/self.params["PeM"])
+        dudt -= penaltyStrength*romData.uModes[-1,:]*uFull[-1]
+        #v
+        dvdt -= penaltyStrength*romData.vModes[0,:]*(vFull[0]-vFullx[0]/self.params["PeM"]-self.params["f"]*vFull[-1])
+        dvdt -= penaltyStrength*romData.vModes[-1,:]*vFullx[-1]
+        dydt = np.append(dudt,dvdt)
+        eqCounter=1
+        for param in paramSelect:
+            dudParam = y[eqCounter*(romData.uNmodes+romData.vNmodes):eqCounter*(romData.uNmodes+romData.vNmodes)+romData.uNmodes]
+            dvdParam = y[eqCounter*(romData.uNmodes+romData.vNmodes)+romData.uNmodes:(eqCounter+1)*(romData.uNmodes+romData.vNmodes)]
+            dudParamFull=np.matmul(romData.uModes,dudParam)+romData.uMean
+            dvdParamFull=np.matmul(romData.vModes,dvdParam)+romData.vMean
+            #Define Advection/ Diffusion terms
+            ddudParamdt=(romData.uRomSecondOrderMat /self.params["PeM"]-romData.uRomFirstOrderMat)@ dudParam\
+                            +romData.uRomSecondOrderMean/self.params["PeM"]-romData.uRomFirstOrderMean
+            ddvdParamdt=(romData.vRomSecondOrderMat /self.params["PeT"]-romData.vRomFirstOrderMat)@ dvdParam\
+                            +romData.vRomSecondOrderMean/self.params["PeT"]-romData.vRomFirstOrderMean
+            if param=="PeM":
+                ddudParamdt+=-(romData.uRomSecondOrderMat@u+romData.uRomSecondOrderMean)/(self.params["PeM"]**2)
+            elif param=="PeT":
+                ddvdParamdt+=-(romData.vRomSecondOrderMat@v+romData.vRomSecondOrderMean)/(self.params["PeT"]**2)
+            #Construct Additional Linear terms
+            if param=="vH":
+                ddvdParamdt+=(romData.vModesInt-dvdParam)*self.params["delta"] - self.params["delta"]*romData.vRomMassMean
+            elif param=="delta":
+                ddvdParamdt+=self.params["vH"]*romData.vModesInt-v-self.params["delta"]*dvdParam - self.params["delta"]*romData.vRomMassMean
+            elif param=="Le":
+                ddvdParamdt+= -dvdt-self.params["delta"]*dvdParam - self.params["delta"]*romData.vRomMassMean
+            else:
+                ddvdParamdt+= -self.params["delta"]*dvdParam - self.params["delta"]*romData.vRomMassMean
+
+
+
+            # Construct nonlinear term
+            if param in ["vH", "delta","Le","PeM","PeT","f"]:
+                nonlinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
+                                                *vFull/(1+self.params["beta"]*vFull))\
+                                                *((1-uFull)*(self.params["gamma"]*self.params["beta"]\
+                                                           *dvdParamFull/((1+self.params["beta"]*vFull)**2))\
+                                                - dudParamFull)
+            elif param=="Da":
+                nonlinearTerm=(self.params["Da"] *((1-uFull)*(self.params["gamma"]*self.params["beta"]\
+                                                           *dvdParamFull/((1+self.params["beta"]*vFull)**2))\
+                                                - dudParamFull)\
+                             +(1-uFull))*np.exp(self.params["gamma"]*self.params["beta"]\
+                                             *vFull/(1+self.params["beta"]*vFull))
+            elif param=="beta":
+                nonlinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
+                                                       *vFull/(1+self.params["beta"]*vFull))
+                nonlinearTerm*=((1-uFull)*self.params["gamma"]*(vFull+self.params["beta"]*dvdParamFull)\
+                                                                /((1+self.params["beta"]*vFull)**2)\
+                                 - dudParamFull)
+            elif param=="gamma":
+                nonlinearTerm=self.params["Da"]*np.exp(self.params["gamma"]*self.params["beta"]\
+                                                       *vFull/(1+self.params["beta"]*vFull))
+                nonlinearTerm*=((1-uFull)*self.params["beta"]*(vFull+self.params["beta"]*(vFull**2)+self.params["gamma"]*dvdParamFull)\
+                                                                /((1+self.params["beta"]*vFull)**2)\
+                                 - dudParamFull)
+            else:
+                raise(Exception("Invalid param value: "+param))            
+            ddudParamdt+=romData.uModesWeighted.transpose() @ nonlinearTerm
+            ddvdParamdt+=romData.vModesWeighted.transpose() @ nonlinearTerm
+            #Construct boundary term
+            #NOTE: I think there are currently errors in this, check the BP formulation and then confirm this is implemented correctly
+            # dudParamxLeftBoundary=np.dot(romData.uModesx[0,:],dudParam)+romData.uMean[0]
+            # dvdParamxLeftBoundary=np.dot(romData.vModesx[0,:],dvdParam)+romData.vMean[0]
+            # if param in ["vH", "delta", "Le", "Da","beta","gamma"]:
+            #     ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
+            #     ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
+            # elif param=="f":
+            #     ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
+            #     ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]+vFull[-1]))
+            # elif param=="PeM":
+            #     uxLeftBoundary=np.dot(romData.uModesx[0,:],dudParam)+romData.uMean[0]
+            #     ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"]+uxLeftBoundary/(self.params["PeM"]**2))
+            #     ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
+            # elif param=="PeT":
+            #     vxLeftBoundary=np.dot(romData.vModesx[0,:],dvdParam)+romData.vMean[0]
+            #     ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
+            #     ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary-vxLeftBoundary/self.params["PeT"])/self.params["PeT"]-self.params["f"]*dvdParamFull[-1])
+
+            #Scale RHS of v by Le
+            ddvdParamdt/=self.params["Le"]
+
+            dydt=np.append(dydt,ddudParamdt)
+            dydt=np.append(dydt,ddvdParamdt)
+            eqCounter+=1
+        #print("Step Completed for t=",t)
+        return dydt
+    
+    def computeRomError(self,uEval,vEval,uRom,vRom, W,tPoints,norm="Linf"):
+        #Map from romCoeff to rom Solution
+        if norm == "L2" or norm==r"$L_2$":
+            #Compute joint-error
+            errorU = np.sqrt(np.sum(W @ (uEval-uRom)**2))/ np.sum(W @ (uEval)**2)
+            errorV = np.sqrt(np.sum(W @ (vEval-vRom)**2))/ np.sum(W @ (vEval)**2)
+            #error = np.sqrt(np.max(np.sum(W @(uEval-uRom)**2,axis=0)))#/np.sum((W @vEval)**2))
+            #error = np.sqrt(np.max(np.sum(W @(vEval-vRom)**2,axis=0)))#/np.sum((W @vEval)**2))
+        elif norm == "Linf" or norm==r"$L_\infty$":
+            errorU = np.max(np.abs(uEval-uRom))
+            errorV = np.max(np.abs(vEval-vRom))
+            #error = np.max(np.abs(vEval-vRom))#/np.max(np.abs(vEval))
+            # error = np.max(np.abs(uEval-uRom))#/np.max(np.abs(vEval))
+        error = (errorU+errorV)/2
+        return error
+#Class that holds all the data defining a particular POD-ROM model. We define a seperate class to TankModel since
+# a single FOM may have numerous different ROMs computed from it. Properties not common to all ROMs are stored in this class for easier function parsing
