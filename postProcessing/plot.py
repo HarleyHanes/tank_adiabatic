@@ -330,7 +330,7 @@ def subplotTimeSeries(yVariables, xVariables, xLabels="X", yLabels="Y", title="n
                     axes[iy, it].legend(legends,  loc = legendLoc)
     return fig, axes
 
-def plotRomMatrices(matrices,xLabels="null",yLabels="null",title="null",cmap="coolwarm",sharedColorBar=False,subplotSize=(5,4)):
+def plotRomMatrices(matrices,xLabels="null",yLabels="null",title="null",cmap="coolwarm",sharedColorBar=False,subplotSize=(5,4),fontsize=12):
 
     if type(matrices)==list:
         for i in range(len(matrices)):
@@ -391,18 +391,22 @@ def plotRomMatrices(matrices,xLabels="null",yLabels="null",title="null",cmap="co
             vmin = -vmax
         im = axes[i].imshow(matrices[i],cmap =cmap,vmin=vmin,vmax=vmax)
         if not sharedColorBar:
-            fig.colorbar(im)
+            cbar = fig.colorbar(im)
+            if cbar is not None:
+                cbar.ax.tick_params(labelsize=fontsize*0.8)
         elif i == nPlots-1:
             divider = make_axes_locatable(axes[1])
             cax = divider.append_axes("right", size="5%", pad=0.05)
-            fig.colorbar(im, ax=axes[i], cax=cax)
+            cbar = fig.colorbar(im, ax=axes[i], cax=cax)
+            if cbar is not None:
+                cbar.ax.tick_params(labelsize=fontsize*0.8)
         if xLabels!="null":
-            axes[i].set_xlabel(xLabels[i])
+            axes[i].set_xlabel(xLabels[i], fontsize=fontsize)
         if yLabels!="null":
-            axes[i].set_ylabel(yLabels[i])
+            axes[i].set_ylabel(yLabels[i], fontsize=fontsize)
             axes[i].yaxis.label.set(rotation='horizontal', ha='right')
         if title!="null":
-            axes[i].set_title(title[i])
+            axes[i].set_title(title[i], fontsize=fontsize*1.2)
         
         # Label ticks starting from 1
         if matrices[i].shape[0] < 10:
@@ -426,6 +430,8 @@ def plotRomMatrices(matrices,xLabels="null",yLabels="null",title="null",cmap="co
             axes[i].set_xticklabels(np.arange(1, matrices[i].shape[1] + 1, 4))
             axes[i].set_yticklabels(np.arange(1, matrices[i].shape[0] + 1, 4))
 
+        # apply tick label fontsize and (if present) legend fontsize
+        axes[i].tick_params(axis='both', labelsize=fontsize*0.8)
         # Optional: rotate x tick labels for readability
         #plt.setp(axes[i].get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
     plt.tight_layout()
@@ -467,20 +473,20 @@ def plotErrorConvergence(error,fidelity, xLabel="X", yLabel="Y", plotType="loglo
     fig, axes = plt.subplots(1,1, figsize=figsize)
     for i in range(error.shape[1]):
         if plotType=="loglog":
-            axes.loglog(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=figsize[0],ms=2*figsize[0])
+            axes.loglog(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=.75*figsize[0],ms=1.6*figsize[0])
         elif plotType=="semilogx":
-            axes.semilogx(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=figsize[0],ms=2*figsize[0])
+            axes.semilogx(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=.75*figsize[0],ms=1.6*figsize[0])
         elif plotType=="semilogy":
-            axes.semilogy(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=figsize[0],ms=2*figsize[0])
+            axes.semilogy(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=.75*figsize[0],ms=1.6*figsize[0])
         else :
-            axes.plot(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=figsize[0],ms=2*figsize[0])
+            axes.plot(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=.75*figsize[0],ms=1.6*figsize[0])
     if legends!="null":
         axes.legend(legends,  loc = legendLoc)
     if title!="null":
         fig.suptitle(title, fontsize=16)
     axes.set_xlabel(xLabel)
     axes.set_ylabel(yLabel)
-    plt.tight_layout()
+    fig.tight_layout()
     return fig, axes
 
 def getLineFormat(linetype,iter):

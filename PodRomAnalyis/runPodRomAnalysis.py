@@ -29,7 +29,7 @@ def main():
 
     makeMovies=False
     #FOM parameters
-    paramSet = "BizonPeriodic" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
+    paramSet = "BizonNonLinear" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
     nCollocation=2
     nElements=64
@@ -40,11 +40,11 @@ def main():
     #ROM parameters
     usePodRom=True
     useEnergyThreshold=False
-    controlApproach = "nonLinReduction" #none, DEIM, nonLinReduction
+    controlApproach = "none" #none, DEIM, nonLinReduction
     controlMetric= ["Error at 99% Retention","Error at 99.9% Retention","Error at 99.99% Retention","Sum of Relative Error Increases"]
     penaltyStrength=0
     sensInit = ["pod","zero"]
-    quadRule = ["gauss-legendre"] # simpson, gauss-legendre, uniform, monte carlo
+    quadRule = ["simpson"] # simpson, gauss-legendre, uniform, monte carlo
     mean_reduction = ["mean"]
     adjustModePairs=False
     error_norm = [r"$L_2$",r"$L_\infty$"]
@@ -622,9 +622,10 @@ def main():
                                     fig, axes = plotRomMatrices(nonLinearLinearized,\
                                                                 xLabels=r"$v_j$",yLabels=[r"$\frac{\partial \mathcal{N}(v_i)}{\partial v_j}$"," "," ", " "],\
                                                                 title=["t=" + str(round(1000*tPoints[it])/1000) for it in tplot],\
-                                                                cmap="coolwarm")
-                                    plt.savefig(romSaveFolder + "vRomMatrices_linearization.pdf", format="pdf")
-                                    plt.savefig(romSaveFolder + "vRomMatrices_linearization.png", format="png")
+                                                                cmap="coolwarm",
+                                                                fontsize=18)
+                                    plt.savefig(romSaveFolder + "vRomMatrices_linearization.pdf", format="pdf", bbox_inches='tight', pad_inches=0.02)
+                                    plt.savefig(romSaveFolder + "vRomMatrices_linearization.png", format="png", bbox_inches='tight', pad_inches=0.02)
 
                             #================================================== Plot POD Modes ============================================================
                             if plotModes and usePodRom:
