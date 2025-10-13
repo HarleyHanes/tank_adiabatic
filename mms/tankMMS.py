@@ -41,6 +41,8 @@ def runMMStest(higherOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 
                     if type(higherOrders[iorder])==str:
                         if higherOrders[iorder]=="sin":
                             u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructSinMMssolutionFunction(params,temporals[itemporal],temporalsdt[itemporal])
+                        if higherOrders[iorder]=="nonSeperableSinusoidal":
+                            u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructNonSeperableMMSsolutionFunction(params,spatialOrder)
                     sourceFunction = constructSourceTermFunction(lambda t: u(t,model.collocationPoints), 
                                                                  lambda t: dudt(t,model.collocationPoints), 
                                                                  lambda t: dudx(t,model.collocationPoints), 
@@ -181,6 +183,41 @@ def constructSinMMssolutionFunction(params,temporal,temporaldt):
     dvdx2= lambda t,x: np.outer(temporal(t),-(freq**2)*weight*np.sin(freq*x)).squeeze()
 
     return u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2
+
+def constructNonSeperableMMSsolutionFunction(params,spatialOrder):
+    uCoeff = np.zeros((spatialOrder+1), dtype=object)
+    vCoeff = np.zeros((spatialOrder+1), dtype=object)
+    dudtCoeff = np.zeros((spatialOrder+1), dtype=object)
+    dvdtCoeff = np.zeros((spatialOrder+1), dtype=object)
+    # Fill higher-order coeffecients
+    for n in range(2,spatialOrder+1):
+        uCoeff[n] = lambda t: np.sin(2*n*np.pi*t)+np.cos(2*n*np.pi*t)
+        dudtCoeff[n] = lambda t: 2*n*np.pi*(np.cos(2*n*np.pi*t)-np.sin(2*n*np.pi*t))
+        vCoeff[n] = lambda t: np.sin(2*n*np.pi*t)+np.cos(2*n*np.pi*t)
+        dvdtCoeff[n] = lambda t: 2*n*np.pi*(np.cos(2*n*np.pi*t)-np.sin(2*n*np.pi*t))
+
+    # Fill first order coeffecients from right- boundary condition
+    uCoeff[1] = lambda t: -np.sum([n*uCoeff[n](t) for n in range(2,spatialOrder+1)], axis=0)
+    vCoeff[1] = lambda t: -np.sum([n*vCoeff[n](t) for n in range(2,spatialOrder+1)], axis=0)
+
+
+    uCoeff[0] = lambda t: uCoeff[1](t)/params["PeM-boundary"]
+    vCoeff[0] = lambda t: (vCoeff[1](t)/params["PeT-boundary"]+params["f"]*np.sum([vCoeff[i](t) for i in range(1,spatialOrder+1)],axis=0)) / (1-params["f"])
+
+
+    u = lambda t,x: np.sum([uCoeff[n](t)*x**n for n in range(0,spatialOrder+1)],axis=0)
+    v = lambda t,x: np.sum([vCoeff[n](t)*x**n for n in range(0,spatialOrder+1)],axis=0)
+    dudx = lambda t,x: np.sum([n*uCoeff[n](t)*x**(n-1) for n in range(1,spatialOrder+1)],axis=0)
+    dvdx = lambda t,x: np.sum([n*vCoeff[n](t)*x**(n-1) for n in range(1,spatialOrder+1)],axis=0)
+    dudx2 = lambda t,x: np.sum([n*(n-1)*uCoeff[n](t)*x**(n-2) for n in range(2,spatialOrder+1)],axis=0)
+    dvdx2 = lambda t,x: np.sum([n*(n-1)*vCoeff[n](t)*x**(n-2) for n in range(2,spatialOrder+1)],axis=0)
+
+    dudt = lambda t,x: np.sum([dudtCoeff[n](t)*x**n for n in range(0,spatialOrder+1)],axis=0)
+    dvdt = lambda t,x: np.sum([dvdtCoeff[n](t)*x**n for n in range(0,spatialOrder+1)],axis=0)
+
+    return u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2
+
+
 
 def constructSourceTermFunction(u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2,params):
     #Construct Source term
