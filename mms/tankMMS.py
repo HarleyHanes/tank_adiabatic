@@ -6,10 +6,7 @@ import matplotlib.pyplot as plt
 
 def runMMStest(higherOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 0):
     #Parse inputs
-    temporals=[lambda t: 1+0*t,lambda t: 1+1*t, lambda t: 1+t*np.exp(2*t)]
-    temporalsdt=[lambda t: 0*t,lambda t: 1+0*t, lambda t: np.exp(2*t)+2*t*np.exp(2*t)]
-    #temporals = [lambda t: 1+0*t, lambda t: t, lambda t: t**2, lambda t: np.sin(t)]
-    #temporalsdt = [lambda t: 0*t, lambda t: 1+0*t, lambda t: 2*t, lambda t: np.cos(t)]
+    temporals=[1]
     #Pre allocate solution and error arrays, the (2,2) indices are for (u,v) and then (MMS,Model) where MMS is true value and Model is computed value
     error = np.empty((len(nCollocations),len(nElems),len(temporals),len(higherOrders),2,2))
     errorSpace = np.empty((len(nCollocations),len(nElems),len(temporals),len(higherOrders),2,2,tEval.size))
@@ -36,13 +33,10 @@ def runMMStest(higherOrders,nCollocations,nElems,xEval,tEval,params,verbosity = 
                         spatialOrder=higherOrders[iorder]
                         if verbosity > 0:
                             print("Order: ", spatialOrder)
+                    else:
+                        raise Exception("higherOrdrs elements must be integers, other implementations deprecated")
                         #Construct solutions that are sum of monomials up to spatialOrder 
-                        u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructPolynomialMMSsolutionFunction(spatialOrder,params,temporals[itemporal],temporalsdt[itemporal])
-                    if type(higherOrders[iorder])==str:
-                        if higherOrders[iorder]=="sin":
-                            u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructSinMMssolutionFunction(params,temporals[itemporal],temporalsdt[itemporal])
-                        if higherOrders[iorder]=="nonSeperableSinusoidal":
-                            u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructNonSeperableMMSsolutionFunction(params,spatialOrder)
+                    u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2 = constructNonSeperableMMSsolutionFunction(params,spatialOrder)
                     sourceFunction = constructSourceTermFunction(lambda t: u(t,model.collocationPoints), 
                                                                  lambda t: dudt(t,model.collocationPoints), 
                                                                  lambda t: dudx(t,model.collocationPoints), 
@@ -191,29 +185,35 @@ def constructNonSeperableMMSsolutionFunction(params,spatialOrder):
     dvdtCoeff = np.zeros((spatialOrder+1), dtype=object)
     # Fill higher-order coeffecients
     for n in range(2,spatialOrder+1):
-        uCoeff[n] = lambda t: np.sin(2*n*np.pi*t)+np.cos(2*n*np.pi*t)
-        dudtCoeff[n] = lambda t: 2*n*np.pi*(np.cos(2*n*np.pi*t)-np.sin(2*n*np.pi*t))
-        vCoeff[n] = lambda t: np.sin(2*n*np.pi*t)+np.cos(2*n*np.pi*t)
-        dvdtCoeff[n] = lambda t: 2*n*np.pi*(np.cos(2*n*np.pi*t)-np.sin(2*n*np.pi*t))
-
+        # uCoeff[n] = lambda t: np.sin(2*n*np.pi*t)+np.cos(2*n*np.pi*t)
+        # dudtCoeff[n] = lambda t: 2*n*np.pi*(np.cos(2*n*np.pi*t)-np.sin(2*n*np.pi*t))
+        # vCoeff[n] = lambda t: np.sin(2*n*np.pi*t)+np.cos(2*n*np.pi*t)
+        # dvdtCoeff[n] = lambda t: 2*n*np.pi*(np.cos(2*n*np.pi*t)-np.sin(2*n*np.pi*t))
+        uCoeff[n] = lambda t: -1-t
+        dudtCoeff[n] = lambda t: -1-t
+        vCoeff[n] = lambda t: -1+0*t
+        dvdtCoeff[n] = lambda t: -1+0*t
     # Fill first order coeffecients from right- boundary condition
     uCoeff[1] = lambda t: -np.sum([n*uCoeff[n](t) for n in range(2,spatialOrder+1)], axis=0)
     vCoeff[1] = lambda t: -np.sum([n*vCoeff[n](t) for n in range(2,spatialOrder+1)], axis=0)
+    dudtCoeff[1] = lambda t: -np.sum([n*dudtCoeff[n](t) for n in range(2,spatialOrder+1)], axis=0)
+    dvdtCoeff[1] = lambda t: -np.sum([n*dvdtCoeff[n](t) for n in range(2,spatialOrder+1)], axis=0)
 
 
     uCoeff[0] = lambda t: uCoeff[1](t)/params["PeM-boundary"]
     vCoeff[0] = lambda t: (vCoeff[1](t)/params["PeT-boundary"]+params["f"]*np.sum([vCoeff[i](t) for i in range(1,spatialOrder+1)],axis=0)) / (1-params["f"])
+    dudtCoeff[0] = lambda t: dudtCoeff[1](t)/params["PeM-boundary"]
+    dvdtCoeff[0] = lambda t: (dvdtCoeff[1](t)/params["PeT-boundary"]+params["f"]*np.sum([dvdtCoeff[i](t) for i in range(1,spatialOrder+1)],axis=0)) / (1-params["f"])
 
+    u = lambda t,x: np.sum([np.outer(uCoeff[n](t),x**n) for n in range(0,spatialOrder+1)],axis=0).squeeze()
+    v = lambda t,x: np.sum([np.outer(vCoeff[n](t),x**n) for n in range(0,spatialOrder+1)],axis=0).squeeze()
+    dudx = lambda t,x: np.sum([np.outer(uCoeff[n](t),n*x**(n-1)) for n in range(1,spatialOrder+1)],axis=0).squeeze()
+    dvdx = lambda t,x: np.sum([np.outer(vCoeff[n](t),n*x**(n-1)) for n in range(1,spatialOrder+1)],axis=0).squeeze()
+    dudx2 = lambda t,x: np.sum([np.outer(uCoeff[n](t),n*(n-1)*x**(n-2)) for n in range(2,spatialOrder+1)],axis=0).squeeze()
+    dvdx2 = lambda t,x: np.sum([np.outer(vCoeff[n](t),n*(n-1)*x**(n-2)) for n in range(2,spatialOrder+1)],axis=0).squeeze()
 
-    u = lambda t,x: np.sum([uCoeff[n](t)*x**n for n in range(0,spatialOrder+1)],axis=0)
-    v = lambda t,x: np.sum([vCoeff[n](t)*x**n for n in range(0,spatialOrder+1)],axis=0)
-    dudx = lambda t,x: np.sum([n*uCoeff[n](t)*x**(n-1) for n in range(1,spatialOrder+1)],axis=0)
-    dvdx = lambda t,x: np.sum([n*vCoeff[n](t)*x**(n-1) for n in range(1,spatialOrder+1)],axis=0)
-    dudx2 = lambda t,x: np.sum([n*(n-1)*uCoeff[n](t)*x**(n-2) for n in range(2,spatialOrder+1)],axis=0)
-    dvdx2 = lambda t,x: np.sum([n*(n-1)*vCoeff[n](t)*x**(n-2) for n in range(2,spatialOrder+1)],axis=0)
-
-    dudt = lambda t,x: np.sum([dudtCoeff[n](t)*x**n for n in range(0,spatialOrder+1)],axis=0)
-    dvdt = lambda t,x: np.sum([dvdtCoeff[n](t)*x**n for n in range(0,spatialOrder+1)],axis=0)
+    dudt = lambda t,x: np.sum([np.outer(dudtCoeff[n](t),x**n) for n in range(0,spatialOrder+1)],axis=0).squeeze()
+    dvdt = lambda t,x: np.sum([np.outer(dvdtCoeff[n](t),x**n) for n in range(0,spatialOrder+1)],axis=0).squeeze()
 
     return u, dudt, dudx, dudx2, v, dvdt, dvdx, dvdx2
 

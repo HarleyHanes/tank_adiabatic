@@ -9,12 +9,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 import tankMMS
-nCollocations = [2]
+nCollocations = [1]
 verbosity = 1
 
 #I think there's an error with the higher
-higherOrderTerms=[7]  #Must be greater than 2 to satisfy BC
-nElems = np.array([2,4,8,16,32,64,128])  #Cant use nElems=1 due to some dimensionality issues with squeeze
+higherOrderTerms=[4]  #Must be greater than 2 to satisfy BC
+nElems = np.array([2,4,8,16,32])  #Cant use nElems=1 due to some dimensionality issues with squeeze
 parameterSet="Bizon2012_stable"
 #Parameter limitations:
 # Non-negative: Da, gamma, beta, delta
@@ -62,7 +62,7 @@ for iOrder in range(len(higherOrderTerms)):
         print("            u Linf Convergence: " + str(convergenceSpace[iColl,:,0,iOrder,0,1,0]))
         print("            v L2 Convergence: " + str(convergenceSpace[iColl,:,0,iOrder,1,0,0]))
         print("            v Linf Convergence: " + str(convergenceSpace[iColl,:,0,iOrder,1,1,0]))
-        for itemporal in range(3):
+        for itemporal in range(error.shape[2]):
             print("        Temporal " + str(itemporal))
             print("            u L2 Errors: " + str(error[iColl,:,itemporal,iOrder,0,0]))
             print("            u Linf Errors: " + str(error[iColl,:,itemporal,iOrder,0,1]))
@@ -151,7 +151,7 @@ for iOrder in range(len(higherOrderTerms)):
 
         #Plot the error and expected convergence rate of the joint space/temporal discretization
 
-        for itemporal in range(3):
+        for itemporal in range(error.shape[2]):
             expectedRate=nCollocations[iColl]+2
             convergenceExampleStartValue=np.min(error[iColl,0,itemporal,iOrder,:,:])*.35
             convergenceExample=convergenceExampleStartValue*(nElems[0]/nElems)**(expectedRate)
