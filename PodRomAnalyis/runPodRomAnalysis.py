@@ -48,7 +48,7 @@ def main():
     mean_reduction = ["mean"]
     adjustModePairs=False
     error_norm = [r"$L_2$",r"$L_\infty$"]
-    romSensitivityApproach = ["finite","sensEq","complex"] #none, finite, sensEq, DEPOD (unfinished), complex, only used if equationSet!=tankOnly
+    romSensitivityApproach = ["finite","sensEq","complex"] #none, finite, sensEq, complex, only used if equationSet!=tankOnly
     finiteDelta = 1e-6   #Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
     complexDelta = 1e-9 #Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
 
@@ -246,21 +246,15 @@ def main():
                                     plt.savefig(romSaveFolder + "../singularValues.png", format="png")
 
                                 #------------------------------- Compute POD
-                                # Get POD Decomposition
-                                if romSensitivityApproach[isens] == "DEPOD" and equationSet == "tankOnly":
-                                    # INCOMPLETE: need to setup POD computation for mixed-solution and sensitivity snapshot matrices
-                                    raise ValueError("DEPOD not yet implemented")
-                                    romData, truncationError[iret,:]=model.constructPodRom(modelCoeff,x,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold)
-                                else :
-                                    if controlApproach == "DEIM":
-                                        romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,nDeimPoints=controlParam[iControlParam])
-                                    elif controlApproach == "nonLinReduction":
-                                        romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,nonlinDim=controlParam[iControlParam])
-                                    else:
-                                        romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
-                            
+                                if controlApproach == "DEIM":
+                                    romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,nDeimPoints=controlParam[iControlParam])
+                                elif controlApproach == "nonLinReduction":
+                                    romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,nonlinDim=controlParam[iControlParam])
+                                else:
+                                    romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
+                        
                                 #Compute time modes for sensitivity equations
-                                if romSensitivityApproach[isens] != "DEPOD" and equationSet != "tankOnly":
+                                if equationSet != "tankOnly":
                                     uFullTimeModes = romData.uTimeModes.copy()
                                     vFullTimeModes = romData.vTimeModes.copy()
                                     for i in range(neq-1):
@@ -278,25 +272,12 @@ def main():
 
                                 #------------------------------ Run POD-ROM
                                 #Get Initial Modal Values
-                                if romSensitivityApproach[isens] == "DEPOD" and equationSet != "tankOnly":
-                                    # INCOMPLETE: need to setup POD computation for mixed-solution and sensitivity snapshot matrices
-                                    raise ValueError("DEPOD not yet implemented")
-                                    #Compute Time modes for sensitivity equations
-                                    for i in range(1, neq):
-                                        start = i*(2*model.nCollocation*model.nElements)
-                                        timeModeIndex = modelCoeff.shape[0]*i
-                                        romInit[start:start+romData.uNmodes]\
-                                            =romData.uTimeModes[timeModeIndex,:romData.uNmodes]
-                                        romInit[start+romData.uNmodes:start+romData.uNmodes+romData.vNmodes]\
-                                            =romData.vTimeModes[timeModeIndex,:romData.vNmodes]
-                                    dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect=paramSelect,penaltyStrength=0)
-                                else: 
-                                    romInit=np.empty((romData.uNmodes+romData.vNmodes))
-                                    romInit[:romData.uNmodes]\
-                                        =romData.uTimeModes[0,:romData.uNmodes]
-                                    romInit[romData.uNmodes:romData.uNmodes+romData.vNmodes]\
-                                        =romData.vTimeModes[0,:romData.vNmodes]
-                                    dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=penaltyStrength)
+                                romInit=np.empty((romData.uNmodes+romData.vNmodes))
+                                romInit[:romData.uNmodes]\
+                                    =romData.uTimeModes[0,:romData.uNmodes]
+                                romInit[romData.uNmodes:romData.uNmodes+romData.vNmodes]\
+                                    =romData.vTimeModes[0,:romData.vNmodes]
+                                dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=penaltyStrength)
                                 #Compute Base Rom Value
                                 odeOut = scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax),romInit, t_eval=tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
                                 romCoeff = np.empty((modelCoeff.shape[0],neq*(romData.uNmodes+romData.vNmodes)))
