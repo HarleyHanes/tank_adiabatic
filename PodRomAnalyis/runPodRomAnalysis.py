@@ -211,28 +211,27 @@ def main():
                                 else:
                                     podSaveFolder+="/"
 
-                                if not os.path.exists(podSaveFolder) and plotControl:
-                                    os.makedirs(podSaveFolder)
-
                                 if controlApproach=="nonLinReduction":
                                     controlSaveFolder = podSaveFolder + "nDim" + str(controlParam[iControlParam]) + "/"
                                 elif controlApproach=="DEIM":
                                     controlSaveFolder = podSaveFolder + "nDEIM" + str(controlParam[iControlParam]) + "/"
                                 else:
                                     controlSaveFolder = podSaveFolder + "noControl/"
-                                    
-                                if not os.path.exists(controlSaveFolder) and plotConvergence:
-                                    os.makedirs(controlSaveFolder)
-
+                                
                                 if useEnergyThreshold:
                                     romSaveFolder = controlSaveFolder + "e"+str(modeRetention[iret])+"/"
                                 else :
                                     romSaveFolder = controlSaveFolder + "m"+str(modeRetention[iret])+"/"
 
+                                #Create folders if they don't exist
                                 if not os.path.exists(controlSaveFolder) and plotConvergence:
                                     os.makedirs(controlSaveFolder)
                                 if not os.path.exists(romSaveFolder) and (plotTimeSeries or plotModes or plotError or plotRomCoeff or plotSingularValues):
                                     os.makedirs(romSaveFolder)
+                                if not os.path.exists(podSaveFolder) and plotControl:
+                                    os.makedirs(podSaveFolder)
+                                
+                                #Plot full singular value distribution
                                 if iret ==0 and plotSingularValues:
                                     romData, null =model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,min(nT,nPoints),mean=mean_reduction[imean],useEnergyThreshold=False,nDeimPoints="none")
                                     fig, axes = plt.subplots(1,1, figsize=(5,4))
@@ -285,8 +284,8 @@ def main():
                                 
                                 #------------------------------- Compute Sensitivity
                                 if equationSet!="tankOnly":
-                                    if romSensitivityApproach[isens] == "finite":
-                                        for iparam in range(len(paramSelect)):
+                                    for iparam in range(len(paramSelect)):
+                                        if romSensitivityApproach[isens] == "finite":
                                             if verbosity >= 1:
                                                 print("Computing sensitivity for " + paramSelect[iparam])
                                             if sensInit[iInit]=="pod":
@@ -306,9 +305,8 @@ def main():
                                             odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax),perturbedRomCoeff, t_eval = tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
                                             #Compute Sensitivity in POD space
                                             romCoeff[:,(iparam+1)*(romData.uNmodes+romData.vNmodes):(iparam+2)*(romData.uNmodes+romData.vNmodes)]=\
-                                                odeOut.y.transpose()-romCoeff[:,:romData.uNmodes+romData.vNmodes]
-                                    elif romSensitivityApproach[isens] == "complex":
-                                        for iparam in range(len(paramSelect)):
+                                                (odeOut.y.transpose()-romCoeff[:,:romData.uNmodes+romData.vNmodes])/finiteDelta
+                                        elif romSensitivityApproach[isens] == "complex":
                                             if verbosity >= 1:
                                                 print("Computing sensitivity for " + paramSelect[iparam])
                                             #Initialize sensitivity
@@ -331,8 +329,7 @@ def main():
                                             #Compute Sensitivity in POD space
                                             romCoeff[:,(iparam+1)*(romData.uNmodes+romData.vNmodes):(iparam+2)*(romData.uNmodes+romData.vNmodes)]=\
                                                 np.imag(odeOut.y.transpose())/complexDelta
-                                    elif romSensitivityApproach[isens] == "sensEq":
-                                        for iparam in range(len(paramSelect)):
+                                        elif romSensitivityApproach[isens] == "sensEq":
                                             if verbosity >= 1:
                                                 print("Computing sensitivity for " + paramSelect[iparam])
                                             romInit = np.empty((2*(romData.uNmodes+romData.vNmodes)))
