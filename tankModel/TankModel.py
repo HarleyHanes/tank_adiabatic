@@ -681,7 +681,7 @@ class TankModel:
 
     #================================POD-ROM===================================================
 
-    def constructPodRom(self,modelCoeff,x,W,modeThreshold,nonlinDim = "max",mean="mean",useEnergyThreshold=True,adjustModePairs=False,nDeimPoints="none"):
+    def constructPodRom(self,modelCoeff,x,W,modeThreshold,nonlinDim = "max",mean="mean",useEnergyThreshold=True,adjustModePairs=False):
         #Get Snapshots and derivatives of snapshots
         uEval,vEval = self.eval(x,modelCoeff,output="seperated")
         #Compute Mean, keeping dimension so casting works
@@ -758,38 +758,42 @@ class TankModel:
               = self.computeRomMatrices(W,vMean, vMeanx, vMeanxx, vModes, vModesx,vModesxx)
         truncationError=np.mean([uTruncationError,vTruncationError])
         
-        if nonlinDim=="max":
-            uNonlinDim = uModes.shape[1]
-            vNonlinDim = vModes.shape[1]
-        elif nonlinDim<=1:
-            uNonlinDim = int(np.ceil(uModes.shape[1]*nonlinDim))
-            vNonlinDim = int(np.ceil(vModes.shape[1]*nonlinDim))
-        else: 
-            raise Exception("Error: Nonlinear reduced dimension greater than 1 entered. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
-        
-        #Compute DEIM Projection
-        # If any string input is entered for nDEIMpoints assume not using DEIM
-        if type(nDeimPoints) == str:
-            deimProjection = np.eye(uModes.shape[0])
-            uNonLinProjection = uModesWeighted.transpose()
-            vNonLinProjection = vModesWeighted.transpose()
-        else:
-            u = uModes@uTimeModes.transpose()+uMean.reshape((x.size,1))
-            v = vModes@vTimeModes.transpose()+vMean.reshape((x.size,1))
-            nonLinData = (1-u)*np.exp(self.params["gamma"]*self.params["beta"]\
-                                        *v/(1+self.params["beta"]*v))
-            nDeimPoints = min(int(np.ceil(nDeimPoints*max(uModes.shape[1],vModes.shape[1]))),uModes.shape[0])
-            deimBasis,deimProjection = self.computeDEIMbasis(nonLinData,nDeimPoints)
-            uNonLinProjection = self.computeDEIMmatrices(uModesWeighted,deimBasis,deimProjection)
-            vNonLinProjection = self.computeDEIMmatrices(vModesWeighted,deimBasis,deimProjection)
             
         return RomData(x, W, uTimeModes, uMean, uModes, uModesx, uModesxx, uModesWeighted,
                         uModesInt, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean,
                         uRomSecondOrderMat, uRomSecondOrderMean, vTimeModes, vMean,
                         vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
                         vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
-                        vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues, uNonlinDim,vNonlinDim,deimProjection,uNonLinProjection,vNonLinProjection), truncationError
+                        vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues, uModes.shape[1], vModes.shape[1],np.eye(uModes.shape[0]), uModesWeighted.transpose(), vModesWeighted.transpose()), truncationError
 
+    def computeNonLinReduction(self,romData,nonlinDim):
+        if nonlinDim=="max":
+            uNonlinDim = romData.uModes.shape[1]
+            vNonlinDim = romData.vModes.shape[1]
+        elif nonlinDim<=1:
+            uNonlinDim = int(np.ceil(romData.uModes.shape[1]*nonlinDim))
+            vNonlinDim = int(np.ceil(romData.vModes.shape[1]*nonlinDim))
+        else: 
+            raise Exception("Error: Nonlinear reduced dimension greater than 1 entered. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
+
+        romData.uNonlinDim = uNonlinDim
+        romData.vNonlinDim = vNonlinDim
+        return romData
+
+    def computeDEIMProjection(self,romData,nDeimPoints):
+        #Compute DEIM Projection
+        u = romData.uModes@romData.uTimeModes.transpose()+romData.uMean.reshape((romData.x.size,1))
+        v = romData.vModes@romData.vTimeModes.transpose()+romData.vMean.reshape((romData.x.size,1))
+        nonLinData = (1-u)*np.exp(self.params["gamma"]*self.params["beta"]\
+                                    *v/(1+self.params["beta"]*v))
+        nDeimPoints = min(int(np.ceil(nDeimPoints*max(romData.uModes.shape[1],romData.vModes.shape[1]))),romData.uModes.shape[0])
+        deimBasis,deimProjection = self.computeDEIMbasis(nonLinData,nDeimPoints)
+        
+        romData.uNonLinProjection = self.computeDEIMmatrices(romData.uModesWeighted,deimBasis,deimProjection)
+        romData.vNonLinProjection = self.computeDEIMmatrices(romData.vModesWeighted,deimBasis,deimProjection)
+        romData.deimProjection = deimProjection
+        return romData
+    
     def computeDEIMbasis(self,nonLinData,nDeimModes):
         #Compute basis for non-linear evaluationd data using POD
         Psi,sigma,V = np.linalg.svd(nonLinData)

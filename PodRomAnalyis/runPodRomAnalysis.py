@@ -15,21 +15,21 @@ import matplotlib.pyplot as plt
 
 def main():
     #================================================================Define Simulation Details===============================================================================================
-    verbosity =0
+    verbosity =1
     showPlots= True
     #Run Types
     plotControl=False
-    plotConvergence=True
+    plotConvergence=False
 
-    plotTimeSeries=False
-    plotModes=False
-    plotError=False
-    plotRomCoeff=False
-    plotSingularValues=False
+    plotTimeSeries=True
+    plotModes=True
+    plotError=True
+    plotRomCoeff=True
+    plotSingularValues=True
 
     makeMovies=False
     #FOM parameters
-    paramSet = "BizonNonLinear" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
+    paramSet = "BizonPeriodic" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
     nCollocation=2
     nElements=64
@@ -40,7 +40,9 @@ def main():
     #ROM parameters
     usePodRom=True
     useEnergyThreshold=False
-    controlApproach = "none" #none, DEIM, nonLinReduction
+    nDeimPoints = "max" #Base value for DEIM, max or integer
+    nonLinReduction = 1 #Base value for nonLinReduction, 1 means no reduction
+    controlApproach = "nonLinReduction" #none, DEIM, nonLinReduction
     controlMetric= ["Error at 99% Retention","Error at 99.9% Retention","Error at 99.99% Retention","Sum of Relative Error Increases"]
     penaltyStrength=0
     sensInit = ["pod","zero"]
@@ -173,44 +175,86 @@ def main():
                 if verbosity >= 1:
                     print(f"Using {quadRule[iquad]} quadrature rule, {romSensitivityApproach[isens]} sensitivity approach, {sensInit[iInit]} sensitivity initialization")
                 for imean in range(len(mean_reduction)):
-                    #Intialize FOM data and results storage
-                    if usePodRom:
-                        uResults = np.empty((neq,modelCoeff.shape[0],3,nPoints))
-                        vResults = np.empty((neq,modelCoeff.shape[0],3,nPoints))
-                    else:
-                        uResults = np.empty((neq,modelCoeff.shape[0],1,nPoints))
-                        vResults = np.empty((neq,modelCoeff.shape[0],1,nPoints))
-                    x,W = model.getQuadWeights(nPoints,quadRule[iquad])
-                    for i in range(0, neq):
-                        fomStart = i*(2*model.nCollocation*model.nElements)
-                        uResults[i,:,0,:], vResults[i,:,0,:] = model.eval(x,modelCoeff[:,fomStart:fomStart+2*model.nCollocation*model.nElements],output="seperated")
-                    error = np.empty((len(modeRetention),len(error_norm)))
                     truncationError=np.empty((len(modeRetention),))
+                    error = np.empty((len(modeRetention),len(controlParam),len(error_norm)))
                     controlResult = np.empty((len(controlMetric),len(controlParam),len(error_norm)))
-                    for iControlParam in range((len(controlParam))):
-                        for iret in range(len(modeRetention)):
-                            if usePodRom:
-                                if verbosity >=1:
-                                    print("             Running POD-ROM for control param ", controlParam[iControlParam], " mode retention ", modeRetention[iret], " and mean reduction ", mean_reduction[imean])
-                                #------------------------------- Make Folder to save data
-                                if equationSet != "tankOnly":
-                                    podSaveFolder = fomSaveFolder + "_" + romSensitivityApproach[isens] + "_" + sensInit[iInit]
-                                    if romSensitivityApproach[isens] == "finite":
-                                        podSaveFolder += "_d"+str(finiteDelta)
-                                    elif romSensitivityApproach[isens] == "complex":
-                                        podSaveFolder += "_d"+str(complexDelta)
-                                else:
-                                    podSaveFolder = fomSaveFolder
-                                if penaltyStrength != 0:
-                                    podSaveFolder += "/"+mean_reduction[imean] + "_"+quadRule[iquad]+"_n"+str(nPoints)+"_p"+str(penaltyStrength)
-                                else:
-                                    podSaveFolder += "/"+mean_reduction[imean] + "_"+quadRule[iquad]+"_n"+str(nPoints)
-                                
-                                if adjustModePairs ==True:
-                                    podSaveFolder+= "_adjusted/"
-                                else:
-                                    podSaveFolder+="/"
+                    x,W = model.getQuadWeights(nPoints,quadRule[iquad])
+                    uFomData=np.empty((neq,modelCoeff.shape[0],nPoints))
+                    vFomData=np.empty((neq,modelCoeff.shape[0],nPoints))
+                    for i in range(neq):
+                        fomStart = i*(2*model.nCollocation*model.nElements)
+                        uFomData[i], vFomData[i] = model.eval(x,modelCoeff[:,fomStart:fomStart+2*model.nCollocation*model.nElements],output="seperated")
+                    for iret in range(len(modeRetention)):
+                        #============================= Construct POD 
+                        if usePodRom:
+                            if equationSet != "tankOnly":
+                                podSaveFolder = fomSaveFolder + "_" + romSensitivityApproach[isens] + "_" + sensInit[iInit]
+                                if romSensitivityApproach[isens] == "finite":
+                                    podSaveFolder += "_d"+str(finiteDelta)
+                                elif romSensitivityApproach[isens] == "complex":
+                                    podSaveFolder += "_d"+str(complexDelta)
+                            else:
+                                podSaveFolder = fomSaveFolder
+                            if penaltyStrength != 0:
+                                podSaveFolder += "/"+mean_reduction[imean] + "_"+quadRule[iquad]+"_n"+str(nPoints)+"_p"+str(penaltyStrength)
+                            else:
+                                podSaveFolder += "/"+mean_reduction[imean] + "_"+quadRule[iquad]+"_n"+str(nPoints)
+                            
+                            if adjustModePairs ==True:
+                                podSaveFolder+= "_adjusted/"
+                            else:
+                                podSaveFolder+="/"
 
+                            if not os.path.exists(podSaveFolder) and plotControl:
+                                os.makedirs(podSaveFolder)
+
+                            #Plot full singular value distribution
+                            if iret ==0 and plotSingularValues:
+                                romData, null =model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,min(nT,nPoints),mean=mean_reduction[imean],useEnergyThreshold=False)
+                                fig, axes = plt.subplots(1,1, figsize=(5,4))
+                                axes.loglog(romData.uSingularValues,"-b",lw=5,ms=8)
+                                axes.loglog(romData.vSingularValues,"--m",lw=5,ms=8)
+                                axes.legend(["u","v"])
+                                axes.set_xlabel("Mode")
+                                axes.set_ylabel("Singular Value")
+                                plt.tight_layout()
+                                plt.savefig(podSaveFolder + "../singularValues.pdf", format="pdf")
+                                plt.savefig(podSaveFolder + "../singularValues.png", format="png")
+                            #------------------------------- Compute POD
+                            romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
+                    
+                            #Compute time modes for sensitivity equations
+                            if equationSet != "tankOnly":
+                                uFullTimeModes = romData.uTimeModes.copy()
+                                vFullTimeModes = romData.vTimeModes.copy()
+                                for i in range(neq-1):
+                                    uFullTimeModes = np.append(uFullTimeModes,\
+                                                            (romData.uModesWeighted.transpose() @ uResults[i+1,:,0,:].transpose()).transpose(),\
+                                                            axis=1)
+                                    vFullTimeModes = np.append(vFullTimeModes,\
+                                                            (romData.vModesWeighted.transpose() @ vResults[i+1,:,0,:].transpose()).transpose(),\
+                                                            axis=1)
+                                #Check Time modes match for first nModes
+                                if not np.isclose(uFullTimeModes[:,:romData.uNmodes],romData.uTimeModes).all():
+                                    raise ValueError("u time modes do not match")
+                                if not np.isclose(vFullTimeModes[:,:romData.vNmodes],romData.vTimeModes).all():
+                                    raise ValueError("v time modes do not match")
+                        for iControlParam in range((len(controlParam))):
+                            if verbosity >=1:
+                                print("             Running POD-ROM for control param ", controlParam[iControlParam], " mode retention ", modeRetention[iret], " and mean reduction ", mean_reduction[imean])
+
+                            #Intialize results storage
+                            if usePodRom:
+                                uResults = np.empty((neq,modelCoeff.shape[0],3,nPoints))
+                                vResults = np.empty((neq,modelCoeff.shape[0],3,nPoints))
+                            else:
+                                uResults = np.empty((neq,modelCoeff.shape[0],1,nPoints))
+                                vResults = np.empty((neq,modelCoeff.shape[0],1,nPoints))
+                            uResults[:,:,0,:] = uFomData
+                            vResults[:,:,0,:] = vFomData
+                            
+                            #======================================== Run POD-ROM ===============================================================================
+                            if usePodRom:
                                 if controlApproach=="nonLinReduction":
                                     controlSaveFolder = podSaveFolder + "nDim" + str(controlParam[iControlParam]) + "/"
                                 elif controlApproach=="DEIM":
@@ -228,48 +272,19 @@ def main():
                                     os.makedirs(controlSaveFolder)
                                 if not os.path.exists(romSaveFolder) and (plotTimeSeries or plotModes or plotError or plotRomCoeff or plotSingularValues):
                                     os.makedirs(romSaveFolder)
-                                if not os.path.exists(podSaveFolder) and plotControl:
-                                    os.makedirs(podSaveFolder)
-                                
-                                #Plot full singular value distribution
-                                if iret ==0 and plotSingularValues:
-                                    romData, null =model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,min(nT,nPoints),mean=mean_reduction[imean],useEnergyThreshold=False,nDeimPoints="none")
-                                    fig, axes = plt.subplots(1,1, figsize=(5,4))
-                                    axes.loglog(romData.uSingularValues,"-b",lw=5,ms=8)
-                                    axes.loglog(romData.vSingularValues,"--m",lw=5,ms=8)
-                                    axes.legend(["u","v"])
-                                    axes.set_xlabel("Mode")
-                                    axes.set_ylabel("Singular Value")
-                                    plt.tight_layout()
-                                    plt.savefig(romSaveFolder + "../singularValues.pdf", format="pdf")
-                                    plt.savefig(romSaveFolder + "../singularValues.png", format="png")
-
-                                #------------------------------- Compute POD
+                                #Update control parameters
                                 if controlApproach == "DEIM":
-                                    romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,nDeimPoints=controlParam[iControlParam])
+                                    nDeimPoints = controlParam[iControlParam]
                                 elif controlApproach == "nonLinReduction":
-                                    romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,nonlinDim=controlParam[iControlParam])
-                                else:
-                                    romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
-                        
-                                #Compute time modes for sensitivity equations
-                                if equationSet != "tankOnly":
-                                    uFullTimeModes = romData.uTimeModes.copy()
-                                    vFullTimeModes = romData.vTimeModes.copy()
-                                    for i in range(neq-1):
-                                        uFullTimeModes = np.append(uFullTimeModes,\
-                                                                (romData.uModesWeighted.transpose() @ uResults[i+1,:,0,:].transpose()).transpose(),\
-                                                                axis=1)
-                                        vFullTimeModes = np.append(vFullTimeModes,\
-                                                                (romData.vModesWeighted.transpose() @ vResults[i+1,:,0,:].transpose()).transpose(),\
-                                                                axis=1)
-                                    #Check Time modes match for first nModes
-                                    if not np.isclose(uFullTimeModes[:,:romData.uNmodes],romData.uTimeModes).all():
-                                        raise ValueError("u time modes do not match")
-                                    if not np.isclose(vFullTimeModes[:,:romData.vNmodes],romData.vTimeModes).all():
-                                        raise ValueError("v time modes do not match")
+                                    nonLinReduction = controlParam[iControlParam]
 
-                                #------------------------------ Run POD-ROM
+                                #Update romData with control approach
+                                if nDeimPoints != "max":
+                                    romData = model.computeDEIMProjection(romData, nDeimPoints)
+                                elif nonLinReduction!=1:
+                                    romData = model.computeNonLinReduction(romData, nonLinReduction)
+
+                                #------------------------------ Run ROM
                                 #Get Initial Modal Values
                                 romInit=np.empty((romData.uNmodes+romData.vNmodes))
                                 romInit[:romData.uNmodes]\
@@ -350,43 +365,45 @@ def main():
                                             romCoeff[:,(iparam+1)*(romData.uNmodes+romData.vNmodes):(iparam+2)*(romData.uNmodes+romData.vNmodes)]=\
                                                 odeOut.y.transpose()[:,romData.uNmodes+romData.vNmodes:].copy()
 
-                            #----------------------------- Map Results Back into Spatial Space
-                            for i in range(0, neq):
-                                # Compute ROM Solution
-                                romModeStart = i*(romData.uNmodes+romData.vNmodes)
-                                #ROM Error
-                                if i==0:
-                                    uResults[i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose() + romData.uMean
-                                    vResults[i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose() + romData.vMean
-                                else:
-                                    uResults[i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose()
-                                    vResults[i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose()
-                                #POD Error
-                                if i==0:
-                                    uResults[i,:,2,:] = ((romData.uModes @ romData.uTimeModes[:romCoeff.shape[0],:].transpose())+romData.uMean.reshape((romData.uMean.size,1))).transpose()
-                                    vResults[i,:,2,:] = (romData.vModes @ romData.vTimeModes[:romCoeff.shape[0],:].transpose() +romData.vMean.reshape((romData.vMean.size,1))).transpose()
-                                else:
-                                    #We can generalize POD to the variationin the POD space projected back to the FOM space, regardless of whether sensitivities were in initial POD decomp
-                                    #Note: Confirmed that, if POD modes are computed using sensitivity snapshots, then this is equivalent to those modes if no mean decomp is used
-                                    #UNVERIFIED: That that property holds numerically with this implementation and whether it holds if using a mean decomp
-                                    if mean_reduction[imean]!="zero":
-                                        print("WARNING: Correctness of approach unconfirmed for non-zero mean reduction")
-                                    
-                                    uResults[i,:,2,:] = (romData.uModes @ uFullTimeModes[:,i*romData.uNmodes:(i+1)*romData.uNmodes].transpose()+romData.uMean.reshape((romData.uMean.size,1))).transpose()
-                                    vResults[i,:,2,:] = (romData.vModes @ vFullTimeModes[:,i*romData.vNmodes:(i+1)*romData.vNmodes].transpose()+romData.vMean.reshape((romData.vMean.size,1))).transpose()
-                            #================================================== Compute Error =================================================================
-                            for k in range(len(error_norm)):
-                                error[iret,k] = model.computeRomError(uResults[0,:,0,:].transpose(),vResults[0,:,0,:].transpose(),uResults[0,:,1,:].transpose(),vResults[0,:,1,:].transpose(),romData.W,tPoints=tPoints,norm=error_norm[k])
-                                if verbosity >= 2:
-                                    print(                  "ROM Error in norm "+error_norm[k]+": ", error[iret,k])
-                                #INCOMPLETE: Figure out what want to compute for sensitivity error.
+                                #----------------------------- Map Results Back into Spatial Space
+                                for i in range(0, neq):
+                                    # Compute ROM Solution
+                                    romModeStart = i*(romData.uNmodes+romData.vNmodes)
+                                    #ROM Error
+                                    if i==0:
+                                        uResults[i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose() + romData.uMean
+                                        vResults[i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose() + romData.vMean
+                                    else:
+                                        uResults[i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose()
+                                        vResults[i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose()
+                                    #POD Error
+                                    if i==0:
+                                        uResults[i,:,2,:] = ((romData.uModes @ romData.uTimeModes[:romCoeff.shape[0],:].transpose())+romData.uMean.reshape((romData.uMean.size,1))).transpose()
+                                        vResults[i,:,2,:] = (romData.vModes @ romData.vTimeModes[:romCoeff.shape[0],:].transpose() +romData.vMean.reshape((romData.vMean.size,1))).transpose()
+                                    else:
+                                        #We can generalize POD to the variationin the POD space projected back to the FOM space, regardless of whether sensitivities were in initial POD decomp
+                                        #Note: Confirmed that, if POD modes are computed using sensitivity snapshots, then this is equivalent to those modes if no mean decomp is used
+                                        #UNVERIFIED: That that property holds numerically with this implementation and whether it holds if using a mean decomp
+                                        if mean_reduction[imean]!="zero":
+                                            print("WARNING: Correctness of approach unconfirmed for non-zero mean reduction")
+                                        
+                                        uResults[i,:,2,:] = (romData.uModes @ uFullTimeModes[:,i*romData.uNmodes:(i+1)*romData.uNmodes].transpose()+romData.uMean.reshape((romData.uMean.size,1))).transpose()
+                                        vResults[i,:,2,:] = (romData.vModes @ vFullTimeModes[:,i*romData.vNmodes:(i+1)*romData.vNmodes].transpose()+romData.vMean.reshape((romData.vMean.size,1))).transpose()
+                                #================================================== Compute Error =================================================================
+                                for k in range(len(error_norm)):
+                                    error[iret,iControlParam,k] = model.computeRomError(uResults[0,:,0,:].transpose(),vResults[0,:,0,:].transpose(),uResults[0,:,1,:].transpose(),vResults[0,:,1,:].transpose(),romData.W,tPoints=tPoints,norm=error_norm[k])
+                                    if verbosity >= 2:
+                                        print(                  "ROM Error in norm "+error_norm[k]+": ", error[iret,iControlParam,k])
+                                    #INCOMPLETE: Figure out what want to compute for sensitivity error.
 
+
+                            #=========================================== Make Plots ===================================================================
                             if usePodRom:
                                 legends = ["FOM","ROM","POD"] 
                             else:
                                 legends = ["FOM"]
 
-                            #=========================================== Make Movies ===================================================================
+                            #------------------------------------------- Make Movies ----------------------
                             #Concatenate results for easier mangament in plotting 
                             combinedResults=np.empty((2*neq,)+uResults.shape[1:])
                             for i in range(1, neq):
@@ -404,7 +421,7 @@ def main():
                                 subplotMovie([v for v in vResults], x, fomSaveFolder + "v.mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
                                 subplotMovie([y for y in combinedResults], x, fomSaveFolder + "combined.mov", fps=15, xLabels="x",  yLabels=combinedLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
                             
-                            #================================================== Make example plots ============================================================
+                            #------------------------------------------ Make example plots --------------------------------------------------------
                             if plotTimeSeries:
                                 tplot = np.linspace(0,tPoints.size-1,4,dtype=int)
                                 title = ["t=" + str(round(1000*tPoints[it])/1000) for it in tplot]
@@ -479,7 +496,7 @@ def main():
                                     plt.savefig(romSaveFolder + "vRomMatrices_linearization.pdf", format="pdf", bbox_inches='tight', pad_inches=0.02)
                                     plt.savefig(romSaveFolder + "vRomMatrices_linearization.png", format="png", bbox_inches='tight', pad_inches=0.02)
 
-                            #================================================== Plot POD Modes ============================================================
+                            #------------------------------------------ Plot POD Modes --------------------------------------------------------
                             if plotModes and usePodRom:
                                 subplot([mode for mode in romData.uModes.transpose()], x, xLabels="x", yLabels=["Mode " + str(i+1) for i in range(romData.uNmodes)])
                                 plt.savefig(romSaveFolder + "uModes.pdf", format="pdf")
@@ -530,7 +547,7 @@ def main():
                                 plt.savefig(romSaveFolder + "uRomMatrices.png", format="png")
                                 
 
-                            #================================================== Plot Singular Values =======================================================
+                            #------------------------------------------- Plot Singular Values --------------------------------------------------------
                             if plotSingularValues:
                                 fig, axes = plt.subplots(1,1, figsize=(5,4))
                                 axes.semilogy(np.arange(1,romData.uSingularValues.size+1),romData.uSingularValues,"bs",lw=5,ms=8)
@@ -543,15 +560,11 @@ def main():
                                 plt.savefig(romSaveFolder + "singularValues.png", format="png")
                             if not showPlots:
                                 plt.close()
-                        if plotControl:
-                            for iMetric in range(len(controlMetric)):
-                                #Compute control metric
-                                controlResult[iMetric,iControlParam,:] = computeControlMetric(error,truncationError,controlMetric[iMetric])
-                            
-                        #=========================================== Plot Convergence ===================================================================
+                    #=========================================== Plot Convergence ===================================================================
+                    for iControlParam in range(len(controlParam)):
                         if usePodRom and plotConvergence and error.size>1:
-                            if error.ndim>2: 
-                                error = error.reshape((error.shape[0],error.shape[1]*error.shape[2]))
+                            if error.ndim>3: 
+                                error = error[:,:,iControlParam,:].reshape((error.shape[0],error.shape[2]*error.shape[3]))
 
                                 if len(mean_reduction)>1:
                                     legends = [mean_method +", "+ norm for mean_method in mean_reduction for norm in error_norm]
@@ -559,24 +572,28 @@ def main():
                                     legends =error_norm
                             else:
                                 legends=error_norm
-                                error=np.squeeze(error)
+                                error=np.squeeze(error[:,iControlParam,:])
                             fig,axs = plotErrorConvergence(error,truncationError,xLabel="Proportion Information Truncated in POD",yLabel="Relative ROM Error",legends=legends) 
                             plt.savefig(controlSaveFolder + "errorConvergence_s"+str(modeRetention[0])+"_e" + str(modeRetention[-1])+".pdf", format="pdf")
                             plt.savefig(controlSaveFolder + "errorConvergence_s"+str(modeRetention[0])+"_e" + str(modeRetention[-1])+".png", format="png")
                     #=========================================== Plot Control ===========================================================================
                     if usePodRom and plotControl and len(controlMetric)>1:
-                            if controlApproach == "DEIM":
-                                xLabel="DEIM Proportional Dimension"
-                            elif controlApproach == "nonLinReduction":
-                                xLabel="Nonlinear Term Proportional Dimension"
-                            for inorm in range(len(error_norm)):
-                                fig, axs = plotErrorConvergence(controlResult[:,:,inorm].transpose(),controlParam, yLabel = error_norm[inorm], xLabel =xLabel,legends=controlMetric,plotType = "semilogy") 
-                                if error_norm[inorm] == r"$L_2$":
-                                    plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_L2_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".pdf", format="pdf")
-                                    plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_L2_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".png", format="png")
-                                elif error_norm[inorm] == r"$L_\infty$":
-                                    plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_Linf_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".pdf", format="pdf")
-                                    plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_Linf_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".png", format="png")
+                        for iControlParam in range(len(controlParam)):
+                            for iMetric in range(len(controlMetric)):
+                                #Compute control metric
+                                controlResult[iMetric,iControlParam,:] = computeControlMetric(error[:,iControlParam,:],truncationError,controlMetric[iMetric])
+                        if controlApproach == "DEIM":
+                            xLabel="DEIM Proportional Dimension"
+                        elif controlApproach == "nonLinReduction":
+                            xLabel="Nonlinear Term Proportional Dimension"
+                        for inorm in range(len(error_norm)):
+                            fig, axs = plotErrorConvergence(controlResult[:,:,inorm].transpose(),controlParam, yLabel = error_norm[inorm], xLabel =xLabel,legends=controlMetric,plotType = "semilogy") 
+                            if error_norm[inorm] == r"$L_2$":
+                                plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_L2_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".pdf", format="pdf")
+                                plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_L2_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".png", format="png")
+                            elif error_norm[inorm] == r"$L_\infty$":
+                                plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_Linf_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".pdf", format="pdf")
+                                plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_Linf_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".png", format="png")
 
                                 
 
