@@ -682,11 +682,32 @@ class TankModel:
     #================================POD-ROM===================================================
 
     def constructPodRom(self,modelCoeff,x,W,modeThreshold,nonlinDim = "max",mean="mean",useEnergyThreshold=True,adjustModePairs=False):
-        #Get Snapshots and derivatives of snapshots
-        uEval,vEval = self.eval(x,modelCoeff,output="seperated")
-        #Compute Mean, keeping dimension so casting works
+        if modelCoeff.ndim==2:
+            #Get Snapshots and derivatives of snapshots
+            uEval,vEval = self.eval(x,modelCoeff,output="seperated")
+            uEvalx,vEvalx = self.eval(x,modelCoeff, output="seperated", deriv =1)
+            uEvalxx,vEvalxx = self.eval(x,modelCoeff, output="seperated", deriv =2)
+        else :
+            uEval = np.empty((modelCoeff.shape[0],modelCoeff.shape[1],x.size))
+            vEval = np.empty((modelCoeff.shape[0],modelCoeff.shape[1],x.size))
+            uEvalx = np.empty((modelCoeff.shape[0],modelCoeff.shape[1],x.size))
+            vEvalx = np.empty((modelCoeff.shape[0],modelCoeff.shape[1],x.size))
+            uEvalxx = np.empty((modelCoeff.shape[0],modelCoeff.shape[1],x.size))
+            vEvalxx = np.empty((modelCoeff.shape[0],modelCoeff.shape[1],x.size))
+            for i in range(modelCoeff.shape[0]):
+                uEval[i,:,:],vEval[i,:,:] = self.eval(x,modelCoeff[i,:,:],output="seperated")
+                uEvalx[i,:,:],vEvalx[i,:,:] = self.eval(x,modelCoeff[i,:,:],output="seperated", deriv=1)
+                uEvalxx[i,:,:],vEvalxx[i,:,:] = self.eval(x,modelCoeff[i,:,:],output="seperated", deriv=2)
+            #Flatten evaluations to all snapshots in 1st dimension
+            uEval=uEval.reshape((-1,uEval.shape[2]))
+            vEval=vEval.reshape((-1,vEval.shape[2]))
+            uEvalx=uEvalx.reshape((-1,uEvalx.shape[2]))
+            vEvalx=vEvalx.reshape((-1,vEvalx.shape[2]))
+            uEvalxx=uEvalxx.reshape((-1,uEvalxx.shape[2]))
+            vEvalxx=vEvalxx.reshape((-1,vEvalxx.shape[2]))
+            #Compute MeanCoeff , keeping dimension so casting works
+            meanCoeff = np.mean(modelCoeff,axis=[0,1])
         if mean =="mean":
-            meanCoeff = np.mean(modelCoeff,axis=0)
             uMean,vMean = self.eval(x,meanCoeff,output="seperated")
             uMeanx,vMeanx = self.eval(x,meanCoeff,output="seperated",deriv=1)
             uMeanxx,vMeanxx = self.eval(x,meanCoeff,output="seperated",deriv=2)
@@ -709,23 +730,21 @@ class TankModel:
             uMeanx,vMeanx = self.eval(x,modelCoeff[0],output="seperated",deriv=1)
             uMeanxx,vMeanxx = self.eval(x,modelCoeff[0],output="seperated",deriv=2)
         elif mean==np.ndarray:
-            if mean.ndim==1:
-                if mean.size==self.collocationPoints.size:
-                    uMean,vMean = self.eval(x,mean,output="seperated")
-                    uMeanx,vMeanx = self.eval(x,mean,output="seperated",deriv=1)
-                    uMeanxx,vMeanxx = self.eval(x,mean,output="seperated",deriv=2)
+                if mean.ndim==1:
+                    if mean.size==self.collocationPoints.size:
+                        uMean,vMean = self.eval(x,mean,output="seperated")
+                        uMeanx,vMeanx = self.eval(x,mean,output="seperated",deriv=1)
+                        uMeanxx,vMeanxx = self.eval(x,mean,output="seperated",deriv=2)
+                    else:
+                        raise ValueError("Invalid size for mean")
                 else:
-                    raise ValueError("Invalid size for mean")
-            else:
-                raise ValueError("Invalid dimension for mean")
-
+                    raise ValueError("Invalid dimension for mean")
+            
         uEval-=uMean
         vEval-=vMean
-        uEvalx,vEvalx = self.eval(x,modelCoeff, output="seperated", deriv =1)
         uEvalx-=uMeanx
         vEvalx-=vMeanx
 
-        uEvalxx,vEvalxx = self.eval(x,modelCoeff, output="seperated", deriv =2)
         uEvalxx-=uMeanxx
         vEvalxx-=vMeanxx
         if np.isclose(modelCoeff[:,:self.nElements*self.nCollocation],modelCoeff[:,self.nElements*self.nCollocation:], atol=1e-10).all():
@@ -897,7 +916,7 @@ class TankModel:
         timeModes = (timeModes@np.diag(S))[:,:nModes]
         #Check Orthonormality of modes
         if not np.isclose(modes.transpose()@W@modes,np.eye(modes.shape[1])).all():
-            print("WARNING: Modes not orthonormal")
+            #print("WARNING: Modes not orthonormal")
             if self.verbosity>=3:
                 print("Phi^TWPhi = ", modes.transpose()@W@modes)
                 print("Departure from Orthonormality: ", np.sum(np.eye(modes.shape[1])-modes.transpose()@W@modes))
