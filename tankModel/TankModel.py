@@ -1096,18 +1096,34 @@ class TankModel:
     
     def computeRomError(self,uEval,vEval,uRom,vRom, W,tPoints,norm="Linf"):
         #Map from romCoeff to rom Solution
-        if norm == "L2" or norm==r"$L_2$":
+        if norm == "L2" or norm==r"$L_2$" or norm == r"$L_2$ Error":
             #Compute joint-error
             errorU = np.sqrt(np.sum(W @ (uEval-uRom)**2))/ np.sum(W @ (uEval)**2)
             errorV = np.sqrt(np.sum(W @ (vEval-vRom)**2))/ np.sum(W @ (vEval)**2)
             #error = np.sqrt(np.max(np.sum(W @(uEval-uRom)**2,axis=0)))#/np.sum((W @vEval)**2))
             #error = np.sqrt(np.max(np.sum(W @(vEval-vRom)**2,axis=0)))#/np.sum((W @vEval)**2))
-        elif norm == "Linf" or norm==r"$L_\infty$":
+        elif norm == "Linf" or norm==r"$L_\infty$" or norm == r"$L_\infty$ Error":
             errorU = np.max(np.abs(uEval-uRom))
             errorV = np.max(np.abs(vEval-vRom))
             #error = np.max(np.abs(vEval-vRom))#/np.max(np.abs(vEval))
             # error = np.max(np.abs(uEval-uRom))#/np.max(np.abs(vEval))
+        else:
+            raise ValueError("Invalid norm selected: "+norm)
         error = (errorU+errorV)/2
         return error
-#Class that holds all the data defining a particular POD-ROM model. We define a seperate class to TankModel since
-# a single FOM may have numerous different ROMs computed from it. Properties not common to all ROMs are stored in this class for easier function parsing
+    def computeQOIs(self,uRom,vRom,W,tPoints,qoi="Max Outlet Temperature"):
+        if qoi=="Max Outlet Temperature":
+            #Compute max outlet temperature over time
+            qoiResult = np.max(vRom[-1,:])
+        elif qoi == "Average Outlet Temperature":
+            #Compute average outlet temperature over time
+            qoiResult = np.sum(vRom[-1,:])/tPoints.size
+        elif qoi == "Max Reactivity":
+            #Compute max reactivity over time
+            qoiResult = np.max(np.sum(W@uRom, axis=0))
+        elif qoi == "Average Reactivity":
+            #Compute average reactivity over time
+            qoiResult = np.mean(np.sum(W@uRom, axis=0))
+        else:
+            raise ValueError("Invalid qoi selected: "+qoi)
+        return qoiResult

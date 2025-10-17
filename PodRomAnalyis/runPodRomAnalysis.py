@@ -40,7 +40,7 @@ def main():
     nT=600
 
     #Parameter Sampling
-    param ="gamma"
+    param ="delta"
     paramBounding = .25
     nRomSamples = 15
 
@@ -56,7 +56,8 @@ def main():
     quadRule = ["simpson"] # simpson, gauss-legendre, uniform, monte carlo
     mean_reduction = ["mean"]
     adjustModePairs=False
-    error_norm = [r"$L_2$",r"$L_\infty$"]
+    error_norm = [r"$L_2$ Error",r"$L_\infty$ Error"]
+    qois = ["Max Reactivity", "Average Reactivity", "Max Outlet Temperature", "Average Outlet Temperature"]
     romSensitivityApproach = ["finite","sensEq","complex"] #none, finite, sensEq, complex, only used if equationSet!=tankOnly
     finiteDelta = 1e-6   #Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
     complexDelta = 1e-9 #Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
@@ -208,6 +209,7 @@ def main():
                 for imean in range(len(mean_reduction)):
                     truncationError=np.empty((len(modeRetention),))
                     error = np.empty((len(modeRetention),len(controlParam),len(romParamSamples),len(error_norm)))
+                    qoiResults = np.empty((len(modeRetention),len(controlParam),len(romParamSamples),len(qois)))
                     controlResult = np.empty((len(controlMetric),len(controlParam),len(romParamSamples),len(error_norm)))
                     x,W = model.getQuadWeights(nPoints,quadRule[iquad])
                     uFomData=np.empty((len(fomParamSamples),neq,nT,nPoints))
@@ -270,6 +272,7 @@ def main():
                             else:
                                 uResults = np.empty((len(romParamSamples),neq,nT,1,nPoints))
                                 vResults = np.empty((len(romParamSamples),neq,nT,1,nPoints))
+                            #Fill initial FOM data
                             uResults[:,:,:,0,:] = uRefData
                             vResults[:,:,:,0,:] = vRefData
 
@@ -326,7 +329,7 @@ def main():
                                     if verbosity >=2:
                                         print("                 Running POD-ROM for parameter sample ", iParamSample+1, " of ", len(romParamSamples))
                                     model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=romParamSamples[iParamSample],verbosity=verbosity)
-                                    
+                                    dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=penaltyStrength)
                                     #------------------------------ Run ROM
                                     #Get Initial Modal Values
                                     # NOTE: Need to check how indexing is going to be coming out of the POD development. They will all have the same initial condition but I need to decide if it's a 2D or 3D array
@@ -335,7 +338,6 @@ def main():
                                         =romData.uTimeModes[0,:romData.uNmodes]
                                     romInit[romData.uNmodes:romData.uNmodes+romData.vNmodes]\
                                         =romData.vTimeModes[0,:romData.vNmodes]
-                                    dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=penaltyStrength)
                                     #Compute Base Rom Value
                                     odeOut = scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax),romInit, t_eval=tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
                                     romCoeff = np.empty((nT,neq*(romData.uNmodes+romData.vNmodes)))
@@ -412,7 +414,6 @@ def main():
 
                                     #----------------------------- Map Results Back into Spatial Space
                                     for i in range(0, neq):
-                                        #NOTE: These mappings haven't been confirmed, only the indexing of u/vResults has been updated
                                         # Compute ROM Solution
                                         romModeStart = i*(romData.uNmodes+romData.vNmodes)
                                         #ROM Result
@@ -420,6 +421,7 @@ def main():
                                             uResults[iParamSample,i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose() + romData.uMean
                                             vResults[iParamSample,i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose() + romData.vMean
                                         else:
+                                            #NOTE: Should there still be a mean added here? Not sure
                                             uResults[iParamSample,i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose()
                                             vResults[iParamSample,i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose()
                                         #POD Result
@@ -444,6 +446,12 @@ def main():
                                         error[iret,iControlParam,iParamSample,k] = model.computeRomError(uResults[iParamSample,0,:,0,:].transpose(),vResults[iParamSample,0,:,0,:].transpose(),uResults[iParamSample,0,:,1,:].transpose(),vResults[iParamSample,0,:,1,:].transpose(),romData.W,tPoints=tPoints,norm=error_norm[k])
                                         if verbosity >= 2:
                                             print(                  "ROM Error in norm "+error_norm[k]+": ", error[iret,iControlParam,iParamSample,k])
+                                    #================================================== Compute QOIs =================================================================
+                                    for k in range(len(qois)):
+                                        #Error for ith param sample, only domain equations, all times, all points, between FOM and ROM
+                                        qoiResults[iret,iControlParam,iParamSample,k] = model.computeQOIs(uResults[iParamSample,0,:,1,:].transpose(),vResults[iParamSample,0,:,1,:].transpose(),romData.W,tPoints,qoi=qois[k])
+                                        if verbosity >= 2:
+                                            print(                  qois[k]+": ", qoiResults[iret,iControlParam,iParamSample,k])
                                         #INCOMPLETE: Figure out what want to compute for sensitivity error.
 
 
@@ -468,6 +476,21 @@ def main():
                                 axes.legend(error_norm)
                                 plt.savefig(romSaveFolder + "OATaccuracy_"+param + "_a" + str(paramBounding) + "nSamp" + str(nRomSamples) + ".pdf", format="pdf")
                                 plt.savefig(romSaveFolder + "OATaccuracy_"+param + "_a" + str(paramBounding) + "nSamp" + str(nRomSamples) + ".png", format="png")
+
+
+                                fig, axes = plt.subplots(1,1, figsize=(4,3))
+                                #L2 Error
+                                axes.semilogy(rom_values, qoiResults[iret,iControlParam, :,0],"-bs",lw=3,ms=8)
+                                #Linf Error
+                                axes.semilogy(rom_values, qoiResults[iret,iControlParam, :,1],"--m*",lw=3,ms=8)
+                                #L2 Error
+                                axes.semilogy(rom_values, qoiResults[iret,iControlParam, :,2],"-.g^",lw=3,ms=8)
+                                #Linf Error
+                                axes.semilogy(rom_values, qoiResults[iret,iControlParam, :,3],"-ro",lw=3,ms=8)
+                                axes.set_xlabel(param)
+                                axes.legend(qois)
+                                plt.savefig(romSaveFolder + "OATqois_"+param + "_a" + str(paramBounding) + "nSamp" + str(nRomSamples) + ".pdf", format="pdf")
+                                plt.savefig(romSaveFolder + "OATqois_"+param + "_a" + str(paramBounding) + "nSamp" + str(nRomSamples) + ".png", format="png")
 
                             #------------------------------------------- Make Movies ----------------------
                             #Concatenate results for easier mangament in plotting 
@@ -654,10 +677,10 @@ def main():
                             xLabel="Nonlinear Term Proportional Dimension"
                         for inorm in range(len(error_norm)):
                             fig, axs = plotErrorConvergence(controlResult[:,:,inorm].transpose(),controlParam, yLabel = error_norm[inorm], xLabel =xLabel,legends=controlMetric,plotType = "semilogy") 
-                            if error_norm[inorm] == r"$L_2$":
+                            if error_norm[inorm] == r"$L_2$ Error":
                                 plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_L2_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".pdf", format="pdf")
                                 plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_L2_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".png", format="png")
-                            elif error_norm[inorm] == r"$L_\infty$":
+                            elif error_norm[inorm] == r"$L_\infty$ Error":
                                 plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_Linf_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".pdf", format="pdf")
                                 plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_Linf_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".png", format="png")
 
@@ -751,6 +774,12 @@ def getSensitivityOptions(equationSet):
         uLabels=[r"$u$",r"$u_{v_H}$"]
         vLabels=[r"$v$",r"$v_{v_H}$"]
         combinedLabels= [r"$u$",r"$v$",r"$u_{v_H}$",r"$v_{v_H}$"]
+    elif equationSet == "gamma":
+        neq=2
+        paramSelect=["gamma"]
+        uLabels=[r"$u$",r"$u_{\gamma}$"]
+        vLabels=[r"$v$",r"$v_{\gamma}$"]
+        combinedLabels= [r"$u$",r"$v$",r"$u_{\gamma}$",r"$v_{\gamma}$"]
     elif equationSet == "linearParams":
         neq=4
         paramSelect=["Le","delta","vH"]
