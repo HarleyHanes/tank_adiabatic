@@ -706,7 +706,7 @@ class TankModel:
             uEvalxx=uEvalxx.reshape((-1,uEvalxx.shape[2]))
             vEvalxx=vEvalxx.reshape((-1,vEvalxx.shape[2]))
             #Compute MeanCoeff , keeping dimension so casting works
-            meanCoeff = np.mean(modelCoeff,axis=[0,1])
+            meanCoeff = np.mean(modelCoeff,axis=(0,1))
         if mean =="mean":
             uMean,vMean = self.eval(x,meanCoeff,output="seperated")
             uMeanx,vMeanx = self.eval(x,meanCoeff,output="seperated",deriv=1)
@@ -747,7 +747,7 @@ class TankModel:
 
         uEvalxx-=uMeanxx
         vEvalxx-=vMeanxx
-        if np.isclose(modelCoeff[:,:self.nElements*self.nCollocation],modelCoeff[:,self.nElements*self.nCollocation:], atol=1e-10).all():
+        if np.isclose(modelCoeff[...,:self.nElements*self.nCollocation],modelCoeff[...,self.nElements*self.nCollocation:], atol=1e-10).all():
             print("u and v coeffecients are the same")
             if not np.isclose(uEval,vEval, atol=1e-10).all():
                 raise ValueError("u and v coeffecients are the same but evaluations are not")
@@ -757,7 +757,7 @@ class TankModel:
                 raise ValueError("u and v coeffecients are the same but 2nd derivatives are not")
         uModes, uModesx, uModesxx, uTimeModes, uTruncationError, uSingularValues =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
         vModes, vModesx, vModesxx, vTimeModes, vTruncationError, vSingularValues =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
-        if np.isclose(modelCoeff[:,:self.nElements*self.nCollocation],modelCoeff[:,self.nElements*self.nCollocation:], atol=1e-10).all():
+        if np.isclose(modelCoeff[..., :self.nElements*self.nCollocation],modelCoeff[..., self.nElements*self.nCollocation:], atol=1e-10).all():
             print("L2 Difference in Modes: ", np.sqrt(np.sum(W@(uModes-vModes)**2)))
             print("Linf Difference in Modes: ", np.max(np.abs(uModes-vModes)))
         if self.bounds[0]==x[0]:

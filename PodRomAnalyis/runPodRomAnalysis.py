@@ -21,15 +21,17 @@ def main():
     plotControl=False
     plotConvergence=False
 
-    plotTimeSeries=True
-    plotModes=True
-    plotError=True
-    plotRomCoeff=True
-    plotSingularValues=True
+    plotRomInterpolation = True
+
+    plotTimeSeries=False
+    plotModes=False
+    plotError=False
+    plotRomCoeff=False
+    plotSingularValues=False
 
     makeMovies=False
     #FOM parameters
-    paramSet = "BizonPeriodic" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
+    paramSet = "BizonChaotic" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
     nCollocation=2
     nElements=64
@@ -37,9 +39,14 @@ def main():
     nPoints=599
     nT=600
 
+    #Parameter Sampling
+    param ="gamma"
+    paramBounding = .25
+    nRomSamples = 15
+
     #ROM parameters
     usePodRom=True
-    useEnergyThreshold=False
+    useEnergyThreshold=True
     nDeimPoints = "max" #Base value for DEIM, max or integer
     nonLinReduction = 1 #Base value for nonLinReduction, 1 means no reduction
     controlApproach = "nonLinReduction" #none, DEIM, nonLinReduction
@@ -57,7 +64,7 @@ def main():
     #================================================================= Set simulation parameters ==============================================================================================
     #Set POD Retention
     if useEnergyThreshold==True:
-        modeRetention=[.85,.99,.999]
+        modeRetention=.9999
     else:
         if plotConvergence or plotControl:
             if paramSet=="BizonChaotic":
@@ -140,6 +147,19 @@ def main():
     tPoints= np.linspace(0,tmax,num=nT)
     #Determine parameters to get sensitivity of
     neq, paramSelect, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
+    #=================================== Construct Parameter Samples =========================================================================
+    # Determine parameter samples (lower, center, upper for FOM; evenly spaced for ROM)
+    base_val = baseParams[param]
+    lo = base_val * (1 - paramBounding)
+    hi = base_val * (1 + paramBounding)
+
+    # FOM: 3 samples (lo, base, hi)
+    fom_values = np.linspace(lo, hi, 3).tolist()
+    fomParamSamples = [{**baseParams, param: v} for v in fom_values]
+
+    # ROM: nRomSamples across the same interval
+    rom_values = np.linspace(lo, hi, nRomSamples).tolist()
+    romParamSamples = [{**baseParams, param: v} for v in rom_values]
 
     #==================================== Setup system ===============================================================================
     if verbosity >= 1:
@@ -155,18 +175,29 @@ def main():
     if stabalized:
         #Run out till stabalizing in periodic domain
         odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(0,stabalizationTime),initialCondition, method=odeMethod,atol=1e-6,rtol=1e-6)
-        print(odeOut.y.shape)
         initialCondition = odeOut.y[:,-1].transpose()
     #=================================== Get Simulation Data ================================================================
+    #Step 1: Get FOM Data that will be used to generate ROM
     if verbosity >= 1:
         print("Getting Simulation Data")
-    odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(0,tmax), initialCondition, t_eval = tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
-    modelCoeff=odeOut.y.transpose()
-    if verbosity >=3:
-        print("modelCoeff shape: ", modelCoeff.shape)
+    dataModelCoeff = np.empty((len(fomParamSamples),nT,model.nCollocation*model.nElements*2*neq))
+    for i in range(len(fomParamSamples)):
+        model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=fomParamSamples[i],verbosity=verbosity)
+        dydtSens =lambda y,t: model.dydtSens(y,t,paramSelect=paramSelect)
+        odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(0,tmax), initialCondition, t_eval = tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
+        dataModelCoeff[i]=odeOut.y.transpose()
+        if verbosity >=3:
+            print("dataModelCoeff shape: ", dataModelCoeff.shape)
 
-
-
+    #Step 2: Get FOM Data that will be used to compare to ROM
+    refModelCoeff = np.empty((len(romParamSamples),nT,model.nCollocation*model.nElements*2*neq))
+    for i in range(len(romParamSamples)):
+        model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=romParamSamples[i],verbosity=verbosity)
+        dydtSens =lambda y,t: model.dydtSens(y,t,paramSelect=paramSelect)
+        odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtSens(y,t),(0,tmax), initialCondition, t_eval = tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
+        refModelCoeff[i]=odeOut.y.transpose()
+        if verbosity >=3:
+            print("refModelCoeff shape: ", refModelCoeff.shape)
     #================================== Run POD-ROM ==================================================================================
     
     for iquad in range(len(quadRule)):
@@ -176,14 +207,19 @@ def main():
                     print(f"Using {quadRule[iquad]} quadrature rule, {romSensitivityApproach[isens]} sensitivity approach, {sensInit[iInit]} sensitivity initialization")
                 for imean in range(len(mean_reduction)):
                     truncationError=np.empty((len(modeRetention),))
-                    error = np.empty((len(modeRetention),len(controlParam),len(error_norm)))
-                    controlResult = np.empty((len(controlMetric),len(controlParam),len(error_norm)))
+                    error = np.empty((len(modeRetention),len(controlParam),len(romParamSamples),len(error_norm)))
+                    controlResult = np.empty((len(controlMetric),len(controlParam),len(romParamSamples),len(error_norm)))
                     x,W = model.getQuadWeights(nPoints,quadRule[iquad])
-                    uFomData=np.empty((neq,modelCoeff.shape[0],nPoints))
-                    vFomData=np.empty((neq,modelCoeff.shape[0],nPoints))
+                    uFomData=np.empty((len(fomParamSamples),neq,nT,nPoints))
+                    vFomData=np.empty((len(fomParamSamples),neq,nT,nPoints))
+                    uRefData=np.empty((len(romParamSamples),neq,nT,nPoints))
+                    vRefData=np.empty((len(romParamSamples),neq,nT,nPoints))
                     for i in range(neq):
                         fomStart = i*(2*model.nCollocation*model.nElements)
-                        uFomData[i], vFomData[i] = model.eval(x,modelCoeff[:,fomStart:fomStart+2*model.nCollocation*model.nElements],output="seperated")
+                        for j in range(len(fomParamSamples)):
+                            uFomData[j,i], vFomData[j,i] = model.eval(x,dataModelCoeff[j,:,fomStart:fomStart+2*model.nCollocation*model.nElements],output="seperated")
+                        for j in range(len(romParamSamples)):
+                            uRefData[j,i], vRefData[j,i] = model.eval(x,refModelCoeff[j,:,fomStart:fomStart+2*model.nCollocation*model.nElements],output="seperated")
                     for iret in range(len(modeRetention)):
                         #============================= Construct POD 
                         if usePodRom:
@@ -210,7 +246,7 @@ def main():
 
                             #Plot full singular value distribution
                             if iret ==0 and plotSingularValues:
-                                romData, null =model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,min(nT,nPoints),mean=mean_reduction[imean],useEnergyThreshold=False)
+                                romData, null =model.constructPodRom(dataModelCoeff[:,:,:2*nCollocation*nElements],x,W,min(nT,nPoints),mean=mean_reduction[imean],useEnergyThreshold=False)
                                 fig, axes = plt.subplots(1,1, figsize=(5,4))
                                 axes.loglog(romData.uSingularValues,"-b",lw=5,ms=8)
                                 axes.loglog(romData.vSingularValues,"--m",lw=5,ms=8)
@@ -221,38 +257,22 @@ def main():
                                 plt.savefig(podSaveFolder + "../singularValues.pdf", format="pdf")
                                 plt.savefig(podSaveFolder + "../singularValues.png", format="png")
                             #------------------------------- Compute POD
-                            romData, truncationError[iret]=model.constructPodRom(modelCoeff[:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
+                            romData, truncationError[iret]=model.constructPodRom(dataModelCoeff[:,:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
                     
-                            #Compute time modes for sensitivity equations
-                            if equationSet != "tankOnly":
-                                uFullTimeModes = romData.uTimeModes.copy()
-                                vFullTimeModes = romData.vTimeModes.copy()
-                                for i in range(neq-1):
-                                    uFullTimeModes = np.append(uFullTimeModes,\
-                                                            (romData.uModesWeighted.transpose() @ uResults[i+1,:,0,:].transpose()).transpose(),\
-                                                            axis=1)
-                                    vFullTimeModes = np.append(vFullTimeModes,\
-                                                            (romData.vModesWeighted.transpose() @ vResults[i+1,:,0,:].transpose()).transpose(),\
-                                                            axis=1)
-                                #Check Time modes match for first nModes
-                                if not np.isclose(uFullTimeModes[:,:romData.uNmodes],romData.uTimeModes).all():
-                                    raise ValueError("u time modes do not match")
-                                if not np.isclose(vFullTimeModes[:,:romData.vNmodes],romData.vTimeModes).all():
-                                    raise ValueError("v time modes do not match")
                         for iControlParam in range((len(controlParam))):
                             if verbosity >=1:
                                 print("             Running POD-ROM for control param ", controlParam[iControlParam], " mode retention ", modeRetention[iret], " and mean reduction ", mean_reduction[imean])
 
                             #Intialize results storage
                             if usePodRom:
-                                uResults = np.empty((neq,modelCoeff.shape[0],3,nPoints))
-                                vResults = np.empty((neq,modelCoeff.shape[0],3,nPoints))
+                                uResults = np.empty((len(romParamSamples),neq,nT,3,nPoints))
+                                vResults = np.empty((len(romParamSamples),neq,nT,3,nPoints))
                             else:
-                                uResults = np.empty((neq,modelCoeff.shape[0],1,nPoints))
-                                vResults = np.empty((neq,modelCoeff.shape[0],1,nPoints))
-                            uResults[:,:,0,:] = uFomData
-                            vResults[:,:,0,:] = vFomData
-                            
+                                uResults = np.empty((len(romParamSamples),neq,nT,1,nPoints))
+                                vResults = np.empty((len(romParamSamples),neq,nT,1,nPoints))
+                            uResults[:,:,:,0,:] = uRefData
+                            vResults[:,:,:,0,:] = vRefData
+
                             #======================================== Run POD-ROM ===============================================================================
                             if usePodRom:
                                 if controlApproach=="nonLinReduction":
@@ -270,7 +290,7 @@ def main():
                                 #Create folders if they don't exist
                                 if not os.path.exists(controlSaveFolder) and plotConvergence:
                                     os.makedirs(controlSaveFolder)
-                                if not os.path.exists(romSaveFolder) and (plotTimeSeries or plotModes or plotError or plotRomCoeff or plotSingularValues):
+                                if not os.path.exists(romSaveFolder) and (plotTimeSeries or plotModes or plotError or plotRomCoeff or plotSingularValues or plotRomInterpolation):
                                     os.makedirs(romSaveFolder)
                                 #Update control parameters
                                 if controlApproach == "DEIM":
@@ -283,125 +303,171 @@ def main():
                                     romData = model.computeDEIMProjection(romData, nDeimPoints)
                                 elif nonLinReduction!=1:
                                     romData = model.computeNonLinReduction(romData, nonLinReduction)
-
-                                #------------------------------ Run ROM
-                                #Get Initial Modal Values
-                                romInit=np.empty((romData.uNmodes+romData.vNmodes))
-                                romInit[:romData.uNmodes]\
-                                    =romData.uTimeModes[0,:romData.uNmodes]
-                                romInit[romData.uNmodes:romData.uNmodes+romData.vNmodes]\
-                                    =romData.vTimeModes[0,:romData.vNmodes]
-                                dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=penaltyStrength)
-                                #Compute Base Rom Value
-                                odeOut = scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax),romInit, t_eval=tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
-                                romCoeff = np.empty((modelCoeff.shape[0],neq*(romData.uNmodes+romData.vNmodes)))
-                                romCoeff[:,:romData.uNmodes+romData.vNmodes] = odeOut.y.transpose()
+                                                        #Compute time modes for sensitivity equations
                                 
-                                #------------------------------- Compute Sensitivity
-                                if equationSet!="tankOnly":
-                                    for iparam in range(len(paramSelect)):
-                                        if romSensitivityApproach[isens] == "finite":
-                                            if verbosity >= 1:
-                                                print("Computing sensitivity for " + paramSelect[iparam])
-                                            if sensInit[iInit]=="pod":
-                                                #If finite-diff is exact at t=0 then u(0,x+delta)=u(0,x)+delta*u'(0,x)
-                                                perturbedRomCoeff = romCoeff[0,:romData.uNmodes+romData.vNmodes]
-                                                perturbedRomCoeff[:romData.uNmodes] +=\
-                                                    finiteDelta*uFullTimeModes[0,(iparam+1)*romData.uNmodes:(iparam+2)*romData.uNmodes]
-                                                perturbedRomCoeff[romData.uNmodes:romData.uNmodes+romData.vNmodes] += \
-                                                    finiteDelta*vFullTimeModes[0,(iparam+1)*romData.vNmodes:(iparam+2)*romData.vNmodes]
-                                            elif sensInit[iInit]=="zero":
-                                                #If finite-diff is zero at t=0 then u(0,x+delta)=u(0,x)
-                                                perturbedRomCoeff = romCoeff[0,:romData.uNmodes+romData.vNmodes]
-                                            perturbedParams = baseParams.copy()
-                                            perturbedParams[paramSelect[iparam]]+= finiteDelta
-                                            perturbedModel=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=perturbedParams,verbosity=verbosity)
-                                            dydtPodRom = lambda y,t: perturbedModel.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=penaltyStrength)
-                                            odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax),perturbedRomCoeff, t_eval = tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
-                                            #Compute Sensitivity in POD space
-                                            romCoeff[:,(iparam+1)*(romData.uNmodes+romData.vNmodes):(iparam+2)*(romData.uNmodes+romData.vNmodes)]=\
-                                                (odeOut.y.transpose()-romCoeff[:,:romData.uNmodes+romData.vNmodes])/finiteDelta
-                                        elif romSensitivityApproach[isens] == "complex":
-                                            if verbosity >= 1:
-                                                print("Computing sensitivity for " + paramSelect[iparam])
-                                            #Initialize sensitivity
-                                            if sensInit[iInit]=="pod":
-                                                #If finite-diff is exact at t=0 then u(0,x+delta)=u(0,x)+delta*u'(0,x)
-                                                perturbedRomCoeff = romCoeff[0,:romData.uNmodes+romData.vNmodes].astype(complex)
-                                                perturbedRomCoeff[:romData.uNmodes] += \
-                                                    1j*complexDelta*uFullTimeModes[0,(iparam+1)*romData.uNmodes:(iparam+2)*romData.uNmodes]
-                                                perturbedRomCoeff[romData.uNmodes:romData.uNmodes+romData.vNmodes] += \
-                                                    1j*complexDelta*vFullTimeModes[0,(iparam+1)*romData.vNmodes:(iparam+2)*romData.vNmodes]
-                                            elif sensInit[iInit]=="zero":
-                                                #If finite-diff is zero at t=0 then u(0,x+delta)=u(0,x)
-                                                perturbedRomCoeff = romCoeff[0,:romData.uNmodes+romData.vNmodes].astype(complex)
-                                            perturbedParams = baseParams.copy()
-                                            perturbedParams[paramSelect[iparam]]+= complexDelta*1j
-                                            perturbedModel=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=perturbedParams,verbosity=verbosity)
-                                            dydtPodRom = lambda y,t: perturbedModel.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=penaltyStrength)
-                                            odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax), perturbedRomCoeff, t_eval = tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
-                                                
-                                            #Compute Sensitivity in POD space
-                                            romCoeff[:,(iparam+1)*(romData.uNmodes+romData.vNmodes):(iparam+2)*(romData.uNmodes+romData.vNmodes)]=\
-                                                np.imag(odeOut.y.transpose())/complexDelta
-                                        elif romSensitivityApproach[isens] == "sensEq":
-                                            if verbosity >= 1:
-                                                print("Computing sensitivity for " + paramSelect[iparam])
-                                            romInit = np.empty((2*(romData.uNmodes+romData.vNmodes)))
-                                            romInit[:romData.uNmodes+romData.vNmodes] = romCoeff[0,:romData.uNmodes+romData.vNmodes].copy() 
-                                            if sensInit[iInit]=="pod":
-                                                romInit[romData.uNmodes+romData.vNmodes:2*romData.uNmodes+romData.vNmodes]\
-                                                    =uFullTimeModes[0,(iparam+1)*romData.uNmodes:(iparam+2)*romData.uNmodes]
-                                                romInit[2*romData.uNmodes+romData.vNmodes:]\
-                                                    =vFullTimeModes[0,(iparam+1)*romData.vNmodes:(iparam+2)*romData.vNmodes]
-                                            elif sensInit[iInit]=="zero":
-                                                romInit[romData.uNmodes+romData.vNmodes:] =np.zeros((romData.uNmodes+romData.vNmodes))
-                                            else:
-                                                raise ValueError("Invalid sensInit entered: " + str(sensInit[iInit]))
-                                            dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect = paramSelect[iparam],penaltyStrength=penaltyStrength)
-                                            odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax), romInit, t_eval = tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
-                                                
-                                            #Compute Sensitivity in POD space
-                                            romCoeff[:,(iparam+1)*(romData.uNmodes+romData.vNmodes):(iparam+2)*(romData.uNmodes+romData.vNmodes)]=\
-                                                odeOut.y.transpose()[:,romData.uNmodes+romData.vNmodes:].copy()
+                                #Need to update sensitivity equation initialization. I think it will just be 0 for everything we're considering.
+                                if equationSet != "tankOnly":
+                                    uFullTimeModes = romData.uTimeModes.copy()
+                                    vFullTimeModes = romData.vTimeModes.copy()
+                                    for i in range(neq-1):
+                                        uFullTimeModes = np.append(uFullTimeModes,\
+                                                                (romData.uModesWeighted.transpose() @ uResults[i+1,:,0,:].transpose()).transpose(),\
+                                                                axis=1)
+                                        vFullTimeModes = np.append(vFullTimeModes,\
+                                                                (romData.vModesWeighted.transpose() @ vResults[i+1,:,0,:].transpose()).transpose(),\
+                                                                axis=1)
+                                    #Check Time modes match for first nModes
+                                    if not np.isclose(uFullTimeModes[:,:romData.uNmodes],romData.uTimeModes).all():
+                                        raise ValueError("u time modes do not match")
+                                    if not np.isclose(vFullTimeModes[:,:romData.vNmodes],romData.vTimeModes).all():
+                                        raise ValueError("v time modes do not match")
+                            for iParamSample in range(len(romParamSamples)):
+                                if usePodRom:
+                                    if verbosity >=2:
+                                        print("                 Running POD-ROM for parameter sample ", iParamSample+1, " of ", len(romParamSamples))
+                                    model = TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=romParamSamples[iParamSample],verbosity=verbosity)
+                                    
+                                    #------------------------------ Run ROM
+                                    #Get Initial Modal Values
+                                    # NOTE: Need to check how indexing is going to be coming out of the POD development. They will all have the same initial condition but I need to decide if it's a 2D or 3D array
+                                    romInit=np.empty((romData.uNmodes+romData.vNmodes))
+                                    romInit[:romData.uNmodes]\
+                                        =romData.uTimeModes[0,:romData.uNmodes]
+                                    romInit[romData.uNmodes:romData.uNmodes+romData.vNmodes]\
+                                        =romData.vTimeModes[0,:romData.vNmodes]
+                                    dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=penaltyStrength)
+                                    #Compute Base Rom Value
+                                    odeOut = scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax),romInit, t_eval=tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
+                                    romCoeff = np.empty((nT,neq*(romData.uNmodes+romData.vNmodes)))
+                                    romCoeff[:,:romData.uNmodes+romData.vNmodes] = odeOut.y.transpose()
+                                    
+                                    #------------------------------- Compute Sensitivity
+                                    #NOTE: Sensitivity not yet implemented for multiple parameter samples
+                                    if equationSet!="tankOnly":
+                                        for iparam in range(len(paramSelect)):
+                                            if romSensitivityApproach[isens] == "finite":
+                                                if verbosity >= 1:
+                                                    print("Computing sensitivity for " + paramSelect[iparam])
+                                                if sensInit[iInit]=="pod":
+                                                    #If finite-diff is exact at t=0 then u(0,x+delta)=u(0,x)+delta*u'(0,x)
+                                                    perturbedRomCoeff = romCoeff[0,:romData.uNmodes+romData.vNmodes]
+                                                    perturbedRomCoeff[:romData.uNmodes] +=\
+                                                        finiteDelta*uFullTimeModes[0,(iparam+1)*romData.uNmodes:(iparam+2)*romData.uNmodes]
+                                                    perturbedRomCoeff[romData.uNmodes:romData.uNmodes+romData.vNmodes] += \
+                                                        finiteDelta*vFullTimeModes[0,(iparam+1)*romData.vNmodes:(iparam+2)*romData.vNmodes]
+                                                elif sensInit[iInit]=="zero":
+                                                    #If finite-diff is zero at t=0 then u(0,x+delta)=u(0,x)
+                                                    perturbedRomCoeff = romCoeff[0,:romData.uNmodes+romData.vNmodes]
+                                                perturbedParams = baseParams.copy()
+                                                perturbedParams[paramSelect[iparam]]+= finiteDelta
+                                                perturbedModel=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=perturbedParams,verbosity=verbosity)
+                                                dydtPodRom = lambda y,t: perturbedModel.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=penaltyStrength)
+                                                odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax),perturbedRomCoeff, t_eval = tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
+                                                #Compute Sensitivity in POD space
+                                                romCoeff[:,(iparam+1)*(romData.uNmodes+romData.vNmodes):(iparam+2)*(romData.uNmodes+romData.vNmodes)]=\
+                                                    (odeOut.y.transpose()-romCoeff[:,:romData.uNmodes+romData.vNmodes])/finiteDelta
+                                            elif romSensitivityApproach[isens] == "complex":
+                                                if verbosity >= 1:
+                                                    print("Computing sensitivity for " + paramSelect[iparam])
+                                                #Initialize sensitivity
+                                                if sensInit[iInit]=="pod":
+                                                    #If finite-diff is exact at t=0 then u(0,x+delta)=u(0,x)+delta*u'(0,x)
+                                                    perturbedRomCoeff = romCoeff[0,:romData.uNmodes+romData.vNmodes].astype(complex)
+                                                    perturbedRomCoeff[:romData.uNmodes] += \
+                                                        1j*complexDelta*uFullTimeModes[0,(iparam+1)*romData.uNmodes:(iparam+2)*romData.uNmodes]
+                                                    perturbedRomCoeff[romData.uNmodes:romData.uNmodes+romData.vNmodes] += \
+                                                        1j*complexDelta*vFullTimeModes[0,(iparam+1)*romData.vNmodes:(iparam+2)*romData.vNmodes]
+                                                elif sensInit[iInit]=="zero":
+                                                    #If finite-diff is zero at t=0 then u(0,x+delta)=u(0,x)
+                                                    perturbedRomCoeff = romCoeff[0,:romData.uNmodes+romData.vNmodes].astype(complex)
+                                                perturbedParams = baseParams.copy()
+                                                perturbedParams[paramSelect[iparam]]+= complexDelta*1j
+                                                perturbedModel=TankModel(nCollocation=nCollocation,nElements=nElements,spacing="legendre",bounds=bounds,params=perturbedParams,verbosity=verbosity)
+                                                dydtPodRom = lambda y,t: perturbedModel.dydtPodRom(y,t,romData,paramSelect = [],penaltyStrength=penaltyStrength)
+                                                odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax), perturbedRomCoeff, t_eval = tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
+                                                    
+                                                #Compute Sensitivity in POD space
+                                                romCoeff[:,(iparam+1)*(romData.uNmodes+romData.vNmodes):(iparam+2)*(romData.uNmodes+romData.vNmodes)]=\
+                                                    np.imag(odeOut.y.transpose())/complexDelta
+                                            elif romSensitivityApproach[isens] == "sensEq":
+                                                if verbosity >= 1:
+                                                    print("Computing sensitivity for " + paramSelect[iparam])
+                                                romInit = np.empty((2*(romData.uNmodes+romData.vNmodes)))
+                                                romInit[:romData.uNmodes+romData.vNmodes] = romCoeff[0,:romData.uNmodes+romData.vNmodes].copy() 
+                                                if sensInit[iInit]=="pod":
+                                                    romInit[romData.uNmodes+romData.vNmodes:2*romData.uNmodes+romData.vNmodes]\
+                                                        =uFullTimeModes[0,(iparam+1)*romData.uNmodes:(iparam+2)*romData.uNmodes]
+                                                    romInit[2*romData.uNmodes+romData.vNmodes:]\
+                                                        =vFullTimeModes[0,(iparam+1)*romData.vNmodes:(iparam+2)*romData.vNmodes]
+                                                elif sensInit[iInit]=="zero":
+                                                    romInit[romData.uNmodes+romData.vNmodes:] =np.zeros((romData.uNmodes+romData.vNmodes))
+                                                else:
+                                                    raise ValueError("Invalid sensInit entered: " + str(sensInit[iInit]))
+                                                dydtPodRom = lambda y,t: model.dydtPodRom(y,t,romData,paramSelect = paramSelect[iparam],penaltyStrength=penaltyStrength)
+                                                odeOut= scipy.integrate.solve_ivp(lambda t,y: dydtPodRom(y,t),(0,tmax), romInit, t_eval = tPoints, method=odeMethod,atol=1e-9,rtol=1e-9)
+                                                    
+                                                #Compute Sensitivity in POD space
+                                                romCoeff[:,(iparam+1)*(romData.uNmodes+romData.vNmodes):(iparam+2)*(romData.uNmodes+romData.vNmodes)]=\
+                                                    odeOut.y.transpose()[:,romData.uNmodes+romData.vNmodes:].copy()
 
-                                #----------------------------- Map Results Back into Spatial Space
-                                for i in range(0, neq):
-                                    # Compute ROM Solution
-                                    romModeStart = i*(romData.uNmodes+romData.vNmodes)
-                                    #ROM Error
-                                    if i==0:
-                                        uResults[i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose() + romData.uMean
-                                        vResults[i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose() + romData.vMean
-                                    else:
-                                        uResults[i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose()
-                                        vResults[i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose()
-                                    #POD Error
-                                    if i==0:
-                                        uResults[i,:,2,:] = ((romData.uModes @ romData.uTimeModes[:romCoeff.shape[0],:].transpose())+romData.uMean.reshape((romData.uMean.size,1))).transpose()
-                                        vResults[i,:,2,:] = (romData.vModes @ romData.vTimeModes[:romCoeff.shape[0],:].transpose() +romData.vMean.reshape((romData.vMean.size,1))).transpose()
-                                    else:
-                                        #We can generalize POD to the variationin the POD space projected back to the FOM space, regardless of whether sensitivities were in initial POD decomp
-                                        #Note: Confirmed that, if POD modes are computed using sensitivity snapshots, then this is equivalent to those modes if no mean decomp is used
-                                        #UNVERIFIED: That that property holds numerically with this implementation and whether it holds if using a mean decomp
-                                        if mean_reduction[imean]!="zero":
-                                            print("WARNING: Correctness of approach unconfirmed for non-zero mean reduction")
-                                        
-                                        uResults[i,:,2,:] = (romData.uModes @ uFullTimeModes[:,i*romData.uNmodes:(i+1)*romData.uNmodes].transpose()+romData.uMean.reshape((romData.uMean.size,1))).transpose()
-                                        vResults[i,:,2,:] = (romData.vModes @ vFullTimeModes[:,i*romData.vNmodes:(i+1)*romData.vNmodes].transpose()+romData.vMean.reshape((romData.vMean.size,1))).transpose()
-                                #================================================== Compute Error =================================================================
-                                for k in range(len(error_norm)):
-                                    error[iret,iControlParam,k] = model.computeRomError(uResults[0,:,0,:].transpose(),vResults[0,:,0,:].transpose(),uResults[0,:,1,:].transpose(),vResults[0,:,1,:].transpose(),romData.W,tPoints=tPoints,norm=error_norm[k])
-                                    if verbosity >= 2:
-                                        print(                  "ROM Error in norm "+error_norm[k]+": ", error[iret,iControlParam,k])
-                                    #INCOMPLETE: Figure out what want to compute for sensitivity error.
+                                    #----------------------------- Map Results Back into Spatial Space
+                                    for i in range(0, neq):
+                                        #NOTE: These mappings haven't been confirmed, only the indexing of u/vResults has been updated
+                                        # Compute ROM Solution
+                                        romModeStart = i*(romData.uNmodes+romData.vNmodes)
+                                        #ROM Result
+                                        if i==0:
+                                            uResults[iParamSample,i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose() + romData.uMean
+                                            vResults[iParamSample,i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose() + romData.vMean
+                                        else:
+                                            uResults[iParamSample,i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose()
+                                            vResults[iParamSample,i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose()
+                                        #POD Result
+                                        #NOTE: The idea of the POD value at each of the romSample points doesn't make sense since the these data points weren't included in the POD decomposition. Maybe seperate the POD and ROM results arrays?
+                                        #This line will currently fail because uTimeModes is much larger in dimension now so only calling it if we're in a single rom parameter case
+                                        if len(romParamSamples)==1:
+                                            if i==0:
+                                                uResults[iParamSample,i,:,2,:] = ((romData.uModes @ romData.uTimeModes[:romCoeff.shape[0],:].transpose())+romData.uMean.reshape((romData.uMean.size,1))).transpose()
+                                                vResults[iParamSample,i,:,2,:] = (romData.vModes @ romData.vTimeModes[:romCoeff.shape[0],:].transpose() +romData.vMean.reshape((romData.vMean.size,1))).transpose()
+                                            else:
+                                                #We can generalize POD to the variationin the POD space projected back to the FOM space, regardless of whether sensitivities were in initial POD decomp
+                                                #Note: Confirmed that, if POD modes are computed using sensitivity snapshots, then this is equivalent to those modes if no mean decomp is used
+                                                #UNVERIFIED: That that property holds numerically with this implementation and whether it holds if using a mean decomp
+                                                if mean_reduction[imean]!="zero":
+                                                    print("WARNING: Correctness of approach unconfirmed for non-zero mean reduction")
+                                                
+                                                uResults[iParamSample,i,:,2,:] = (romData.uModes @ uFullTimeModes[:,i*romData.uNmodes:(i+1)*romData.uNmodes].transpose()+romData.uMean.reshape((romData.uMean.size,1))).transpose()
+                                                vResults[iParamSample,i,:,2,:] = (romData.vModes @ vFullTimeModes[:,i*romData.vNmodes:(i+1)*romData.vNmodes].transpose()+romData.vMean.reshape((romData.vMean.size,1))).transpose()
+                                    #================================================== Compute Error =================================================================
+                                    for k in range(len(error_norm)):
+                                        #Error for ith param sample, only domain equations, all times, all points, between FOM and ROM
+                                        error[iret,iControlParam,iParamSample,k] = model.computeRomError(uResults[iParamSample,0,:,0,:].transpose(),vResults[iParamSample,0,:,0,:].transpose(),uResults[iParamSample,0,:,1,:].transpose(),vResults[iParamSample,0,:,1,:].transpose(),romData.W,tPoints=tPoints,norm=error_norm[k])
+                                        if verbosity >= 2:
+                                            print(                  "ROM Error in norm "+error_norm[k]+": ", error[iret,iControlParam,iParamSample,k])
+                                        #INCOMPLETE: Figure out what want to compute for sensitivity error.
 
 
                             #=========================================== Make Plots ===================================================================
                             if usePodRom:
-                                legends = ["FOM","ROM","POD"] 
+                                if len(romParamSamples)==1:
+                                    legends = ["FOM","ROM","POD"] 
+                                else:
+                                    legends = ["FOM","ROM"]
                             else:
                                 legends = ["FOM"]
+
+                            #------------------------------------------- Make Interpolation Plots ----------------------------------------------------
+                            if plotRomInterpolation and len(romParamSamples)>1:
+                                fig, axes = plt.subplots(1,1, figsize=(4,3))
+                                #L2 Error
+                                axes.semilogy(rom_values, error[iret,iControlParam, :,0],"-bs",lw=3,ms=8)
+                                #Linf Error
+                                axes.semilogy(rom_values, error[iret,iControlParam, :,1],"--m*",lw=3,ms=8)
+                                axes.set_xlabel(param)
+                                axes.set_ylabel("Error")
+                                axes.legend(error_norm)
+                                plt.savefig(romSaveFolder + "OATaccuracy_"+param + "_a" + str(paramBounding) + "nSamp" + str(nRomSamples) + ".pdf", format="pdf")
+                                plt.savefig(romSaveFolder + "OATaccuracy_"+param + "_a" + str(paramBounding) + "nSamp" + str(nRomSamples) + ".png", format="png")
 
                             #------------------------------------------- Make Movies ----------------------
                             #Concatenate results for easier mangament in plotting 
