@@ -13,6 +13,7 @@
 import numpy as np
 from collocationElement.CollocationElement import Element
 from tankModel.romData import RomData
+from mpmath import mp
 
 class TankModel:
     _verbosity=""
@@ -681,7 +682,7 @@ class TankModel:
 
     #================================POD-ROM===================================================
 
-    def constructPodRom(self,modelCoeff,x,W,modeThreshold,nonlinDim = "max",mean="mean",useEnergyThreshold=True,adjustModePairs=False):
+    def constructPodRom(self,modelCoeff,x,W,modeThreshold,nonlinDim = "max",mean="mean",useEnergyThreshold=True,adjustModePairs=False,quadPrecision = False):
         if modelCoeff.ndim==2:
             #Get Snapshots and derivatives of snapshots
             uEval,vEval = self.eval(x,modelCoeff,output="seperated")
@@ -755,8 +756,8 @@ class TankModel:
                 raise ValueError("u and v coeffecients are the same but derivatives are not")
             if not np.isclose(uEvalxx,vEvalxx, atol=1e-10).all():
                 raise ValueError("u and v coeffecients are the same but 2nd derivatives are not")
-        uModes, uModesx, uModesxx, uTimeModes, uTruncationError, uSingularValues =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
-        vModes, vModesx, vModesxx, vTimeModes, vTruncationError, vSingularValues =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
+        uModes, uModesx, uModesxx, uTimeModes, uTruncationError, uSingularValues =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,quadPrecision=quadPrecision)
+        vModes, vModesx, vModesxx, vTimeModes, vTruncationError, vSingularValues =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,quadPrecision=quadPrecision)
         if np.isclose(modelCoeff[..., :self.nElements*self.nCollocation],modelCoeff[..., self.nElements*self.nCollocation:], atol=1e-10).all():
             print("L2 Difference in Modes: ", np.sqrt(np.sum(W@(uModes-vModes)**2)))
             print("Linf Difference in Modes: ", np.max(np.abs(uModes-vModes)))
@@ -841,7 +842,7 @@ class TankModel:
         return deimProjection
 
     
-    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,adjustModePairs=False,groupSeperations="null",):
+    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,adjustModePairs=False,groupSeperations="null",quadPrecision = False):
         # INCOMPLETE: Scale each observed response to [0,1] for POD so that sensitivities with large values aren't weighted more, may need setting up this change in TankModel
         # if type(groupSeperations)==np.ndarray:
         #     raise ValueError("groupSeperations for mixed inputs incomplete")
@@ -865,15 +866,39 @@ class TankModel:
             modes, S, timeModes = np.linalg.svd(snapshots*np.sqrt(W[0,0]),full_matrices=False)
             timeModes=timeModes.transpose()
         else:
-            #Get eigen decomp of UtWU
-            timeModes,S,null= np.linalg.svd(snapshots.transpose()@W@snapshots,full_matrices=False)
-            #Check symmetry of eigen decomp
-            if not np.isclose(timeModes@S,S@null).all():
-                print("WARNING: Singular value scaled time eigen decomp not symmetric")
-                print("Error: ", np.sqrt(np.sum(np.sum((timeModes@S-S@null.transpose())**2))/np.sum(np.sum((timeModes@S)**2))))
-                if self.verbosity >=3:
-                    print("W: ", W)
-                    print("timeModes-timeModesT: ",timeModes-null.transpose())
+            if quadPrecision:
+                mp.dps = 34
+                snapshots_mpf = mp.matrix([[mp.mpf(x) for x in row] for row in snapshots])
+                W_mpf = mp.matrix([[mp.mpf(x) for x in row] for row in W])
+                #Get eigen decomp of UtWU
+                #timeModes,S,null= np.linalg.svd(snapshots.transpose()@W@snapshots,full_matrices=False)
+                timeModes_mpf,S_mpf,null= mp.svd(snapshots_mpf.transpose()@W_mpf@snapshots_mpf,compute_uv=True)
+                #Check symmetry of eigen decomp
+                # if not np.isclose(timeModes@S,S@null).all():
+                #     print("WARNING: Singular value scaled time eigen decomp not symmetric")
+                #     print("Error: ", np.sqrt(np.sum(np.sum((timeModes@S-S@null.transpose())**2))/np.sum(np.sum((timeModes@S)**2))))
+                #     if self.verbosity >=3:
+                #         print("W: ", W)
+                #         print("timeModes-timeModesT: ",timeModes-null.transpose())
+                #Have to take squareroot of S for scaling
+                S_mpf=np.sqrt(S_mpf)
+                #S=np.sqrt(S)
+                #Cast back to 64-bit precision
+                S = np.array([float(x) for x in S_mpf], dtype=np.float64)
+                timeModes = np.empty((timeModes_mpf.rows,timeModes_mpf.cols))
+                for row in range(timeModes_mpf.rows):
+                    for col in range(timeModes_mpf.cols): 
+                        timeModes[row,col]=float(timeModes_mpf[row,col])
+            else:
+                #Get eigen decomp of UtWU
+                timeModes,S,null= np.linalg.svd(snapshots.transpose()@W@snapshots,full_matrices=False)
+                #Check symmetry of eigen decomp
+                if not np.isclose(timeModes@S,S@null).all():
+                    print("WARNING: Singular value scaled time eigen decomp not symmetric")
+                    print("Error: ", np.sqrt(np.sum(np.sum((timeModes@S-S@null.transpose())**2))/np.sum(np.sum((timeModes@S)**2))))
+                    if self.verbosity >=3:
+                        print("W: ", W)
+                        print("timeModes-timeModesT: ",timeModes-null.transpose())
             #Have to take squareroot of S for scaling
             S=np.sqrt(S)
         modes = snapshots@timeModes@np.diag(1/S)
