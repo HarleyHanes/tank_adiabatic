@@ -44,9 +44,9 @@ class RomData:
         self.vSingularValues = vSingularValues
         self.uNonlinDim=uNonlinDim
         self.vNonlinDim=vNonlinDim
-        self.deimProjection = deimProjection
         self.uNonLinProjection = uNonLinProjection
         self.vNonLinProjection = vNonLinProjection
+        self.deimProjection = deimProjection
 
     # Getter and setter methods with validation
     @property
