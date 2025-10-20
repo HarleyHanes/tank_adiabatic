@@ -13,6 +13,7 @@
 import numpy as np
 from collocationElement.CollocationElement import Element
 from tankModel.romData import RomData
+from mpmath import mp
 
 class TankModel:
     _verbosity=""
@@ -681,12 +682,33 @@ class TankModel:
 
     #================================POD-ROM===================================================
 
-    def constructPodRom(self,modelCoeff,x,W,modeThreshold,nonlinDim = "max",mean="mean",useEnergyThreshold=True,adjustModePairs=False,nDeimPoints="none"):
-        #Get Snapshots and derivatives of snapshots
-        uEval,vEval = self.eval(x,modelCoeff,output="seperated")
-        #Compute Mean, keeping dimension so casting works
+    def constructPodRom(self,modelCoeff,x,W,modeThreshold,nonlinDim = "max",mean="mean",useEnergyThreshold=True,adjustModePairs=False,quadPrecision = False):
+        if modelCoeff.ndim==2:
+            #Get Snapshots and derivatives of snapshots
+            uEval,vEval = self.eval(x,modelCoeff,output="seperated")
+            uEvalx,vEvalx = self.eval(x,modelCoeff, output="seperated", deriv =1)
+            uEvalxx,vEvalxx = self.eval(x,modelCoeff, output="seperated", deriv =2)
+        else :
+            uEval = np.empty((modelCoeff.shape[0],modelCoeff.shape[1],x.size))
+            vEval = np.empty((modelCoeff.shape[0],modelCoeff.shape[1],x.size))
+            uEvalx = np.empty((modelCoeff.shape[0],modelCoeff.shape[1],x.size))
+            vEvalx = np.empty((modelCoeff.shape[0],modelCoeff.shape[1],x.size))
+            uEvalxx = np.empty((modelCoeff.shape[0],modelCoeff.shape[1],x.size))
+            vEvalxx = np.empty((modelCoeff.shape[0],modelCoeff.shape[1],x.size))
+            for i in range(modelCoeff.shape[0]):
+                uEval[i,:,:],vEval[i,:,:] = self.eval(x,modelCoeff[i,:,:],output="seperated")
+                uEvalx[i,:,:],vEvalx[i,:,:] = self.eval(x,modelCoeff[i,:,:],output="seperated", deriv=1)
+                uEvalxx[i,:,:],vEvalxx[i,:,:] = self.eval(x,modelCoeff[i,:,:],output="seperated", deriv=2)
+            #Flatten evaluations to all snapshots in 1st dimension
+            uEval=uEval.reshape((-1,uEval.shape[2]))
+            vEval=vEval.reshape((-1,vEval.shape[2]))
+            uEvalx=uEvalx.reshape((-1,uEvalx.shape[2]))
+            vEvalx=vEvalx.reshape((-1,vEvalx.shape[2]))
+            uEvalxx=uEvalxx.reshape((-1,uEvalxx.shape[2]))
+            vEvalxx=vEvalxx.reshape((-1,vEvalxx.shape[2]))
+            #Compute MeanCoeff , keeping dimension so casting works
+            meanCoeff = np.mean(modelCoeff,axis=(0,1))
         if mean =="mean":
-            meanCoeff = np.mean(modelCoeff,axis=0)
             uMean,vMean = self.eval(x,meanCoeff,output="seperated")
             uMeanx,vMeanx = self.eval(x,meanCoeff,output="seperated",deriv=1)
             uMeanxx,vMeanxx = self.eval(x,meanCoeff,output="seperated",deriv=2)
@@ -709,26 +731,24 @@ class TankModel:
             uMeanx,vMeanx = self.eval(x,modelCoeff[0],output="seperated",deriv=1)
             uMeanxx,vMeanxx = self.eval(x,modelCoeff[0],output="seperated",deriv=2)
         elif mean==np.ndarray:
-            if mean.ndim==1:
-                if mean.size==self.collocationPoints.size:
-                    uMean,vMean = self.eval(x,mean,output="seperated")
-                    uMeanx,vMeanx = self.eval(x,mean,output="seperated",deriv=1)
-                    uMeanxx,vMeanxx = self.eval(x,mean,output="seperated",deriv=2)
+                if mean.ndim==1:
+                    if mean.size==self.collocationPoints.size:
+                        uMean,vMean = self.eval(x,mean,output="seperated")
+                        uMeanx,vMeanx = self.eval(x,mean,output="seperated",deriv=1)
+                        uMeanxx,vMeanxx = self.eval(x,mean,output="seperated",deriv=2)
+                    else:
+                        raise ValueError("Invalid size for mean")
                 else:
-                    raise ValueError("Invalid size for mean")
-            else:
-                raise ValueError("Invalid dimension for mean")
-
+                    raise ValueError("Invalid dimension for mean")
+            
         uEval-=uMean
         vEval-=vMean
-        uEvalx,vEvalx = self.eval(x,modelCoeff, output="seperated", deriv =1)
         uEvalx-=uMeanx
         vEvalx-=vMeanx
 
-        uEvalxx,vEvalxx = self.eval(x,modelCoeff, output="seperated", deriv =2)
         uEvalxx-=uMeanxx
         vEvalxx-=vMeanxx
-        if np.isclose(modelCoeff[:,:self.nElements*self.nCollocation],modelCoeff[:,self.nElements*self.nCollocation:], atol=1e-10).all():
+        if np.isclose(modelCoeff[...,:self.nElements*self.nCollocation],modelCoeff[...,self.nElements*self.nCollocation:], atol=1e-10).all():
             print("u and v coeffecients are the same")
             if not np.isclose(uEval,vEval, atol=1e-10).all():
                 raise ValueError("u and v coeffecients are the same but evaluations are not")
@@ -736,9 +756,9 @@ class TankModel:
                 raise ValueError("u and v coeffecients are the same but derivatives are not")
             if not np.isclose(uEvalxx,vEvalxx, atol=1e-10).all():
                 raise ValueError("u and v coeffecients are the same but 2nd derivatives are not")
-        uModes, uModesx, uModesxx, uTimeModes, uTruncationError, uSingularValues =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
-        vModes, vModesx, vModesxx, vTimeModes, vTruncationError, vSingularValues =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
-        if np.isclose(modelCoeff[:,:self.nElements*self.nCollocation],modelCoeff[:,self.nElements*self.nCollocation:], atol=1e-10).all():
+        uModes, uModesx, uModesxx, uTimeModes, uTruncationError, uSingularValues =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,quadPrecision=quadPrecision)
+        vModes, vModesx, vModesxx, vTimeModes, vTruncationError, vSingularValues =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,quadPrecision=quadPrecision)
+        if np.isclose(modelCoeff[..., :self.nElements*self.nCollocation],modelCoeff[..., self.nElements*self.nCollocation:], atol=1e-10).all():
             print("L2 Difference in Modes: ", np.sqrt(np.sum(W@(uModes-vModes)**2)))
             print("Linf Difference in Modes: ", np.max(np.abs(uModes-vModes)))
         if self.bounds[0]==x[0]:
@@ -758,38 +778,42 @@ class TankModel:
               = self.computeRomMatrices(W,vMean, vMeanx, vMeanxx, vModes, vModesx,vModesxx)
         truncationError=np.mean([uTruncationError,vTruncationError])
         
-        if nonlinDim=="max":
-            uNonlinDim = uModes.shape[1]
-            vNonlinDim = vModes.shape[1]
-        elif nonlinDim<=1:
-            uNonlinDim = int(np.ceil(uModes.shape[1]*nonlinDim))
-            vNonlinDim = int(np.ceil(vModes.shape[1]*nonlinDim))
-        else: 
-            raise Exception("Error: Nonlinear reduced dimension greater than 1 entered. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
-        
-        #Compute DEIM Projection
-        # If any string input is entered for nDEIMpoints assume not using DEIM
-        if type(nDeimPoints) == str:
-            deimProjection = np.eye(uModes.shape[0])
-            uNonLinProjection = uModesWeighted.transpose()
-            vNonLinProjection = vModesWeighted.transpose()
-        else:
-            u = uModes@uTimeModes.transpose()+uMean.reshape((x.size,1))
-            v = vModes@vTimeModes.transpose()+vMean.reshape((x.size,1))
-            nonLinData = (1-u)*np.exp(self.params["gamma"]*self.params["beta"]\
-                                        *v/(1+self.params["beta"]*v))
-            nDeimPoints = min(int(np.ceil(nDeimPoints*max(uModes.shape[1],vModes.shape[1]))),uModes.shape[0])
-            deimBasis,deimProjection = self.computeDEIMbasis(nonLinData,nDeimPoints)
-            uNonLinProjection = self.computeDEIMmatrices(uModesWeighted,deimBasis,deimProjection)
-            vNonLinProjection = self.computeDEIMmatrices(vModesWeighted,deimBasis,deimProjection)
             
         return RomData(x, W, uTimeModes, uMean, uModes, uModesx, uModesxx, uModesWeighted,
                         uModesInt, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean,
                         uRomSecondOrderMat, uRomSecondOrderMean, vTimeModes, vMean,
                         vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
                         vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
-                        vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues, uNonlinDim,vNonlinDim,deimProjection,uNonLinProjection,vNonLinProjection), truncationError
+                        vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues, uModes.shape[1], vModes.shape[1],np.eye(uModes.shape[0]), uModesWeighted.transpose(), vModesWeighted.transpose()), truncationError
 
+    def computeNonLinReduction(self,romData,nonlinDim):
+        if nonlinDim=="max":
+            uNonlinDim = romData.uModes.shape[1]
+            vNonlinDim = romData.vModes.shape[1]
+        elif nonlinDim<=1:
+            uNonlinDim = int(np.ceil(romData.uModes.shape[1]*nonlinDim))
+            vNonlinDim = int(np.ceil(romData.vModes.shape[1]*nonlinDim))
+        else: 
+            raise Exception("Error: Nonlinear reduced dimension greater than 1 entered. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
+
+        romData.uNonlinDim = uNonlinDim
+        romData.vNonlinDim = vNonlinDim
+        return romData
+
+    def computeDEIMProjection(self,romData,nDeimPoints):
+        #Compute DEIM Projection
+        u = romData.uModes@romData.uTimeModes.transpose()+romData.uMean.reshape((romData.x.size,1))
+        v = romData.vModes@romData.vTimeModes.transpose()+romData.vMean.reshape((romData.x.size,1))
+        nonLinData = (1-u)*np.exp(self.params["gamma"]*self.params["beta"]\
+                                    *v/(1+self.params["beta"]*v))
+        nDeimPoints = min(int(np.ceil(nDeimPoints*max(romData.uModes.shape[1],romData.vModes.shape[1]))),romData.uModes.shape[0])
+        deimBasis,deimProjection = self.computeDEIMbasis(nonLinData,nDeimPoints)
+        
+        romData.uNonLinProjection = self.computeDEIMmatrices(romData.uModesWeighted,deimBasis,deimProjection)
+        romData.vNonLinProjection = self.computeDEIMmatrices(romData.vModesWeighted,deimBasis,deimProjection)
+        romData.deimProjection = deimProjection
+        return romData
+    
     def computeDEIMbasis(self,nonLinData,nDeimModes):
         #Compute basis for non-linear evaluationd data using POD
         Psi,sigma,V = np.linalg.svd(nonLinData)
@@ -818,7 +842,7 @@ class TankModel:
         return deimProjection
 
     
-    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,adjustModePairs=False,groupSeperations="null",):
+    def computePODmodes(self,W, snapshots, snapshotsx, snapshotsxx,modeThreshold,useEnergyThreshold=True,adjustModePairs=False,groupSeperations="null",quadPrecision = False):
         # INCOMPLETE: Scale each observed response to [0,1] for POD so that sensitivities with large values aren't weighted more, may need setting up this change in TankModel
         # if type(groupSeperations)==np.ndarray:
         #     raise ValueError("groupSeperations for mixed inputs incomplete")
@@ -842,15 +866,39 @@ class TankModel:
             modes, S, timeModes = np.linalg.svd(snapshots*np.sqrt(W[0,0]),full_matrices=False)
             timeModes=timeModes.transpose()
         else:
-            #Get eigen decomp of UtWU
-            timeModes,S,null= np.linalg.svd(snapshots.transpose()@W@snapshots,full_matrices=False)
-            #Check symmetry of eigen decomp
-            if not np.isclose(timeModes@S,S@null).all():
-                print("WARNING: Singular value scaled time eigen decomp not symmetric")
-                print("Error: ", np.sqrt(np.sum(np.sum((timeModes@S-S@null.transpose())**2))/np.sum(np.sum((timeModes@S)**2))))
-                if self.verbosity >=3:
-                    print("W: ", W)
-                    print("timeModes-timeModesT: ",timeModes-null.transpose())
+            if quadPrecision:
+                mp.dps = 34
+                snapshots_mpf = mp.matrix([[mp.mpf(x) for x in row] for row in snapshots])
+                W_mpf = mp.matrix([[mp.mpf(x) for x in row] for row in W])
+                #Get eigen decomp of UtWU
+                #timeModes,S,null= np.linalg.svd(snapshots.transpose()@W@snapshots,full_matrices=False)
+                timeModes_mpf,S_mpf,null= mp.svd(snapshots_mpf.transpose()@W_mpf@snapshots_mpf,compute_uv=True)
+                #Check symmetry of eigen decomp
+                # if not np.isclose(timeModes@S,S@null).all():
+                #     print("WARNING: Singular value scaled time eigen decomp not symmetric")
+                #     print("Error: ", np.sqrt(np.sum(np.sum((timeModes@S-S@null.transpose())**2))/np.sum(np.sum((timeModes@S)**2))))
+                #     if self.verbosity >=3:
+                #         print("W: ", W)
+                #         print("timeModes-timeModesT: ",timeModes-null.transpose())
+                #Have to take squareroot of S for scaling
+                S_mpf=np.sqrt(S_mpf)
+                #S=np.sqrt(S)
+                #Cast back to 64-bit precision
+                S = np.array([float(x) for x in S_mpf], dtype=np.float64)
+                timeModes = np.empty((timeModes_mpf.rows,timeModes_mpf.cols))
+                for row in range(timeModes_mpf.rows):
+                    for col in range(timeModes_mpf.cols): 
+                        timeModes[row,col]=float(timeModes_mpf[row,col])
+            else:
+                #Get eigen decomp of UtWU
+                timeModes,S,null= np.linalg.svd(snapshots.transpose()@W@snapshots,full_matrices=False)
+                #Check symmetry of eigen decomp
+                if not np.isclose(timeModes@S,S@null).all():
+                    print("WARNING: Singular value scaled time eigen decomp not symmetric")
+                    print("Error: ", np.sqrt(np.sum(np.sum((timeModes@S-S@null.transpose())**2))/np.sum(np.sum((timeModes@S)**2))))
+                    if self.verbosity >=3:
+                        print("W: ", W)
+                        print("timeModes-timeModesT: ",timeModes-null.transpose())
             #Have to take squareroot of S for scaling
             S=np.sqrt(S)
         modes = snapshots@timeModes@np.diag(1/S)
@@ -893,7 +941,7 @@ class TankModel:
         timeModes = (timeModes@np.diag(S))[:,:nModes]
         #Check Orthonormality of modes
         if not np.isclose(modes.transpose()@W@modes,np.eye(modes.shape[1])).all():
-            print("WARNING: Modes not orthonormal")
+            #print("WARNING: Modes not orthonormal")
             if self.verbosity>=3:
                 print("Phi^TWPhi = ", modes.transpose()@W@modes)
                 print("Departure from Orthonormality: ", np.sum(np.eye(modes.shape[1])-modes.transpose()@W@modes))
@@ -1073,18 +1121,34 @@ class TankModel:
     
     def computeRomError(self,uEval,vEval,uRom,vRom, W,tPoints,norm="Linf"):
         #Map from romCoeff to rom Solution
-        if norm == "L2" or norm==r"$L_2$":
+        if norm == "L2" or norm==r"$L_2$" or norm == r"$L_2$ Error":
             #Compute joint-error
             errorU = np.sqrt(np.sum(W @ (uEval-uRom)**2))/ np.sum(W @ (uEval)**2)
             errorV = np.sqrt(np.sum(W @ (vEval-vRom)**2))/ np.sum(W @ (vEval)**2)
             #error = np.sqrt(np.max(np.sum(W @(uEval-uRom)**2,axis=0)))#/np.sum((W @vEval)**2))
             #error = np.sqrt(np.max(np.sum(W @(vEval-vRom)**2,axis=0)))#/np.sum((W @vEval)**2))
-        elif norm == "Linf" or norm==r"$L_\infty$":
+        elif norm == "Linf" or norm==r"$L_\infty$" or norm == r"$L_\infty$ Error":
             errorU = np.max(np.abs(uEval-uRom))
             errorV = np.max(np.abs(vEval-vRom))
             #error = np.max(np.abs(vEval-vRom))#/np.max(np.abs(vEval))
             # error = np.max(np.abs(uEval-uRom))#/np.max(np.abs(vEval))
+        else:
+            raise ValueError("Invalid norm selected: "+norm)
         error = (errorU+errorV)/2
         return error
-#Class that holds all the data defining a particular POD-ROM model. We define a seperate class to TankModel since
-# a single FOM may have numerous different ROMs computed from it. Properties not common to all ROMs are stored in this class for easier function parsing
+    def computeQOIs(self,uRom,vRom,W,tPoints,qoi="Max Outlet Temperature"):
+        if qoi=="Max Outlet Temperature":
+            #Compute max outlet temperature over time
+            qoiResult = np.max(vRom[-1,:])
+        elif qoi == "Average Outlet Temperature":
+            #Compute average outlet temperature over time
+            qoiResult = np.sum(vRom[-1,:])/tPoints.size
+        elif qoi == "Max Reactivity":
+            #Compute max reactivity over time
+            qoiResult = np.max(np.sum(W@uRom, axis=0))
+        elif qoi == "Average Reactivity":
+            #Compute average reactivity over time
+            qoiResult = np.mean(np.sum(W@uRom, axis=0))
+        else:
+            raise ValueError("Invalid qoi selected: "+qoi)
+        return qoiResult
