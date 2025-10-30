@@ -786,16 +786,26 @@ class TankModel:
                         vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
                         vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues, uModes.shape[1], vModes.shape[1],np.eye(uModes.shape[0]), uModesWeighted.transpose(), vModesWeighted.transpose()), truncationError
 
-    def computeNonLinReduction(self,romData,nonlinDim):
+    def computeNonLinReduction(self,romData,nonlinDim, proportionality = "mode number"):
         if nonlinDim=="max":
             uNonlinDim = romData.uModes.shape[1]
             vNonlinDim = romData.vModes.shape[1]
-        elif nonlinDim<=1:
-            uNonlinDim = int(np.ceil(romData.uModes.shape[1]*nonlinDim))
-            vNonlinDim = int(np.ceil(romData.vModes.shape[1]*nonlinDim))
-        else: 
-            raise Exception("Error: Nonlinear reduced dimension greater than 1 entered. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
-
+        elif proportionality=="mode number":
+            if nonlinDim<=1:
+                uNonlinDim = int(np.ceil(romData.uModes.shape[1]*nonlinDim))
+                vNonlinDim = int(np.ceil(romData.vModes.shape[1]*nonlinDim))
+            else: 
+                raise Exception("Error: Nonlinear reduced dimension greater than 1 entered with mode number proportionality. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
+        elif proportionality=="singular value":
+            if nonlinDim<=1:
+                uSVcuttoff = np.sum(romData.uSingularValues)*nonlinDim
+                vSVcuttoff = np.sum(romData.vSingularValues)*nonlinDim
+                uNonlinDim = int(np.sum(np.cumsum(romData.uSingularValues)<=uSVcuttoff))
+                vNonlinDim = int(np.sum(np.cumsum(romData.vSingularValues)<=vSVcuttoff))
+            else: 
+                raise Exception("Error: Nonlinear reduced dimension greater than 1 entered with singular value proportionality. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
+        else:
+            raise Exception("Error: Invalid proportionality type '" + proportionality + "' entered. Must be 'mode number' or 'singular value'")
         romData.uNonlinDim = uNonlinDim
         romData.vNonlinDim = vNonlinDim
         return romData

@@ -18,16 +18,16 @@ def main():
     verbosity =1
     showPlots= True
     #Run Types
-    plotControl=False
+    plotControl=True
     plotConvergence=False
 
     plotRomInterpolation = False
 
-    plotTimeSeries=True
-    plotModes=True
-    plotError=True
-    plotRomCoeff=True
-    plotSingularValues=True
+    plotTimeSeries=False
+    plotModes=False
+    plotError=False
+    plotRomCoeff=False
+    plotSingularValues=False
     plotFullSpectra = False
 
     makeMovies=False
@@ -49,7 +49,7 @@ def main():
 
     #ROM parameters
     usePodRom=True
-    useEnergyThreshold=True
+    useEnergyThreshold=False
     nDeimPoints = "max" #Base value for DEIM, max or integer
     nonLinReduction = .8 #Base value for nonLinReduction, 1 means no reduction
     controlApproach = "nonLinReduction" #none, DEIM, nonLinReduction
@@ -118,7 +118,8 @@ def main():
             controlParam=[1.55]
     elif controlApproach == "nonLinReduction":
         if plotControl:
-            controlParam = np.arange(.45,1.04,.05).tolist()
+            #controlParam = np.arange(.45,1.04,.05).tolist()
+            controlParam = (np.round(np.pow(10, np.arange(-.1,0.01,.01))*10e8)/10e8).tolist()
         else:
             if paramSet == "BizonChaotic":
                 controlParam=[.8]
@@ -291,7 +292,6 @@ def main():
                             uResults[:,:,:,0,:] = uRefData
                             vResults[:,:,:,0,:] = vRefData
 
-                            #======================================== Run POD-ROM ===============================================================================
                             if usePodRom:
                                 if controlApproach=="nonLinReduction":
                                     controlSaveFolder = podSaveFolder + "nDim" + str(controlParam[iControlParam]) + "/"
@@ -319,10 +319,11 @@ def main():
                                 #Update romData with control approach
                                 if nDeimPoints != "max":
                                     romData = model.computeDEIMProjection(romData, nDeimPoints)
-                                elif nonLinReduction!=1:
-                                    romData = model.computeNonLinReduction(romData, nonLinReduction)
+                                elif nonLinReduction<=1:
+                                    romData = model.computeNonLinReduction(romData, nonLinReduction, proportionality = "singular value")
                                                         #Compute time modes for sensitivity equations
                                 
+                                print(romData.vNonlinDim)
                                 #Deprecating this for now, the indexing is getting messy and its not needed for 0 initialization
                                 # if equationSet != "tankOnly" and sensInit[iInit]=="pod":
                                 #     uFullTimeModes = romData.uTimeModes.copy()
@@ -339,6 +340,8 @@ def main():
                                 #         raise ValueError("u time modes do not match")
                                 #     if not np.isclose(vFullTimeModes[:,:romData.vNmodes],romData.vTimeModes).all():
                                 #         raise ValueError("v time modes do not match")
+
+                            #======================================== Run POD-ROM ===============================================================================
                             for iParamSample in range(len(romParamSamples)):
                                 if usePodRom:
                                     if verbosity >=2:
@@ -705,7 +708,7 @@ def main():
                         elif controlApproach == "nonLinReduction":
                             xLabel="Nonlinear Term Proportional Dimension"
                         for inorm in range(len(error_norm)):
-                            fig, axs = plotErrorConvergence(controlResult[:,:,inorm].transpose(),controlParam, yLabel = error_norm[inorm], xLabel =xLabel,legends=controlMetric,plotType = "semilogy") 
+                            fig, axs = plotErrorConvergence(controlResult[:,:,0,inorm].transpose(),controlParam, yLabel = error_norm[inorm], xLabel =xLabel,legends=controlMetric,plotType="loglog") 
                             if error_norm[inorm] == r"$L_2$ Error":
                                 plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_L2_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".pdf", format="pdf")
                                 plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_L2_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".png", format="png")

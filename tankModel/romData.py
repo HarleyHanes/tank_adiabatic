@@ -313,7 +313,7 @@ class RomData:
     def uNonlinDim(self, value):
         if type(value)!= int:
             raise ValueError("Incorrect type for uNonlinDim: ", type(value))
-        elif value <1 or value>self.uNmodes:
+        elif value <0 or value>self.uNmodes:
             raise ValueError("Icompatible value for uNonlinDim: ",value)
         else:
             self._uNonlinDim = value
@@ -326,7 +326,7 @@ class RomData:
     def vNonlinDim(self, value):
         if type(value)!= int:
             raise ValueError("Incorrect type for vNonlinDim: ", type(value))
-        elif value <1 or value>self.vNmodes:
+        elif value <0 or value>self.vNmodes:
             raise ValueError("Icompatible value for vNonlinDim: ",value)
         else:
             self._vNonlinDim = value
