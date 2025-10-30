@@ -119,7 +119,7 @@ def main():
     elif controlApproach == "nonLinReduction":
         if plotControl:
             #controlParam = np.arange(.45,1.04,.05).tolist()
-            controlParam = (np.round(np.pow(10, np.arange(-.1,0.01,.01))*10e8)/10e8).tolist()
+            controlParam = (np.round(np.pow(10, np.arange(-1,0.01,.05))*10e8)/10e8).tolist()
         else:
             if paramSet == "BizonChaotic":
                 controlParam=[.8]
@@ -320,7 +320,7 @@ def main():
                                 if nDeimPoints != "max":
                                     romData = model.computeDEIMProjection(romData, nDeimPoints)
                                 elif nonLinReduction<=1:
-                                    romData = model.computeNonLinReduction(romData, nonLinReduction, proportionality = "singular value")
+                                    romData = model.computeNonLinReduction(romData, nonLinReduction, proportionality = "pod truncation")
                                                         #Compute time modes for sensitivity equations
                                 
                                 print(romData.vNonlinDim)

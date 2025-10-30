@@ -6,7 +6,8 @@ class RomData:
                  uRomSecondOrderMat, uRomSecondOrderMean, vTimeModes, vMean,
                  vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
                  vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
-                 vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues,uNonlinDim,vNonlinDim,
+                 vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues, 
+                 uFullSpectra, vSingularValues, vFullSpectra, uNonlinDim,vNonlinDim,
                  deimProjection,uNonLinProjection,vNonLinProjection):
         
         self.x = x
@@ -41,9 +42,11 @@ class RomData:
         self.vRomSecondOrderMat = vRomSecondOrderMat
         self.vRomSecondOrderMean = vRomSecondOrderMean
         self.uSingularValues = uSingularValues
+        self.uFullSpectra = uFullSpectra
         self.vSingularValues = vSingularValues
-        self.uNonlinDim=uNonlinDim
-        self.vNonlinDim=vNonlinDim
+        self.vFullSpectra = vFullSpectra
+        self.uNonlinDim = uNonlinDim
+        self.vNonlinDim = vNonlinDim
         self.uNonLinProjection = uNonLinProjection
         self.vNonLinProjection = vNonLinProjection
         self.deimProjection = deimProjection

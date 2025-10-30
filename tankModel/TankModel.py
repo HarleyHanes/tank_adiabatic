@@ -756,8 +756,8 @@ class TankModel:
                 raise ValueError("u and v coeffecients are the same but derivatives are not")
             if not np.isclose(uEvalxx,vEvalxx, atol=1e-10).all():
                 raise ValueError("u and v coeffecients are the same but 2nd derivatives are not")
-        uModes, uModesx, uModesxx, uTimeModes, uTruncationError, uSingularValues =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,quadPrecision=quadPrecision)
-        vModes, vModesx, vModesxx, vTimeModes, vTruncationError, vSingularValues =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,quadPrecision=quadPrecision)
+        uModes, uModesx, uModesxx, uTimeModes, uTruncationError, uSingularValues, uFullSpectra =self.computePODmodes(W, uEval.transpose(),uEvalx.transpose(),uEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,quadPrecision=quadPrecision)
+        vModes, vModesx, vModesxx, vTimeModes, vTruncationError, vSingularValues, vFullSpectra =self.computePODmodes(W, vEval.transpose(),vEvalx.transpose(),vEvalxx.transpose(),modeThreshold,useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs,quadPrecision=quadPrecision)
         if np.isclose(modelCoeff[..., :self.nElements*self.nCollocation],modelCoeff[..., self.nElements*self.nCollocation:], atol=1e-10).all():
             print("L2 Difference in Modes: ", np.sqrt(np.sum(W@(uModes-vModes)**2)))
             print("Linf Difference in Modes: ", np.max(np.abs(uModes-vModes)))
@@ -784,7 +784,8 @@ class TankModel:
                         uRomSecondOrderMat, uRomSecondOrderMean, vTimeModes, vMean,
                         vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
                         vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
-                        vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues, uModes.shape[1], vModes.shape[1],np.eye(uModes.shape[0]), uModesWeighted.transpose(), vModesWeighted.transpose()), truncationError
+                        vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues, uFullSpectra, vSingularValues, vFullSpectra,
+                        uModes.shape[1], vModes.shape[1],np.eye(uModes.shape[0]), uModesWeighted.transpose(), vModesWeighted.transpose()), truncationError
 
     def computeNonLinReduction(self,romData,nonlinDim, proportionality = "mode number"):
         if nonlinDim=="max":
@@ -802,6 +803,18 @@ class TankModel:
                 vSVcuttoff = np.sum(romData.vSingularValues)*nonlinDim
                 uNonlinDim = int(np.sum(np.cumsum(romData.uSingularValues)<=uSVcuttoff))
                 vNonlinDim = int(np.sum(np.cumsum(romData.vSingularValues)<=vSVcuttoff))
+            else: 
+                raise Exception("Error: Nonlinear reduced dimension greater than 1 entered with singular value proportionality. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
+        elif proportionality=="pod truncation":
+            if nonlinDim<=1:
+                #Get POD truncation at each singular value
+                uPropInformation = 1 - np.cumsum(romData.uFullSpectra)/np.sum(romData.uFullSpectra)
+                vPropInformation = 1 - np.cumsum(romData.vFullSpectra)/np.sum(romData.vFullSpectra)
+                #Determine how much information is truncated for u and v
+                uTruncation = uPropInformation[np.size(romData.uSingularValues)-1]
+                vTruncation = vPropInformation[np.size(romData.vSingularValues)-1]
+                uNonlinDim = uPropInformation.size-int(np.sum(uPropInformation<uTruncation/nonlinDim))
+                vNonlinDim = vPropInformation.size-int(np.sum(vPropInformation<vTruncation/nonlinDim))
             else: 
                 raise Exception("Error: Nonlinear reduced dimension greater than 1 entered with singular value proportionality. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
         else:
@@ -960,7 +973,7 @@ class TankModel:
         podIcError = np.sqrt(np.sum(W@((snapshots[:,0]-(modes@timeModes.transpose())[:,0])**2))/np.sum(W@(snapshots[:,0]**2)))
         # print("POD Relative Error: ", podError)
         # print("POD IC Relative Error: ", podIcError)
-        return modes, modesx, modesxx, timeModes, podError, S[:nModes]
+        return modes, modesx, modesxx, timeModes, podError, S[:nModes], S
 
     def computeRomMatrices(self,W,mean,  meanx, meanxx, podModes, podModesx,podModesxx):
         podModesWeighted = W @ podModes
