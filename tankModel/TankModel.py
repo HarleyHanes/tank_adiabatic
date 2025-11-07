@@ -806,15 +806,15 @@ class TankModel:
             else: 
                 raise Exception("Error: Nonlinear reduced dimension greater than 1 entered with singular value proportionality. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
         elif proportionality=="pod truncation":
-            if nonlinDim<=1:
+            if nonlinDim>=1:
                 #Get POD truncation at each singular value
                 uPropInformation = 1 - np.cumsum(romData.uFullSpectra)/np.sum(romData.uFullSpectra)
                 vPropInformation = 1 - np.cumsum(romData.vFullSpectra)/np.sum(romData.vFullSpectra)
                 #Determine how much information is truncated for u and v
                 uTruncation = uPropInformation[np.size(romData.uSingularValues)-1]
                 vTruncation = vPropInformation[np.size(romData.vSingularValues)-1]
-                uNonlinDim = uPropInformation.size-int(np.sum(uPropInformation<uTruncation/nonlinDim))
-                vNonlinDim = vPropInformation.size-int(np.sum(vPropInformation<vTruncation/nonlinDim))
+                uNonlinDim = max(uPropInformation.size-int(np.sum(uPropInformation<(uTruncation*nonlinDim))),1)
+                vNonlinDim = max(vPropInformation.size-int(np.sum(vPropInformation<(vTruncation*nonlinDim))),1)
             else: 
                 raise Exception("Error: Nonlinear reduced dimension greater than 1 entered with singular value proportionality. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
         else:

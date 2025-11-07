@@ -18,7 +18,7 @@ def main():
     verbosity =1
     showPlots= True
     #Run Types
-    plotControl=True
+    plotControl=False
     plotConvergence=False
 
     plotRomInterpolation = False
@@ -27,7 +27,7 @@ def main():
     plotModes=False
     plotError=False
     plotRomCoeff=False
-    plotSingularValues=False
+    plotSingularValues=True 
     plotFullSpectra = False
 
     makeMovies=False
@@ -49,14 +49,14 @@ def main():
 
     #ROM parameters
     usePodRom=True
-    useEnergyThreshold=False
+    useEnergyThreshold=True
     nDeimPoints = "max" #Base value for DEIM, max or integer
-    nonLinReduction = .8 #Base value for nonLinReduction, 1 means no reduction
-    controlApproach = "nonLinReduction" #none, DEIM, nonLinReduction
+    nonLinReduction = 1 #Base value for nonLinReduction, 1 means no reduction
+    controlApproach = "none" #none, DEIM, nonLinReduction
     controlMetric= ["Error at 99% Retention","Error at 99.9% Retention","Error at 99.99% Retention","Sum of Relative Error Increases"]
     penaltyStrength=0
     sensInit = ["zero"]
-    quadRule = ["simpson"] # simpson, gauss-legendre, uniform, monte carlo
+    quadRule = ["gauss-legendre"] # simpson, gauss-legendre, uniform, monte carlo
     mean_reduction = ["mean"]
     adjustModePairs=False
     error_norm = [r"$L_2$ Error",r"$L_\infty$ Error"]
@@ -85,7 +85,7 @@ def main():
             elif paramSet== "BizonNonLinear":
                 modeRetention = list(range(7,59))
         else:
-            modeRetention = [6,7]
+            modeRetention = [27]
 
 
     #Change all POD-ROM parameters to lists if not  already
@@ -119,7 +119,7 @@ def main():
     elif controlApproach == "nonLinReduction":
         if plotControl:
             #controlParam = np.arange(.45,1.04,.05).tolist()
-            controlParam = (np.round(np.pow(10, np.arange(-1,0.01,.05))*10e8)/10e8).tolist()
+            controlParam = (np.round(np.pow(10, np.arange(0,1.01,.1))*10e8)/10e8).tolist()
         else:
             if paramSet == "BizonChaotic":
                 controlParam=[.8]
@@ -320,6 +320,8 @@ def main():
                                 if nDeimPoints != "max":
                                     romData = model.computeDEIMProjection(romData, nDeimPoints)
                                 elif nonLinReduction<=1:
+                                    romData = model.computeNonLinReduction(romData, nonLinReduction, proportionality = "pod truncation")
+                                elif nonLinReduction > 1:
                                     romData = model.computeNonLinReduction(romData, nonLinReduction, proportionality = "pod truncation")
                                                         #Compute time modes for sensitivity equations
                                 
@@ -679,6 +681,19 @@ def main():
                                 plt.tight_layout()
                                 plt.savefig(romSaveFolder + "singularValues.pdf", format="pdf")
                                 plt.savefig(romSaveFolder + "singularValues.png", format="png")
+
+                                #Compute culmulative truncation
+                                uPropInformation = 1 - np.cumsum(romData.uFullSpectra)/np.sum(romData.uFullSpectra)
+                                vPropInformation = 1 - np.cumsum(romData.vFullSpectra)/np.sum(romData.vFullSpectra)
+                                fig, axes = plt.subplots(1,1, figsize=(5,4))
+                                axes.semilogy(np.arange(1,romData.uSingularValues.size+1),uPropInformation[:romData.uSingularValues.size],"bs",lw=5,ms=8)
+                                axes.semilogy(np.arange(1,romData.vSingularValues.size+1),vPropInformation[:romData.vSingularValues.size],"mo",lw=5,ms=8)
+                                axes.legend(["u","v"])
+                                axes.set_xlabel("Mode")
+                                axes.set_ylabel("Singular Value")
+                                plt.tight_layout()
+                                plt.savefig(romSaveFolder + "propInformation.pdf", format="pdf")
+                                plt.savefig(romSaveFolder + "propInformation.png", format="png")
                             if not showPlots:
                                 plt.close()
                     #=========================================== Plot Convergence ===================================================================
@@ -756,12 +771,12 @@ def computeControlMetric(error,truncationError,metric):
     elif metric == "Sum of Relative Error Increases":
         errorChanges = (error[1:,:]-error[:-1,:])/error[:-1,:]
         errorChanges[errorChanges<0]=0
-        metricResult = np.sum(errorChanges,axis=0)
+        metricResult = np.nansum(errorChanges,axis=0)
     elif metric == "Number Error Increases":
         errorChanges = (error[1:,:]-error[:-1,:])/error[:-1,:]
         errorChanges[errorChanges<0]=0
         errorChanges[errorChanges>0]=1
-        metricResult = np.sum(errorChanges,axis=0)
+        metricResult = np.nansum(errorChanges,axis=0)
     else:
         raise(ValueError("Invalid metric entered: ", metric))
     return metricResult
