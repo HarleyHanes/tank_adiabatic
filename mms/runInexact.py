@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 import tankMMS
-nCollocations = [2]
+nCollocations = [2,3]
 verbosity = 1
 
 #I think there's an error with the higher
@@ -171,8 +171,8 @@ for iOrder in range(len(higherOrderTerms)):
                 plt.title(r"Solution Convergence for $g(t)=1$")
             elif itemporal==1:
                 plt.title(r"Solution Convergence for $g(t)=1+t$")
-            elif itemporal==2:
-                plt.title(r"Solution Convergence for $g(t)=1+te^{2t}$")
+            #elif itemporal==2:
+                #plt.title(r"Solution Convergence for $g(t)=1+te^{2t}$")
             plt.tight_layout() 
             plt.savefig(saveLocation+"/convergence_temporal"+str(itemporal)+".pdf",format='pdf')
             plt.savefig(saveLocation+"/convergence_temporal"+str(itemporal)+".png",format='png')

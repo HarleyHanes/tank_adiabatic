@@ -18,7 +18,7 @@ def main():
     verbosity =1
     showPlots= True
     #Run Types
-    plotControl=False
+    plotControl=True
     plotConvergence=False
 
     plotRomInterpolation = False
@@ -27,12 +27,12 @@ def main():
     plotModes=False
     plotError=False
     plotRomCoeff=False
-    plotSingularValues=True 
+    plotSingularValues=False 
     plotFullSpectra = False
 
     makeMovies=False
     #FOM parameters
-    paramSet = "BizonChaotic" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
+    paramSet = "BizonPeriodic" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
     nCollocation=2
     nElements=64
@@ -49,10 +49,10 @@ def main():
 
     #ROM parameters
     usePodRom=True
-    useEnergyThreshold=True
+    useEnergyThreshold=False
     nDeimPoints = "max" #Base value for DEIM, max or integer
-    nonLinReduction = 1 #Base value for nonLinReduction, 1 means no reduction
-    controlApproach = "none" #none, DEIM, nonLinReduction
+    nonLinReduction = 1.0 #Base value for nonLinReduction, 1 means no reduction
+    controlApproach = "nonLinReduction" #none, DEIM, nonLinReduction
     controlMetric= ["Error at 99% Retention","Error at 99.9% Retention","Error at 99.99% Retention","Sum of Relative Error Increases"]
     penaltyStrength=0
     sensInit = ["zero"]
@@ -119,7 +119,7 @@ def main():
     elif controlApproach == "nonLinReduction":
         if plotControl:
             #controlParam = np.arange(.45,1.04,.05).tolist()
-            controlParam = (np.round(np.pow(10, np.arange(0,1.01,.1))*10e8)/10e8).tolist()
+            controlParam = (np.round(np.pow(10, np.arange(0,1.51,.1))*10e8)/10e8).tolist()
         else:
             if paramSet == "BizonChaotic":
                 controlParam=[.8]
@@ -319,10 +319,8 @@ def main():
                                 #Update romData with control approach
                                 if nDeimPoints != "max":
                                     romData = model.computeDEIMProjection(romData, nDeimPoints)
-                                elif nonLinReduction<=1:
-                                    romData = model.computeNonLinReduction(romData, nonLinReduction, proportionality = "pod truncation")
-                                elif nonLinReduction > 1:
-                                    romData = model.computeNonLinReduction(romData, nonLinReduction, proportionality = "pod truncation")
+                                else:
+                                    romData = model.computeNonLinReduction(romData, nonLinReduction, proportionality = "min singular value")
                                                         #Compute time modes for sensitivity equations
                                 
                                 print(romData.vNonlinDim)
