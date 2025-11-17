@@ -1,3 +1,4 @@
+from cmath import rect
 import sys
 import os
 current_script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -12,6 +13,7 @@ from postProcessing.plot import plotErrorConvergence
 from postProcessing.plot import plotRomMatrices
 from tankModel.TankModel import TankModel
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 
 def main():
     #================================================================Define Simulation Details===============================================================================================
@@ -32,7 +34,7 @@ def main():
 
     makeMovies=False
     #FOM parameters
-    paramSet = "BizonPeriodic" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
+    paramSet = "BizonChaotic" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
     nCollocation=2
     nElements=64
@@ -50,8 +52,9 @@ def main():
     #ROM parameters
     usePodRom=True
     useEnergyThreshold=False
+    adaptiveControlCutoff = True
     nDeimPoints = "max" #Base value for DEIM, max or integer
-    nonLinReduction = 1.0 #Base value for nonLinReduction, 1 means no reduction
+    nonLinReduction = 4.0 #Base value for nonLinReduction, 1 means no reduction
     controlApproach = "nonLinReduction" #none, DEIM, nonLinReduction
     controlMetric= ["Error at 99% Retention","Error at 99.9% Retention","Error at 99.99% Retention","Sum of Relative Error Increases"]
     penaltyStrength=0
@@ -122,9 +125,9 @@ def main():
             controlParam = (np.round(np.pow(10, np.arange(0,1.51,.1))*10e8)/10e8).tolist()
         else:
             if paramSet == "BizonChaotic":
-                controlParam=[.8]
+                controlParam=[nonLinReduction]
             else:
-                controlParam=[.85]
+                controlParam=[nonLinReduction]
     elif controlApproach == "none":
         controlParam = ["none"]
     else:
@@ -224,9 +227,9 @@ def main():
                     print(f"Using {quadRule[iquad]} quadrature rule, {romSensitivityApproach[isens]} sensitivity approach, {sensInit[iInit]} sensitivity initialization")
                 for imean in range(len(mean_reduction)):
                     truncationError=np.empty((len(modeRetention),))
-                    error = np.empty((neq,len(modeRetention),len(controlParam),len(romParamSamples),len(error_norm)))
-                    qoiResults = np.empty((len(modeRetention),len(controlParam),len(romParamSamples),len(qois))) #Goal: Implement Computation of QoI sensitivity
-                    controlResult = np.empty((len(controlMetric),len(controlParam),len(romParamSamples),len(error_norm)))
+                    error = []
+                    qoiResults = []
+                    controlCutoff = []
                     x,W = model.getQuadWeights(nPoints,quadRule[iquad])
                     uFomData=np.empty((len(fomParamSamples),neq,nT,nPoints))
                     vFomData=np.empty((len(fomParamSamples),neq,nT,nPoints))
@@ -277,9 +280,22 @@ def main():
                             #------------------------------- Compute POD
                             romData, truncationError[iret]=model.constructPodRom(dataModelCoeff[:,:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=adjustModePairs)
                     
-                        for iControlParam in range((len(controlParam))):
+                        # Compute control param range
+                        if adaptiveControlCutoff:
+                            #compute control cutoff for min isngular value
+                            maxReduction = np.max(controlParam)
+                            reducedUSingularValues = romData.uSingularValues[romData.uSingularValues<=(romData.uSingularValues[-1]*maxReduction)]
+                            reducedVSingularValues = romData.vSingularValues[romData.vSingularValues<=(romData.vSingularValues[-1]*maxReduction)]
+                            uControlCutoffs = reducedUSingularValues/romData.uSingularValues[-1]
+                            vControlCutoffs = reducedVSingularValues/romData.vSingularValues[-1]
+                            controlCutoff.append(np.sort(np.unique(np.concatenate((uControlCutoffs,vControlCutoffs)))).tolist())
+                        else:
+                            controlCutoff.append(controlParam)
+                        error.append(np.empty((neq,len(controlCutoff[iret]),len(romParamSamples),len(error_norm))))
+                        qoiResults.append(np.empty((len(controlCutoff[iret]),len(romParamSamples),len(qois)))) #Goal: Implement Computation of QoI sensitivity
+                        for iControlParam in range((len(controlCutoff[iret]))):
                             if verbosity >=1:
-                                print("             Running POD-ROM for control param ", controlParam[iControlParam], " mode retention ", modeRetention[iret], " and mean reduction ", mean_reduction[imean])
+                                print("             Running POD-ROM for control param ", controlCutoff[iret][iControlParam], " mode retention ", modeRetention[iret], " and mean reduction ", mean_reduction[imean])
 
                             #Intialize results storage
                             if usePodRom:
@@ -294,9 +310,9 @@ def main():
 
                             if usePodRom:
                                 if controlApproach=="nonLinReduction":
-                                    controlSaveFolder = podSaveFolder + "nDim" + str(controlParam[iControlParam]) + "/"
+                                    controlSaveFolder = podSaveFolder + "nDim" + str(controlCutoff[iret][iControlParam]) + "/"
                                 elif controlApproach=="DEIM":
-                                    controlSaveFolder = podSaveFolder + "nDEIM" + str(controlParam[iControlParam]) + "/"
+                                    controlSaveFolder = podSaveFolder + "nDEIM" + str(controlCutoff[iret][iControlParam]) + "/"
                                 else:
                                     controlSaveFolder = podSaveFolder + "noControl/"
                                 
@@ -312,9 +328,9 @@ def main():
                                     os.makedirs(romSaveFolder)
                                 #Update control parameters
                                 if controlApproach == "DEIM":
-                                    nDeimPoints = controlParam[iControlParam]
+                                    nDeimPoints = controlCutoff[iret][iControlParam]
                                 elif controlApproach == "nonLinReduction":
-                                    nonLinReduction = controlParam[iControlParam]
+                                    nonLinReduction = controlCutoff[iret][iControlParam]
 
                                 #Update romData with control approach
                                 if nDeimPoints != "max":
@@ -323,23 +339,7 @@ def main():
                                     romData = model.computeNonLinReduction(romData, nonLinReduction, proportionality = "min singular value")
                                                         #Compute time modes for sensitivity equations
                                 
-                                print(romData.vNonlinDim)
-                                #Deprecating this for now, the indexing is getting messy and its not needed for 0 initialization
-                                # if equationSet != "tankOnly" and sensInit[iInit]=="pod":
-                                #     uFullTimeModes = romData.uTimeModes.copy()
-                                #     vFullTimeModes = romData.vTimeModes.copy()
-                                #     for i in range(neq-1):
-                                #         uFullTimeModes = np.append(uFullTimeModes,\
-                                #                                 (romData.uModesWeighted.transpose() @ uResults[i+1,:,0,:].transpose()).transpose(),\
-                                #                                 axis=1)
-                                #         vFullTimeModes = np.append(vFullTimeModes,\
-                                #                                 (romData.vModesWeighted.transpose() @ vResults[i+1,:,0,:].transpose()).transpose(),\
-                                #                                 axis=1)
-                                #     #Check Time modes match for first nModes
-                                #     if not np.isclose(uFullTimeModes[:,:romData.uNmodes],romData.uTimeModes).all():
-                                #         raise ValueError("u time modes do not match")
-                                #     if not np.isclose(vFullTimeModes[:,:romData.vNmodes],romData.vTimeModes).all():
-                                #         raise ValueError("v time modes do not match")
+                                print(romData.uNonlinDim,", ", romData.vNonlinDim)
 
                             #======================================== Run POD-ROM ===============================================================================
                             for iParamSample in range(len(romParamSamples)):
@@ -466,15 +466,15 @@ def main():
                                     for ieq in range(neq):
                                         for k in range(len(error_norm)):
                                             #Error for ith param sample, only domain equations, all times, all points, between FOM and ROM
-                                            error[ieq,iret,iControlParam,iParamSample,k] = model.computeRomError(uResults[iParamSample,ieq,:,0,:].transpose(),vResults[iParamSample,ieq,:,0,:].transpose(),uResults[iParamSample,ieq,:,1,:].transpose(),vResults[iParamSample,ieq,:,1,:].transpose(),romData.W,tPoints=tPoints,norm=error_norm[k])
+                                            error[iret][ieq,iControlParam,iParamSample,k] = model.computeRomError(uResults[iParamSample,ieq,:,0,:].transpose(),vResults[iParamSample,ieq,:,0,:].transpose(),uResults[iParamSample,ieq,:,1,:].transpose(),vResults[iParamSample,ieq,:,1,:].transpose(),romData.W,tPoints=tPoints,norm=error_norm[k])
                                             if verbosity >= 2:
-                                                print(                  "ROM Error in norm "+error_norm[k]+" for ieq " + str(ieq) + ": ", error[ieq,iret,iControlParam,iParamSample,k])
+                                                print(                  "ROM Error in norm "+error_norm[k]+" for ieq " + str(ieq) + ": ", error[iret][ieq,iControlParam,iParamSample,k])
                                     #================================================== Compute QOIs =================================================================
                                     for k in range(len(qois)):
                                         #Error for ith param sample, only domain equations, all times, all points, between FOM and ROM
-                                        qoiResults[iret,iControlParam,iParamSample,k] = model.computeQOIs(uResults[iParamSample,0,:,1,:].transpose(),vResults[iParamSample,0,:,1,:].transpose(),romData.W,tPoints,qoi=qois[k])
+                                        qoiResults[iret][iControlParam,iParamSample,k] = model.computeQOIs(uResults[iParamSample,0,:,1,:].transpose(),vResults[iParamSample,0,:,1,:].transpose(),romData.W,tPoints,qoi=qois[k])
                                         if verbosity >= 2:
-                                            print(                  qois[k]+": ", qoiResults[iret,iControlParam,iParamSample,k])
+                                            print(                  qois[k]+": ", qoiResults[iret][iControlParam,iParamSample,k])
                                         #INCOMPLETE: Figure out what want to compute for sensitivity error.
 
                             #=========================================== Make Plots ===================================================================
@@ -490,9 +490,9 @@ def main():
                             if plotRomInterpolation and len(romParamSamples)>1:
                                 fig, axes = plt.subplots(1,1, figsize=(4,3))
                                 #L2 Error
-                                axes.semilogy(rom_values, error[0,iret,iControlParam, :,0],"-bs",lw=3,ms=8)
+                                axes.semilogy(rom_values, error[iret][0,iControlParam, :,0],"-bs",lw=3,ms=8)
                                 #Linf Error
-                                axes.semilogy(rom_values, error[0,iret,iControlParam, :,1],"--m*",lw=3,ms=8)
+                                axes.semilogy(rom_values, error[iret][0,iControlParam, :,1],"--m*",lw=3,ms=8)
                                 axes.set_xlabel(param)
                                 axes.set_ylabel("Error")
                                 axes.legend(error_norm)
@@ -502,9 +502,9 @@ def main():
                                 for i in range(1, neq): 
                                     fig, axes = plt.subplots(1,1, figsize=(4,3))
                                     #L2 Error
-                                    axes.semilogy(rom_values, error[i,iret,iControlParam, :,0],"-bs",lw=3,ms=8)
+                                    axes.semilogy(rom_values, error[iret][i,iControlParam, :,0],"-bs",lw=3,ms=8)
                                     #Linf Error
-                                    axes.semilogy(rom_values, error[i,iret,iControlParam, :,1],"--m*",lw=3,ms=8)
+                                    axes.semilogy(rom_values, error[iret][i,iControlParam, :,1],"--m*",lw=3,ms=8)
                                     axes.set_xlabel(param)
                                     axes.set_ylabel("Error")
                                     axes.legend(error_norm)
@@ -513,13 +513,13 @@ def main():
 
                                 fig, axes = plt.subplots(1,1, figsize=(4,3))
                                 #L2 Error
-                                axes.semilogy(rom_values, qoiResults[iret,iControlParam, :,0],"-bs",lw=3,ms=8)
+                                axes.semilogy(rom_values, qoiResults[iret][iControlParam, :,0],"-bs",lw=3,ms=8)
                                 #Linf Error
-                                axes.semilogy(rom_values, qoiResults[iret,iControlParam, :,1],"--m*",lw=3,ms=8)
+                                axes.semilogy(rom_values, qoiResults[iret][iControlParam, :,1],"--m*",lw=3,ms=8)
                                 #L2 Error
-                                axes.semilogy(rom_values, qoiResults[iret,iControlParam, :,2],"-.g^",lw=3,ms=8)
+                                axes.semilogy(rom_values, qoiResults[iret][iControlParam, :,2],"-.g^",lw=3,ms=8)
                                 #Linf Error
-                                axes.semilogy(rom_values, qoiResults[iret,iControlParam, :,3],"-ro",lw=3,ms=8)
+                                axes.semilogy(rom_values, qoiResults[iret][iControlParam, :,3],"-ro",lw=3,ms=8)
                                 axes.set_xlabel(param)
                                 axes.legend(qois)
                                 plt.savefig(romSaveFolder + "OATqois_"+param + "_a" + str(paramBounding) + "nSamp" + str(nRomSamples) + ".pdf", format="pdf")
@@ -670,20 +670,55 @@ def main():
 
                             #------------------------------------------- Plot Singular Values --------------------------------------------------------
                             if plotSingularValues:
+                                #Compute culmulative truncation
+                                nSV = max(romData.uSingularValues.size, romData.vSingularValues.size)
+                                totalTruncation = 1 - np.cumsum(np.pad(romData.uSingularValues,(0, nSV-romData.uSingularValues.size))
+                                                                +np.pad(romData.vSingularValues,(0, nSV-romData.vSingularValues.size))) \
+                                                        / np.sum(romData.uFullSpectra+romData.vFullSpectra)
+                                # uCutoffIndices = np.array([romData.uSingularValues.size-np.sum(uPropInformation<=.1),
+                                #                            romData.uSingularValues.size-np.sum(uPropInformation<=.01),
+                                #                            romData.uSingularValues.size-np.sum(uPropInformation<=.001),
+                                #                            romData.uSingularValues.size-np.sum(uPropInformation<=.0001)])
+                                # vCutoffIndices = np.array([romData.vSingularValues.size-np.sum(vPropInformation<=.1),
+                                #                            romData.vSingularValues.size-np.sum(vPropInformation<=.01),
+                                #                            romData.vSingularValues.size-np.sum(vPropInformation<=.001),
+                                #                            romData.vSingularValues.size-np.sum(vPropInformation<=.0001)])
+                                cutoffIndices = np.array([nSV - np.sum(totalTruncation <= .1),
+                                                          nSV - np.sum(totalTruncation <= .01),
+                                                          nSV - np.sum(totalTruncation <= .001),
+                                                          nSV - np.sum(totalTruncation <= .0001)])
+                                uCutoffSv = romData.uSingularValues[cutoffIndices]
+                                vCutoffSv = romData.vSingularValues[cutoffIndices]
+                                padding = 1.3
+                                width = .95
+                                cutoffSV_padded = np.array([np.maximum(uCutoffSv,vCutoffSv)*padding, np.minimum(uCutoffSv,vCutoffSv)/padding]).T
                                 fig, axes = plt.subplots(1,1, figsize=(5,4))
-                                axes.semilogy(np.arange(1,romData.uSingularValues.size+1),romData.uSingularValues,"bs",lw=5,ms=8)
-                                axes.semilogy(np.arange(1,romData.vSingularValues.size+1),romData.vSingularValues,"mo",lw=5,ms=8)
-                                axes.legend(["u","v"])
+                                axes.semilogy(np.arange(1,romData.uSingularValues.size+1),romData.uSingularValues,"bs",lw=5,ms=5,)
+                                axes.semilogy(np.arange(1,romData.vSingularValues.size+1),romData.vSingularValues,"mo",lw=5,ms=5,)
+                                labels = ["90%", "99%", "99.9%", "99.99%"]
+                                for i in range(cutoffIndices.size):
+                                    rect = Rectangle((cutoffIndices[i]+1 - width/2, cutoffSV_padded[i,1]), width, cutoffSV_padded[i,0]-cutoffSV_padded[i,1], 
+                                                    facecolor='none', edgecolor='k', linewidth=2, zorder=3)
+                                    plt.gca().add_patch(rect)
+                                    # Place label just above the TOP edge of the rectangle (robust for log-scale)
+                                    y_top = cutoffSV_padded[i, 0]
+                                    x_right = cutoffIndices[i] + 1 + width/2
+                                    # Use a small screen-space offset so it always appears above the line regardless of scale
+                                    axes.annotate(labels[i], xy=(x_right, y_top), xytext=(0, 4), textcoords='offset points',
+                                                  ha='center', va='bottom', fontsize=10, color='k', zorder=5)
+
+                                # Create legend for first and third lines (indices 0 and 2)
+                                plt.legend(['u', 'v'])
+
                                 axes.set_xlabel("Mode")
                                 axes.set_ylabel("Singular Value")
                                 plt.tight_layout()
                                 plt.savefig(romSaveFolder + "singularValues.pdf", format="pdf")
                                 plt.savefig(romSaveFolder + "singularValues.png", format="png")
 
-                                #Compute culmulative truncation
-                                uPropInformation = 1 - np.cumsum(romData.uFullSpectra)/np.sum(romData.uFullSpectra)
-                                vPropInformation = 1 - np.cumsum(romData.vFullSpectra)/np.sum(romData.vFullSpectra)
                                 fig, axes = plt.subplots(1,1, figsize=(5,4))
+                                uPropInformation = 1 - np.cumsum(romData.uSingularValues)/np.sum(romData.uFullSpectra)
+                                vPropInformation = 1 - np.cumsum(romData.vSingularValues)/np.sum(romData.vFullSpectra)
                                 axes.semilogy(np.arange(1,romData.uSingularValues.size+1),uPropInformation[:romData.uSingularValues.size],"bs",lw=5,ms=8)
                                 axes.semilogy(np.arange(1,romData.vSingularValues.size+1),vPropInformation[:romData.vSingularValues.size],"mo",lw=5,ms=8)
                                 axes.legend(["u","v"])
@@ -695,33 +730,63 @@ def main():
                             if not showPlots:
                                 plt.close()
                     #=========================================== Plot Convergence ===================================================================
-                    for iControlParam in range(len(controlParam)):
-                        if usePodRom and plotConvergence and error.size>1:
-                            if error.ndim>3: 
-                                error = error[0,:,:,iControlParam,:].reshape((error.shape[1],error.shape[3]*error.shape[4])) #PROBALE ERROR: The indexing for this line has shifted significantly to account for expanded error dimensions. Needs verification
-
-                                if len(mean_reduction)>1:
-                                    legends = [mean_method +", "+ norm for mean_method in mean_reduction for norm in error_norm]
-                                else:
-                                    legends =error_norm
+                    
+                    if usePodRom and plotConvergence and len(error)>1 and not adaptiveControlCutoff:
+                        for iControlParam in range(len(controlCutoff[0])):
+                            #Don't plot error convergence for sensitivities or multiple parameter values
+                            errorPlot = np.array([errorRet[0,iControlParam,0,:] for errorRet in error]).T.tolist()
+                            errorPlot = [np.array(error) for error in errorPlot]
+                            #Potential Error: We've refactored plotErrorConvergnece for lists of errors at each retention but this indexing doesn't achieve that
+                            if len(mean_reduction)>1:
+                                legends = [mean_method +", "+ norm for mean_method in mean_reduction for norm in error_norm]
                             else:
-                                legends=error_norm
-                                error=np.squeeze(error[0,:,iControlParam,:])
-                            fig,axs = plotErrorConvergence(error,truncationError,xLabel="Proportion Information Truncated in POD",yLabel="Relative ROM Error",legends=legends) 
+                                legends =error_norm
+                            fig,axs = plotErrorConvergence(errorPlot,truncationError,xLabel="Proportion Information Truncated in POD",yLabel="Relative ROM Error",legends=legends) 
                             plt.savefig(controlSaveFolder + "errorConvergence_s"+str(modeRetention[0])+"_e" + str(modeRetention[-1])+".pdf", format="pdf")
                             plt.savefig(controlSaveFolder + "errorConvergence_s"+str(modeRetention[0])+"_e" + str(modeRetention[-1])+".png", format="png")
                     #=========================================== Plot Control ===========================================================================
                     if usePodRom and plotControl and len(controlMetric)>1:
-                        for iControlParam in range(len(controlParam)):
-                            for iMetric in range(len(controlMetric)):
-                                #Compute control metric
-                                controlResult[iMetric,iControlParam,:] = computeControlMetric(error[0,:,iControlParam,:],truncationError,controlMetric[iMetric])
                         if controlApproach == "DEIM":
                             xLabel="DEIM Proportional Dimension"
                         elif controlApproach == "nonLinReduction":
-                            xLabel="Nonlinear Term Proportional Dimension"
+                            xLabel=r"$c$"
                         for inorm in range(len(error_norm)):
-                            fig, axs = plotErrorConvergence(controlResult[:,:,0,inorm].transpose(),controlParam, yLabel = error_norm[inorm], xLabel =xLabel,legends=controlMetric,plotType="loglog") 
+                            controlPlot = []
+                            controlResult =[]
+                            #Map all retentions to common control parameters for computing multi-retention control metrics 
+                            collectedError =np.empty([len(error),len(controlParam)])
+                            for iret in range(len(error)):
+                                #Get control indices of error[iret][0,:,0,:] that correspond to control values in controlParam
+                                for iControlParam in range(len(controlParam)):
+                                    index = np.sum(np.array(controlCutoff[iret])>controlParam[iControlParam])
+                                    collectedError[iret,iControlParam] = error[iret][0,index,0,inorm]
+                            for iMetric in range(len(controlMetric)):
+                                if controlMetric[iMetric]=='Error at 90% Retention':
+                                    #Identify truncation
+                                    index = np.sum(truncationError >= .1)
+                                    controlResult.append(error[index][0,:,0,inorm])
+                                    controlPlot.append(controlCutoff[index])
+                                elif controlMetric[iMetric]=='Error at 99% Retention':
+                                    #Identify truncation
+                                    index = np.sum(truncationError >= .01)
+                                    controlResult.append(error[index][0,:,0,inorm])
+                                    controlPlot.append(controlCutoff[index])
+                                elif controlMetric[iMetric]=='Error at 99.9% Retention':
+                                    #Identify truncation
+                                    index = np.sum(truncationError >= .001)
+                                    controlResult.append(error[index][0,:,0,inorm])
+                                    controlPlot.append(controlCutoff[index])
+                                elif controlMetric[iMetric]=='Error at 99.99% Retention':
+                                    #Identify truncation
+                                    index = np.sum(truncationError >= .0001)
+                                    controlResult.append(error[index][0,:,0,inorm])
+                                    controlPlot.append(controlCutoff[index])
+                                else:
+                                    #Compute control metric
+                                    controlResult.append(computeControlMetric(collectedError,controlParam,truncationError,controlMetric[iMetric]))
+                                    controlPlot.append(controlParam)
+                            yRanges = (min([np.min(result[np.nonzero(result)]) for result in controlResult])*.5,max([np.max(result) for result in controlResult])*500)
+                            fig, axs = plotErrorConvergence(controlResult,controlPlot, yLabel = error_norm[inorm], xLabel =xLabel,legends=controlMetric,plotType="loglog",yRanges=yRanges) 
                             if error_norm[inorm] == r"$L_2$ Error":
                                 plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_L2_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".pdf", format="pdf")
                                 plt.savefig(podSaveFolder + "controlConvergence_"+controlApproach+"_L2_m"+str(modeRetention[0])+"-" + str(modeRetention[-1])+"_c"+str(controlParam[0])+"-"+str(controlParam[-1])+".png", format="png")
@@ -735,49 +800,30 @@ def main():
         plt.show()
 
 
-def computeControlMetric(error,truncationError,metric):
+def computeControlMetric(error,controlParam,truncationError,metric):
     if metric == "Min Error":
         metricResult = np.min(error,axis=0)
     elif metric == "Mean Error":
         metricResult = np.mean(error,axis=0)
-    elif metric == "Error at 90% Retention":
-        if np.any(truncationError < .1):
-            index = np.argmax(truncationError < .1)
-        else:
-            index=-1
-        metricResult = error[index,:]
-    elif metric == "Error at 99% Retention":
-        if np.any(truncationError < .01):
-            index = np.argmax(truncationError < .01)
-        else:
-            index=-1
-        metricResult = error[index,:]
-    elif metric == "Error at 99.9% Retention":
-        if np.any(truncationError < .001):
-            index = np.argmax(truncationError < .001)
-        else:
-            index=-1
-        metricResult = error[index,:]
-    elif metric == "Error at 99.99% Retention":
         if np.any(truncationError < .0001):
             index = np.argmax(truncationError < .0001)
         else:
             index=-1
         metricResult = error[index,:]
     elif metric == "Max Error Increase":
-        metricResult = np.max((error[1:,:]-error[:-1,:])/error[:-1,:])
+        metricResult = np.max((error[1:]-error[:-1])/error[:-1])
     elif metric == "Sum of Relative Error Increases":
-        errorChanges = (error[1:,:]-error[:-1,:])/error[:-1,:]
+        errorChanges = (error[1:]-error[:-1])/error[:-1]
         errorChanges[errorChanges<0]=0
         metricResult = np.nansum(errorChanges,axis=0)
     elif metric == "Number Error Increases":
-        errorChanges = (error[1:,:]-error[:-1,:])/error[:-1,:]
+        errorChanges = (error[1:]-error[:-1])/error[:-1]
         errorChanges[errorChanges<0]=0
         errorChanges[errorChanges>0]=1
         metricResult = np.nansum(errorChanges,axis=0)
     else:
         raise(ValueError("Invalid metric entered: ", metric))
-    return metricResult
+    return metricResult[::-1]
 
 def computeInitialCondition(model, neq):
     period = 1

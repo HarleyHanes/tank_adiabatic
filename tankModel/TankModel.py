@@ -817,6 +817,13 @@ class TankModel:
                 vNonlinDim = max(vPropInformation.size-int(np.sum(vPropInformation<(vTruncation*nonlinDim))),1)
             else: 
                 raise Exception("Error: Nonlinear reduced dimension greater than 1 entered with singular value proportionality. Provide number less than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
+        elif proportionality=="min singular value":
+            if nonlinDim>=1:
+                #Rounding at machine precision creates odd edge cases so check greater than at 12 digit precision
+                uNonlinDim = min(int(np.sum(np.floor(romData.uSingularValues*10e12)/10e12>(romData.uSingularValues[-1]*nonlinDim)))+1,romData.uModes.shape[1])
+                vNonlinDim = min(int(np.sum(np.floor(romData.vSingularValues*10e12)/10e12>(romData.vSingularValues[-1]*nonlinDim)))+1,romData.vModes.shape[1])
+            else: 
+                raise Exception("Error: Nonlinear reduced dimension less than 1 entered with singular value proportionality. Provide number greater than or equal to 1 for proportion of pod modes to be used in nonlinear caclulcation")
         else:
             raise Exception("Error: Invalid proportionality type '" + proportionality + "' entered. Must be 'mode number' or 'singular value'")
         romData.uNonlinDim = uNonlinDim
