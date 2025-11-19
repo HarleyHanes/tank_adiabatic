@@ -14,6 +14,7 @@ import numpy as np
 from collocationElement.CollocationElement import Element
 from tankModel.romData import RomData
 from mpmath import mp
+import scipy
 
 class TankModel:
     _verbosity=""
@@ -32,6 +33,9 @@ class TankModel:
     _params=" "
     _massRHSmat=""
     _tempRHSmat=""
+    _tEval=""
+    _odeMethod=""
+    _penaltyStrength=""
     
     
     
@@ -243,7 +247,7 @@ class TankModel:
             #raise Exception("Matrix of incorrect size entered for tempRHSmat: tempRHSmat.size="+str(value.shape))
         
         self._tempRHSmat=value
-        
+
                
     @property
     def params(self):
@@ -312,20 +316,83 @@ class TankModel:
         
         self._params=value
     
+    @property
+    def tEval(self):
+        return self._tEval
+    @tEval.setter
+    def tEval(self,value):
+        if type(value) == np.ndarray:
+            self._tEval = value
+        elif type(value) == list:
+            self._tEval = np.array(value)
+        else:
+            raise Exception("Invalid tEval, must be list or numpy array")
+    
+    @property
+    def odeMethod(self):
+        return self._odeMethod
+    @odeMethod.setter
+    def odeMethod(self,value):
+        if isinstance(value, str):
+            if value in ["LSODA", "RK45", "BDF"]:
+                self._odeMethod = value
+            else:
+                raise Exception("Invalid odeMethod, must be one of: LSODA, RK45, BDF")
+        else:
+            raise Exception("Invalid odeMethod, must be a string")
         
+    @property
+    def penaltyStrength(self):
+        return self._penaltyStrength
+    @penaltyStrength.setter
+    def penaltyStrength(self,value):
+        if type(value) not in [int,float]:
+            raise Exception("Non-numerical value entered for penaltyStrength: " + str(value))
+        self._penaltyStrength = value
+
     #================================Object Formation Functions=============================================
         
     def __init__(self,nElements=5, nCollocation=7, bounds=[0,1], spacing = "uniform",
-                 params={"PeM": 1, "PeT": 1, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0, "delta": 0, "vH": 0},verbosity=0):
+                 params={"PeM": 1, "PeT": 1, "f": 0, "Le": 1, "Da": 0, "beta": 0, "gamma": 0, "delta": 0, "vH": 0},
+                 tEval = [0,1], odeMethod = 'LSODA', penaltyStrength = 0, verbosity=0):
         self.verbosity=verbosity
         self.nElements=nElements
         self.nCollocation=nCollocation
         self.bounds=bounds
         self.spacing=spacing
         self.params=params
+        self.tEval=tEval
+        self.odeMethod=odeMethod
+        self.penaltyStrength=penaltyStrength
         self.__makeElements__()
         self.__computeCollocationMatrices__()
-    
+
+    def copy(self, **overrides):
+        """Return a new TankModel with the same initialization args as this one,
+        but with any provided overrides applied.
+
+        Usage:
+            m2 = m1.copy()  # exact duplicate
+            m3 = m1.copy(nElements=10, spacing="legendre")
+        """
+        # Build current init args from the instance
+        current_args = {
+            "nElements": self.nElements,
+            "nCollocation": self.nCollocation,
+            "bounds": list(self.bounds) if isinstance(self.bounds, list) else (self.bounds.copy() if isinstance(self.bounds, np.ndarray) else self.bounds),
+            "spacing": self.spacing,
+            "params": self.params.copy() if isinstance(self.params, dict) else dict(self.params),
+            "tEval": self.tEval.copy() if isinstance(self.tEval, np.ndarray) else (list(self.tEval) if isinstance(self.tEval, list) else self.tEval),
+            "odeMethod": self.odeMethod if hasattr(self, "_odeMethod") else 'lsoda',
+            "penaltyStrength": self.penaltyStrength if hasattr(self, "_penaltyStrength") else 0,
+            "verbosity": self.verbosity if hasattr(self, "_verbosity") else 0,
+        }
+
+        # Apply caller overrides
+        current_args.update(overrides)
+
+        # Construct a fresh instance with merged args
+        return TankModel(**current_args)
 
     def __makeElements__(self):
         elements=[]
@@ -550,6 +617,10 @@ class TankModel:
             eqCounter+=2
         return dydt
     
+    def solve_ivp(self,dydt,y0,tEval = 'none',atol=1e-9,rtol=1e-9):
+        if tEval == 'none':
+            tEval = self.tEval
+        return scipy.integrate.solve_ivp(dydt,(tEval[0],tEval[-1]),y0, t_eval = tEval, method=self.odeMethod,atol=1e-9,rtol=1e-9).y.transpose()
 
     def eval(self,xEval,modelCoeff, output="full",deriv=0):
         """eval computes the value of u and v at every point in xEval given the collocation element expression provided by modelCoeff"""
@@ -1025,7 +1096,7 @@ class TankModel:
             raise ValueError("Invalid quadRule")
         return x, np.diag(w)
 
-    def dydtPodRom(self,y,t,romData,paramSelect=[],penaltyStrength=0):
+    def dydtPodRom(self,y,t,romData,paramSelect=[]):
         if type(paramSelect)==str:
             paramSelect=[paramSelect]
         u=y[0:romData.uNmodes]
@@ -1059,11 +1130,11 @@ class TankModel:
                                         *vNonlin/(1+self.params["beta"]*vNonlin))))/self.params["Le"]
         #Boundary Penalty
         #u
-        dudt -= penaltyStrength*romData.uModes[0,:]*(uFull[0]-uFullx[0]/self.params["PeM"])
-        dudt -= penaltyStrength*romData.uModes[-1,:]*uFull[-1]
+        dudt -= self.penaltyStrength*romData.uModes[0,:]*(uFull[0]-uFullx[0]/self.params["PeM"])
+        dudt -= self.penaltyStrength*romData.uModes[-1,:]*uFull[-1]
         #v
-        dvdt -= penaltyStrength*romData.vModes[0,:]*(vFull[0]-vFullx[0]/self.params["PeM"]-self.params["f"]*vFull[-1])
-        dvdt -= penaltyStrength*romData.vModes[-1,:]*vFullx[-1]
+        dvdt -= self.penaltyStrength*romData.vModes[0,:]*(vFull[0]-vFullx[0]/self.params["PeM"]-self.params["f"]*vFull[-1])
+        dvdt -= self.penaltyStrength*romData.vModes[-1,:]*vFullx[-1]
         dydt = np.append(dudt,dvdt)
         eqCounter=1
         for param in paramSelect:
@@ -1126,19 +1197,19 @@ class TankModel:
             # dudParamxLeftBoundary=np.dot(romData.uModesx[0,:],dudParam)+romData.uMean[0]
             # dvdParamxLeftBoundary=np.dot(romData.vModesx[0,:],dvdParam)+romData.vMean[0]
             # if param in ["vH", "delta", "Le", "Da","beta","gamma"]:
-            #     ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
-            #     ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
+            #     ddudParamdt += self.penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
+            #     ddvdParamdt += self.penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
             # elif param=="f":
-            #     ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
-            #     ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]+vFull[-1]))
+            #     ddudParamdt += self.penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
+            #     ddvdParamdt += self.penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]+vFull[-1]))
             # elif param=="PeM":
             #     uxLeftBoundary=np.dot(romData.uModesx[0,:],dudParam)+romData.uMean[0]
-            #     ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"]+uxLeftBoundary/(self.params["PeM"]**2))
-            #     ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
+            #     ddudParamdt += self.penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"]+uxLeftBoundary/(self.params["PeM"]**2))
+            #     ddvdParamdt += self.penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary/self.params["PeT"]+self.params["f"]*dvdParamFull[-1]))
             # elif param=="PeT":
             #     vxLeftBoundary=np.dot(romData.vModesx[0,:],dvdParam)+romData.vMean[0]
-            #     ddudParamdt += penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
-            #     ddvdParamdt += penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary-vxLeftBoundary/self.params["PeT"])/self.params["PeT"]-self.params["f"]*dvdParamFull[-1])
+            #     ddudParamdt += self.penaltyStrength*(dudParamFull[0]-dudParamxLeftBoundary/self.params["PeM"])
+            #     ddvdParamdt += self.penaltyStrength*(dvdParamFull[0]-(dvdParamxLeftBoundary-vxLeftBoundary/self.params["PeT"])/self.params["PeT"]-self.params["f"]*dvdParamFull[-1])
 
             #Scale RHS of v by Le
             ddvdParamdt/=self.params["Le"]
