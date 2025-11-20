@@ -167,7 +167,7 @@ def getParameterOptions(paramSet):
         raise ValueError("Invalid paramSet entered: " + str(paramSet))
     return baseParams,stabalized
 
-def computeSensitivity(romCoeff,model,romData,params,paramSelect,romSensitivityApproach,sensInit,finiteDelta=1e-8, complexDelta=1e-14,verbosity =0):
+def computeSensitivity(romCoeff,model,romData,paramSelect,romSensitivityApproach,sensInit,finiteDelta=1e-8, complexDelta=1e-14,verbosity =0):
     for iparam in range(len(paramSelect)):
         if romSensitivityApproach == "finite":
             if verbosity >= 1:
@@ -233,3 +233,24 @@ def computeSensitivity(romCoeff,model,romData,params,paramSelect,romSensitivityA
             romCoeff[:,(iparam+1)*(romData.uNmodes+romData.vNmodes):(iparam+2)*(romData.uNmodes+romData.vNmodes)]=\
                 model.solve_ivp(lambda t,y: dydtPodRom(y,t), romInit)[:,romData.uNmodes+romData.vNmodes:]
     return romCoeff
+
+
+def constructParameterSamples(baseParams, paramBounding,param,nRomSamples):
+    if param == "none":
+        # No parameter sampling
+        fomParamSamples = [baseParams]
+        romParamSamples = [baseParams]
+    else: 
+        base_val = baseParams[param]
+        lo = base_val * (1 - paramBounding)
+        hi = base_val * (1 + paramBounding)
+
+        # FOM: 3 samples (lo, base, hi)
+        fom_values = np.linspace(lo, hi, 3).tolist()
+        fomParamSamples = [{**baseParams, param: v} for v in fom_values]
+
+        # ROM: nRomSamples across the same interval
+        rom_values = np.linspace(lo, hi, nRomSamples).tolist()
+        romParamSamples = [{**baseParams, param: v} for v in rom_values]
+
+    return fomParamSamples, romParamSamples

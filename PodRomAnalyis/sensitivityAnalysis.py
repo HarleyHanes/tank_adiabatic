@@ -16,6 +16,7 @@ from podRomAnalysis import computeInitialCondition
 from podRomAnalysis import getSensitivityOptions
 from podRomAnalysis import getParameterOptions
 from podRomAnalysis import computeSensitivity
+from podRomAnalysis import constructParameterSamples
 from tankModel.TankModel import TankModel
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
@@ -29,11 +30,11 @@ def main():
 
     plotRomInterpolation = False
 
-    plotTimeSeries=False
+    plotTimeSeries=True
     plotModes=False
-    plotError=False
-    plotRomCoeff=False
-    plotSingularValues=False 
+    plotError=True
+    plotRomCoeff=True
+    plotSingularValues=True 
     plotFullSpectra = False
 
     makeMovies=False
@@ -42,12 +43,12 @@ def main():
     equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
     nCollocation=2
     nElements=64
-    odeMethod="LSODA" #LSODA, BDF, RK45, RK23, DOP853, Note: because we're often dealing with the limit of unstable ROMS, the ODE solver we select is very important
+    odeMethod="BDF" #LSODA, BDF, Note: Need a stiff solver, LSODA fastest but BDF needed to support complex step
     nPoints=599
     nT=600
 
     #Parameter Sampling
-    param ="none"
+    param ="vH"
     if param != "none":
         equationSet = param #Comment out to do parameter sampling without sensitivity
         paramBounding = .25
@@ -55,7 +56,7 @@ def main():
 
     #ROM parameters
     usePodRom=True
-    useEnergyThreshold=False
+    useEnergyThreshold=True
     nDeimPoints = "max" #Base value for DEIM, max or integer
     nonLinReduction = 4.0 #Base value for nonLinReduction, 1 means no reduction
     penaltyStrength=0
@@ -127,22 +128,8 @@ def main():
     neq, paramSelect, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
     #=================================== Construct Parameter Samples =========================================================================
     # Determine parameter samples (lower, center, upper for FOM; evenly spaced for ROM)
-    if param == "none":
-        # No parameter sampling
-        fomParamSamples = [baseParams]
-        romParamSamples = [baseParams]
-    else: 
-        base_val = baseParams[param]
-        lo = base_val * (1 - paramBounding)
-        hi = base_val * (1 + paramBounding)
-
-        # FOM: 3 samples (lo, base, hi)
-        fom_values = np.linspace(lo, hi, 3).tolist()
-        fomParamSamples = [{**baseParams, param: v} for v in fom_values]
-
-        # ROM: nRomSamples across the same interval
-        rom_values = np.linspace(lo, hi, nRomSamples).tolist()
-        romParamSamples = [{**baseParams, param: v} for v in rom_values]
+    fomParamSamples, romParamSamples = constructParameterSamples(baseParams, paramBounding,param,nRomSamples)
+    
 
     #==================================== Setup system ===============================================================================
     if verbosity >= 1:
@@ -152,7 +139,6 @@ def main():
     dydtSens =lambda y,t: model.dydtSens(y,t,paramSelect=paramSelect)
     dydtStabalization =lambda y,t: model.dydtSens(y,t,paramSelect=[])
 
-    initialCondition = computeInitialCondition(model,neq)
 
     #=================================== Run Stabalization ===========================================================================
     if verbosity >= 1:
@@ -161,7 +147,10 @@ def main():
         #Run out till stabalizing in periodic domain
         initialCondition = np.zeros(model.nCollocation*model.nElements*2*neq)
         #Note: Sensitivities have 0 initial condition
-        initialCondition[:model.nCollocation*model.nElements*2] = model.solve_ivp(lambda t,y: dydtStabalization(y,t), initialCondition,tEval = [0,stabalizationTime])[-1,:]
+        initialCondition[:model.nCollocation*model.nElements*2] = model.solve_ivp(lambda t,y: dydtStabalization(y,t), initialCondition[:model.nCollocation*model.nElements*2],\
+                                                                                  tEval = [0,stabalizationTime])[-1,:]
+    else:
+        initialCondition = computeInitialCondition(model,neq)
     #=================================== Get Simulation Data ================================================================
     #Step 1: Get FOM Data that will be used to generate ROM
     if verbosity >= 1:
@@ -307,7 +296,7 @@ def main():
                                 #------------------------------- Compute Sensitivity
                                 #NOTE: Sensitivity not yet implemented for multiple parameter samples
                                 if equationSet!="tankOnly":
-                                    romCoeff = computeSensitivity(romCoeff,model,romData,paramSelect,romSensitivityApproach[isens],sensInit[iInit])
+                                    romCoeff = computeSensitivity(romCoeff,model,romData,paramSelect,romSensitivityApproach[isens],sensInit[iInit],finiteDelta=finiteDelta, complexDelta=complexDelta, verbosity = verbosity)
 
                                 #----------------------------- Map Results Back into Spatial Space
                                 for i in range(0, neq):

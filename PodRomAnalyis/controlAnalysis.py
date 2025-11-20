@@ -16,6 +16,7 @@ from podRomAnalysis import computeInitialCondition
 from podRomAnalysis import getSensitivityOptions
 from podRomAnalysis import getParameterOptions
 from podRomAnalysis import computeSensitivity
+from podRomAnalysis import constructParameterSamples
 from tankModel.TankModel import TankModel
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
@@ -161,24 +162,7 @@ def main():
     #Determine parameters to get sensitivity of
     neq, paramSelect, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
     #=================================== Construct Parameter Samples =========================================================================
-    # Determine parameter samples (lower, center, upper for FOM; evenly spaced for ROM)
-    if param == "none":
-        # No parameter sampling
-        fomParamSamples = [baseParams]
-        romParamSamples = [baseParams]
-    else: 
-        base_val = baseParams[param]
-        lo = base_val * (1 - paramBounding)
-        hi = base_val * (1 + paramBounding)
-
-        # FOM: 3 samples (lo, base, hi)
-        fom_values = np.linspace(lo, hi, 3).tolist()
-        fomParamSamples = [{**baseParams, param: v} for v in fom_values]
-
-        # ROM: nRomSamples across the same interval
-        rom_values = np.linspace(lo, hi, nRomSamples).tolist()
-        romParamSamples = [{**baseParams, param: v} for v in rom_values]
-
+    fomParamSamples, romParamSamples = constructParameterSamples(baseParams, paramBounding,param,nRomSamples)
     #==================================== Setup system ===============================================================================
     if verbosity >= 1:
         print("Setting up system")
