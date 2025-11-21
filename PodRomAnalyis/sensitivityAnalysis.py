@@ -28,13 +28,13 @@ def main():
     #Run Types
     plotConvergence=False
 
-    plotRomInterpolation = False
+    plotRomInterpolation = True
 
     plotTimeSeries=True
     plotModes=False
     plotError=True
-    plotRomCoeff=True
-    plotSingularValues=True 
+    plotRomCoeff=False
+    plotSingularValues=False 
     plotFullSpectra = False
 
     makeMovies=False
@@ -50,9 +50,10 @@ def main():
     #Parameter Sampling
     param ="vH"
     if param != "none":
+        extrapolatory = False
         equationSet = param #Comment out to do parameter sampling without sensitivity
-        paramBounding = .25
-        nRomSamples = 7
+        paramBounding = .5
+        nRomSamples = 3
 
     #ROM parameters
     usePodRom=True
@@ -72,7 +73,7 @@ def main():
     #================================================================= Set simulation parameters ==============================================================================================
     #Set POD Retention
     if useEnergyThreshold==True:
-        modeRetention=.9999
+        modeRetention=.995
     else:
         if plotConvergence:
             if paramSet=="BizonChaotic":
@@ -128,7 +129,7 @@ def main():
     neq, paramSelect, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
     #=================================== Construct Parameter Samples =========================================================================
     # Determine parameter samples (lower, center, upper for FOM; evenly spaced for ROM)
-    fomParamSamples, romParamSamples = constructParameterSamples(baseParams, paramBounding,param,nRomSamples)
+    fomParamSamples, romParamSamples = constructParameterSamples(baseParams, paramBounding,param,nRomSamples,extrapolatory)
     
 
     #==================================== Setup system ===============================================================================
@@ -353,7 +354,9 @@ def main():
 
                         #------------------------------------------- Make Interpolation Plots ----------------------------------------------------
                         if plotRomInterpolation and len(romParamSamples)>1:
+                            rom_values = np.array([p[param] for p in romParamSamples])
                             fig, axes = plt.subplots(1,1, figsize=(4,3))
+                            #Base ROM error
                             #L2 Error
                             axes.semilogy(rom_values, error[iret][0,:,0],"-bs",lw=3,ms=8)
                             #Linf Error
@@ -364,6 +367,7 @@ def main():
                             plt.savefig(romSaveFolder + "OATaccuracy_"+param + "_a" + str(paramBounding) + "nSamp" + str(nRomSamples) + ".pdf", format="pdf")
                             plt.savefig(romSaveFolder + "OATaccuracy_"+param + "_a" + str(paramBounding) + "nSamp" + str(nRomSamples) + ".png", format="png")
 
+                            #Sensitivity Error
                             for i in range(1, neq): 
                                 fig, axes = plt.subplots(1,1, figsize=(4,3))
                                 #L2 Error
@@ -552,6 +556,7 @@ def main():
                                                         nSV - np.sum(totalTruncation <= .01),
                                                         nSV - np.sum(totalTruncation <= .001),
                                                         nSV - np.sum(totalTruncation <= .0001)])
+                            cutoffIndices = cutoffIndices[(cutoffIndices<romData.uSingularValues.size) & (cutoffIndices<romData.vSingularValues.size)]
                             uCutoffSv = romData.uSingularValues[cutoffIndices]
                             vCutoffSv = romData.vSingularValues[cutoffIndices]
                             padding = 1.3

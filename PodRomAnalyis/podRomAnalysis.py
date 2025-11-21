@@ -235,7 +235,7 @@ def computeSensitivity(romCoeff,model,romData,paramSelect,romSensitivityApproach
     return romCoeff
 
 
-def constructParameterSamples(baseParams, paramBounding,param,nRomSamples):
+def constructParameterSamples(baseParams, paramBounding,param,nRomSamples, extrapolatory):
     if param == "none":
         # No parameter sampling
         fomParamSamples = [baseParams]
@@ -248,6 +248,11 @@ def constructParameterSamples(baseParams, paramBounding,param,nRomSamples):
         # FOM: 3 samples (lo, base, hi)
         fom_values = np.linspace(lo, hi, 3).tolist()
         fomParamSamples = [{**baseParams, param: v} for v in fom_values]
+
+        if extrapolatory:
+            # Extend ROM values out to 50% beyond FOM range
+            lo = base_val * (1 - paramBounding*2)
+            hi = base_val * (1 + paramBounding*2)
 
         # ROM: nRomSamples across the same interval
         rom_values = np.linspace(lo, hi, nRomSamples).tolist()
