@@ -242,6 +242,7 @@ def main():
                         else:
                             uResults = np.empty((len(romParamSamples),neq,nT,1,nPoints))
                             vResults = np.empty((len(romParamSamples),neq,nT,1,nPoints))
+                        combinedResults=np.empty((uResults.shape[0],2*neq)+uResults.shape[2:])
                         #Fill initial FOM data
                         uResults[:,:,:,0,:] = uRefData
                         vResults[:,:,:,0,:] = vRefData
@@ -316,16 +317,14 @@ def main():
                                     if verbosity >= 2:
                                         print(                  qois[k]+": ", qoiResults[iret][iParamSample,k])
                                     #INCOMPLETE: Figure out what want to compute for sensitivity error.
-
+                                for i in range(neq):
+                                    combinedResults[iParamSample,2*i,:,:,:]=uResults[iParamSample,i,:,:,:]
+                                    combinedResults[iParamSample,2*i+1,:,:,:]=vResults[iParamSample,i,:,:,:]
                         #=========================================== Make Plots ===================================================================
                         if usePodRom:
-                            if len(romParamSamples)==1:
-                                legends = ["FOM","ROM","POD"] 
-                            else:
-                                legends = ["FOM","ROM"]
+                            legends = ["FOM","ROM","POD"] 
                         else:
                             legends = ["FOM"]
-
                         #------------------------------------------- Make Interpolation Plots ----------------------------------------------------
                         if plotRomInterpolation and len(romParamSamples)>1:
                             rom_values = np.array([p[param] for p in romParamSamples])
@@ -368,11 +367,7 @@ def main():
                             plt.savefig(romSaveFolder + "OATqois_"+param + "_a" + str(paramBounding) + "nSamp" + str(nRomSamples) + ".pdf", format="pdf")
                             plt.savefig(romSaveFolder + "OATqois_"+param + "_a" + str(paramBounding) + "nSamp" + str(nRomSamples) + ".png", format="png")
                         #------------------------------------------- Make Movies ----------------------
-                        #Concatenate results for easier mangament in plotting 
-                        combinedResults=np.empty((uResults.shape[0],2*neq)+uResults.shape[2:])
-                        for i in range(1, neq):
-                            combinedResults[:,2*i,:,:,:]=uResults[:,i,:,:,:]
-                            combinedResults[:,2*i+1,:,:,:]=vResults[:,i,:,:,:]
+                        
                         if usePodRom and makeMovies:   
                             subplotMovie([u for u in uResults[0]], x, romSaveFolder + "u.mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
                             subplotMovie([v for v in vResults[0]], x, romSaveFolder + "v.mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
