@@ -11,7 +11,7 @@ from postProcessing.plot import subplot
 from postProcessing.plot import subplotMovie
 from postProcessing.plot import plotErrorConvergence
 from postProcessing.plot import plotRomMatrices
-from podRomAnalysis import computeControlMetric
+from podRomAnalysis import mapROMdataToFOMspace
 from podRomAnalysis import computeInitialCondition
 from podRomAnalysis import getSensitivityOptions
 from podRomAnalysis import getParameterOptions
@@ -227,7 +227,9 @@ def main():
                                 plt.savefig(podSaveFolder + "../singularValues.png", format="png")
                             #------------------------------- Compute POD
                             romData, truncationError[iret]=model.constructPodRom(dataModelCoeff[:,:,:2*nCollocation*nElements],x,W,modeRetention[iret],mean=mean_reduction[imean],useEnergyThreshold=useEnergyThreshold,adjustModePairs=False)
-                    
+                            
+
+
                         error.append(np.empty((neq,len(romParamSamples),len(error_norm))))
                         qoiResults.append(np.empty((len(romParamSamples),len(qois)))) #Goal: Implement Computation of QoI sensitivity
                         if verbosity >=1:
@@ -295,39 +297,11 @@ def main():
                                 romCoeff[:,:romData.uNmodes+romData.vNmodes] = model.solve_ivp(lambda t,y: dydtPodRom(y,t),romInit)
                                 
                                 #------------------------------- Compute Sensitivity
-                                #NOTE: Sensitivity not yet implemented for multiple parameter samples
                                 if equationSet!="tankOnly":
                                     romCoeff = computeSensitivity(romCoeff,model,romData,paramSelect,romSensitivityApproach[isens],sensInit[iInit],finiteDelta=finiteDelta, complexDelta=complexDelta, verbosity = verbosity)
 
                                 #----------------------------- Map Results Back into Spatial Space
-                                for i in range(0, neq):
-                                    # Compute ROM Solution
-                                    romModeStart = i*(romData.uNmodes+romData.vNmodes)
-                                    #ROM Result
-                                    if i==0:
-                                        uResults[iParamSample,i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose() + romData.uMean
-                                        vResults[iParamSample,i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose() + romData.vMean
-                                    else:
-                                        #NOTE: We assume 0 mean decomposition for sensitivity equations. This is mathematically reasonable in the perturbed parameters case where the inital sensitivity is 0 anyways. 
-                                        #   Additionally, we don't have a way of computing a more optimal mean decomposition in the imagined circumstance where FOM sensitivities weren't solved
-                                        uResults[iParamSample,i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose()
-                                        vResults[iParamSample,i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose()
-                                    #POD Result
-                                    #NOTE: The idea of the POD value at each of the romSample points doesn't make sense since the these data points weren't included in the POD decomposition. Maybe seperate the POD and ROM results arrays?
-                                    #This line will currently fail because uTimeModes is much larger in dimension now so only calling it if we're in a single rom parameter case
-                                    if len(romParamSamples)==1:
-                                        if i==0:
-                                            uResults[iParamSample,i,:,2,:] = ((romData.uModes @ romData.uTimeModes[:romCoeff.shape[0],:].transpose())+romData.uMean.reshape((romData.uMean.size,1))).transpose()
-                                            vResults[iParamSample,i,:,2,:] = (romData.vModes @ romData.vTimeModes[:romCoeff.shape[0],:].transpose() +romData.vMean.reshape((romData.vMean.size,1))).transpose()
-                                        else:
-                                            #We can generalize POD to the variationin the POD space projected back to the FOM space, regardless of whether sensitivities were in initial POD decomp
-                                            #Note: Confirmed that, if POD modes are computed using sensitivity snapshots, then this is equivalent to those modes if no mean decomp is used
-                                            #UNVERIFIED: That that property holds numerically with this implementation and whether it holds if using a mean decomp
-                                            if mean_reduction[imean]!="zero":
-                                                print("WARNING: Correctness of approach unconfirmed for non-zero mean reduction")
-                                            
-                                            uResults[iParamSample,i,:,2,:] = (romData.uModes @ uFullTimeModes[:,i*romData.uNmodes:(i+1)*romData.uNmodes].transpose()+romData.uMean.reshape((romData.uMean.size,1))).transpose()
-                                            vResults[iParamSample,i,:,2,:] = (romData.vModes @ vFullTimeModes[:,i*romData.vNmodes:(i+1)*romData.vNmodes].transpose()+romData.vMean.reshape((romData.vMean.size,1))).transpose()
+                                uResults,vResults = mapROMdataToFOMspace(romData,uResults,vResults,romCoeff,iParamSample,sensInit[iInit])
                                 #================================================== Compute Error =================================================================
                                 for ieq in range(neq):
                                     for k in range(len(error_norm)):

@@ -234,7 +234,6 @@ def computeSensitivity(romCoeff,model,romData,paramSelect,romSensitivityApproach
                 model.solve_ivp(lambda t,y: dydtPodRom(y,t), romInit)[:,romData.uNmodes+romData.vNmodes:]
     return romCoeff
 
-
 def constructParameterSamples(baseParams, paramBounding,param,nRomSamples, extrapolatory):
     if param == "none":
         # No parameter sampling
@@ -259,3 +258,64 @@ def constructParameterSamples(baseParams, paramBounding,param,nRomSamples, extra
         romParamSamples = [{**baseParams, param: v} for v in rom_values]
 
     return fomParamSamples, romParamSamples
+
+def uFOMtoPODcoeff(romData,FOMdata):
+    #Check Number of spatial points is same
+    if FOMdata.shape[0] != romData.uMean.size:
+        raise ValueError("FOM data size does not match ROM data size")
+    #Remove mean
+    data=FOMdata-romData.uMean.reshape((romData.uMean.size,1))
+    #Project onto POD modes
+    romCoeff = (romData.uModes.transpose() @ data )
+
+def uPODcoeffToFOM(romData,romCoeff):
+    #Check number of modes is same
+    if romCoeff.shape[0] != romData.uNmodes:
+        raise ValueError("ROM coefficient size does not match number of ROM modes")
+    #Reconstruct FOM data from POD coefficents
+    return romData.uModes @ romCoeff + romData.uMean.reshape((romData.uMean.size,1))
+
+def vFOMtoPODcoeff(romData,FOMdata):
+    #Check Number of spatial points is same
+    if FOMdata.shape[0] != romData.vMean.size:
+        raise ValueError("FOM data size does not match ROM data size")
+    #Remove mean
+    data=FOMdata-romData.vMean.reshape((romData.vMean.size,1))
+    #Project onto POD modes
+    romCoeff = (romData.vModes.transpose() @ data )
+def vPODcoeffToFOM(romData,romCoeff):
+    #Check number of modes is same
+    if romCoeff.shape[0] != romData.vNmodes:
+        raise ValueError("ROM coefficient size does not match number of ROM modes")
+    #Reconstruct FOM data from POD coefficents
+    return romData.vModes @ romCoeff + romData.vMean.reshape((romData.vMean.size,1))
+
+def mapROMdataToFOMspace(romData,uResults,vResults,romCoeff,iParamSample,sensitivityMean):
+    neq = uResults.shape[1]
+    for i in range(0, neq):
+        # Compute ROM Solution
+        romModeStart = i*(romData.uNmodes+romData.vNmodes)
+        #ROM Result
+        if i==0:
+            #Map ROM results from POD space to FOM space
+            uResults[iParamSample,i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose() + romData.uMean
+            vResults[iParamSample,i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose() + romData.vMean
+            #Get POD projection from FOM data (note this is already computed in romData.*TimeModes for samples used in POD construction but re-doing it here so same approach for all romParamSamples)
+            uProjectedFomData = romData.uModesWeighted.transpose() @ (uResults[iParamSample,i,:,0,:].transpose()-romData.uMean.reshape((romData.uMean.size,1)))
+            vProjectedFomData = romData.vModesWeighted.transpose() @ (vResults[iParamSample,i,:,0,:].transpose()-romData.vMean.reshape((romData.vMean.size,1)))
+            #Map POD results from POD space to FOM space
+            uResults[iParamSample,i,:,2,:] = (romData.uModes @ uProjectedFomData + romData.uMean.reshape((romData.uMean.size,1))).transpose()
+            vResults[iParamSample,i,:,2,:] = (romData.vModes @ vProjectedFomData + romData.vMean.reshape((romData.vMean.size,1))).transpose()
+        else:
+            if sensitivityMean!="zero":
+                print("Warning: Non-zero mean sensitivity mapping not currently supported, proceeding with zero-mean sensitivity mapping")
+            #Map sensitivity results from POD space to FOM space
+            uResults[iParamSample,i,:,1,:] = (romData.uModes @ romCoeff[:,romModeStart:romModeStart+romData.uNmodes].transpose()).transpose()
+            vResults[iParamSample,i,:,1,:] = (romData.vModes @ romCoeff[:,romModeStart+romData.uNmodes:romModeStart+romData.uNmodes+romData.vNmodes].transpose()).transpose()
+            #Get POD projection from FOM data 
+            uProjectedFomData = romData.uModesWeighted.transpose() @ uResults[iParamSample,i,:,0,:].transpose()
+            vProjectedFomData = romData.vModesWeighted.transpose() @ vResults[iParamSample,i,:,0,:].transpose()
+            #Map POD results from POD space to FOM space
+            uResults[iParamSample,i,:,2,:] = (romData.uModes @ uProjectedFomData).transpose()
+            vResults[iParamSample,i,:,2,:] = (romData.vModes @ vProjectedFomData).transpose()
+    return uResults,vResults
