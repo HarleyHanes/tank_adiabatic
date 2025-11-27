@@ -71,14 +71,15 @@ def subplotMovie(yVariables, xVariables, output_filename, fps=5, xLabels="X", yL
         # Create the subplot using the provided function
         fig, axes = subplot(frame_yVariables, xVariables, xLabels=xLabels, yLabels=yLabels,legends=legends,legendLoc=legendLoc, subplotSize=subplotSize,yRanges=yRanges,lineTypeStart=lineTypeStart)
 
-        # Render the figure to a buffer
+        # Render the figure to an RGBA buffer (4 channels) to be robust across backends
         canvas = FigureCanvas(fig)
         canvas.draw()
-        img = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
-        img = img.reshape(canvas.get_width_height()[::-1] + (3,))
+        w, h = canvas.get_width_height()
+        rgba = np.frombuffer(canvas.buffer_rgba(), dtype=np.uint8)
+        img = rgba.reshape(h, w, 4)
 
-        # Convert RGB to BGR for OpenCV
-        img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        # Convert RGBA to BGR for OpenCV
+        img_bgr = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
 
         # Resize the frame to match the expected resolution
         img_bgr = cv2.resize(img_bgr, frame_size)

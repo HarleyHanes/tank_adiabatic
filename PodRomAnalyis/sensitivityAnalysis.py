@@ -32,12 +32,13 @@ def main():
 
     plotTimeSeries=True
     plotModes=False
-    plotError=True
+    plotError=False
     plotRomCoeff=False
     plotSingularValues=False 
     plotFullSpectra = False
 
-    makeMovies=False
+    makeMovies=True
+    combinedOnly = True
     #FOM parameters
     paramSet = "BizonChaotic" #BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     equationSet = "tankOnly" #tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
@@ -53,7 +54,7 @@ def main():
         extrapolatory = False
         equationSet = param #Comment out to do parameter sampling without sensitivity
         paramBounding = .5
-        nRomSamples = 3
+        nRomSamples = 5
 
     #ROM parameters
     usePodRom=True
@@ -320,11 +321,59 @@ def main():
                                 for i in range(neq):
                                     combinedResults[iParamSample,2*i,:,:,:]=uResults[iParamSample,i,:,:,:]
                                     combinedResults[iParamSample,2*i+1,:,:,:]=vResults[iParamSample,i,:,:,:]
-                        #=========================================== Make Plots ===================================================================
-                        if usePodRom:
-                            legends = ["FOM","ROM","POD"] 
-                        else:
-                            legends = ["FOM"]
+                            #=========================================== Make Plots ===================================================================
+                            if usePodRom:
+                                legends = ["FOM","ROM","POD"] 
+                            else:
+                                legends = ["FOM"]
+                            #------------------------------------------- Make Movies ----------------------
+                            
+                            if usePodRom and makeMovies:
+                                if not combinedOnly:   
+                                    subplotMovie([u for u in uResults[iParamSample]], x, romSaveFolder + "u_"+param+"="+str(model.params[param])+".mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
+                                    subplotMovie([v for v in vResults[iParamSample]], x, romSaveFolder + "v_"+param+"="+str(model.params[param])+".mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
+                                subplotMovie([y for y in combinedResults[iParamSample]], x, romSaveFolder + "combined_"+param+"="+str(model.params[param])+".mov", fps=15, xLabels="x",  yLabels=combinedLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
+                                if plotError:
+                                    subplotMovie([u[:,1:3,:]-u[:,[0],:] for u in uResults[iParamSample]], x, romSaveFolder + "uError_"+param+"="+str(model.params[param])+".mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends[1:3], legendLoc="upper left", subplotSize=(2.5, 2),lineTypeStart=1,yRanges="auto")
+                                    subplotMovie([v[:,1:3,:]-v[:,[0],:] for v in vResults[iParamSample]], x, romSaveFolder + "vError_"+param+"="+str(model.params[param])+".mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends[1:3], legendLoc="upper left", subplotSize=(2.5, 2),lineTypeStart=1,yRanges="auto")   
+                            elif makeMovies:
+                                if not combinedOnly:   
+                                    subplotMovie([u for u in uResults[iParamSample]], x, fomSaveFolder + "u_"+param+"="+str(model.params[param])+".mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
+                                    subplotMovie([v for v in vResults[iParamSample]], x, fomSaveFolder + "v_"+param+"="+str(model.params[param])+".mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
+                                subplotMovie([y for y in combinedResults[iParamSample]], x, fomSaveFolder + "combined_"+param+"="+str(model.params[param])+".mov", fps=15, xLabels="x",  yLabels=combinedLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
+                            #------------------------------------------ Make example plots --------------------------------------------------------
+                            if plotTimeSeries:
+                                tplot = np.linspace(0,tEval.size-1,4,dtype=int)
+                                title = ["t=" + str(round(1000*tEval[it])/1000) for it in tplot]
+                                if not combinedOnly:
+                                    fig,axs = subplotTimeSeries([u[tplot,:,:] for u in uResults[iParamSample]], x, xLabels="x", yLabels=uLabels, title = title,legends=legends, subplotSize=(2.65, 2))
+                                    if usePodRom:
+                                        plt.savefig(romSaveFolder + "uTimeSeries_"+param+"="+str(model.params[param])+".pdf", format="pdf")
+                                        plt.savefig(romSaveFolder + "uTimeSeries_"+param+"="+str(model.params[param])+".png", format="png")
+                                    else:
+                                        plt.savefig(fomSaveFolder + "uTimeSeries_"+param+"="+str(model.params[param])+".pdf", format="pdf")
+                                        plt.savefig(fomSaveFolder + "uTimeSeries_"+param+"="+str(model.params[param])+".png", format="png")
+                                    fig,axs = subplotTimeSeries([v[tplot,:,:] for v in vResults[iParamSample]], x, xLabels="x", yLabels=vLabels, title = title,legends=legends, subplotSize=(2.65, 2))
+                                    if usePodRom:
+                                        plt.savefig(romSaveFolder + "vTimeSeries_"+param+"="+str(model.params[param])+".pdf", format="pdf")
+                                        plt.savefig(romSaveFolder + "vTimeSeries_"+param+"="+str(model.params[param])+".png", format="png")
+                                    else:
+                                        plt.savefig(fomSaveFolder + "vTimeSeries_"+param+"="+str(model.params[param])+".pdf", format="pdf")
+                                        plt.savefig(fomSaveFolder + "vTimeSeries_"+param+"="+str(model.params[param])+".png", format="png")
+                                fig,axs = subplotTimeSeries([y[tplot,:,:] for y in combinedResults[iParamSample]], x, xLabels="x", yLabels=combinedLabels, title = title,legends=legends, subplotSize=(2.65, 2))
+                                if usePodRom:
+                                    plt.savefig(romSaveFolder + "combinedTimeSeries_"+param+"="+str(model.params[param])+".pdf", format="pdf")
+                                    plt.savefig(romSaveFolder + "combinedTimeSeries_"+param+"="+str(model.params[param])+".png", format="png")
+                                else:
+                                    plt.savefig(fomSaveFolder + "combinedTimeSeries_"+param+"="+str(model.params[param])+".pdf", format="pdf")
+                                    plt.savefig(fomSaveFolder + "combinedTimeSeries_"+param+"="+str(model.params[param])+".png", format="png")
+                                if usePodRom and plotError:
+                                    fig,axs = subplotTimeSeries([u[tplot,1:3,:]-u[tplot,0:1,:] for u in uResults[iParamSample]], x, xLabels="x", yLabels=uLabels, title = title,legends=legends[1:3], subplotSize=(2.65, 2),lineTypeStart=1)
+                                    plt.savefig(romSaveFolder + "uErrorTimeSeries_"+param+"="+str(model.params[param])+".pdf", format="pdf")
+                                    plt.savefig(romSaveFolder + "uErrorTimeSeries_"+param+"="+str(model.params[param])+".png", format="png")
+                                    fig,axs = subplotTimeSeries([v[tplot,1:3,:]-v[tplot,0:1,:] for v in vResults[iParamSample]], x, xLabels="x", yLabels=vLabels, title = title,legends=legends[1:3], subplotSize=(2.65, 2),lineTypeStart=1)
+                                    plt.savefig(romSaveFolder + "vErrorTimeSeries_"+param+"="+str(model.params[param])+".pdf", format="pdf")
+                                    plt.savefig(romSaveFolder + "vErrorTimeSeries_"+param+"="+str(model.params[param])+".png", format="png")
                         #------------------------------------------- Make Interpolation Plots ----------------------------------------------------
                         if plotRomInterpolation and len(romParamSamples)>1:
                             rom_values = np.array([p[param] for p in romParamSamples])
@@ -366,95 +415,7 @@ def main():
                             axes.legend(qois)
                             plt.savefig(romSaveFolder + "OATqois_"+param + "_a" + str(paramBounding) + "nSamp" + str(nRomSamples) + ".pdf", format="pdf")
                             plt.savefig(romSaveFolder + "OATqois_"+param + "_a" + str(paramBounding) + "nSamp" + str(nRomSamples) + ".png", format="png")
-                        #------------------------------------------- Make Movies ----------------------
                         
-                        if usePodRom and makeMovies:   
-                            subplotMovie([u for u in uResults[0]], x, romSaveFolder + "u.mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
-                            subplotMovie([v for v in vResults[0]], x, romSaveFolder + "v.mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
-                            subplotMovie([y for y in combinedResults[0]], x, romSaveFolder + "combined.mov", fps=15, xLabels="x",  yLabels=combinedLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
-                            if plotError:
-                                subplotMovie([u[:,1:3,:]-u[:,[0],:] for u in uResults], x, romSaveFolder + "uError.mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends[1:3], legendLoc="upper left", subplotSize=(2.5, 2),lineTypeStart=1,yRanges="auto")
-                                subplotMovie([v[:,1:3,:]-v[:,[0],:] for v in vResults], x, romSaveFolder + "vError.mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends[1:3], legendLoc="upper left", subplotSize=(2.5, 2),lineTypeStart=1,yRanges="auto")   
-                        elif makeMovies:   
-                            subplotMovie([u for u in uResults[0]], x, fomSaveFolder + "u.mov", fps=15, xLabels="x", yLabels=uLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
-                            subplotMovie([v for v in vResults[0]], x, fomSaveFolder + "v.mov", fps=15, xLabels="x", yLabels=vLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
-                            subplotMovie([y for y in combinedResults[0]], x, fomSaveFolder + "combined.mov", fps=15, xLabels="x",  yLabels=combinedLabels, legends=legends, legendLoc="upper left", subplotSize=(2.5, 2))
-
-                        #------------------------------------------ Make example plots --------------------------------------------------------
-                        if plotTimeSeries:
-                            tplot = np.linspace(0,tEval.size-1,4,dtype=int)
-                            title = ["t=" + str(round(1000*tEval[it])/1000) for it in tplot]
-
-                            fig,axs = subplotTimeSeries([u[tplot,:,:] for u in uResults[0]], x, xLabels="x", yLabels=uLabels, title = title,legends=legends, subplotSize=(2.65, 2))
-                            if usePodRom:
-                                plt.savefig(romSaveFolder + "uTimeSeries.pdf", format="pdf")
-                                plt.savefig(romSaveFolder + "uTimeSeries.png", format="png")
-                            else:
-                                plt.savefig(fomSaveFolder + "uTimeSeries.pdf", format="pdf")
-                                plt.savefig(fomSaveFolder + "uTimeSeries.png", format="png")
-                            fig,axs = subplotTimeSeries([v[tplot,:,:] for v in vResults[0]], x, xLabels="x", yLabels=vLabels, title = title,legends=legends, subplotSize=(2.65, 2))
-                            if usePodRom:
-                                plt.savefig(romSaveFolder + "vTimeSeries.pdf", format="pdf")
-                                plt.savefig(romSaveFolder + "vTimeSeries.png", format="png")
-                            else:
-                                plt.savefig(fomSaveFolder + "vTimeSeries.pdf", format="pdf")
-                                plt.savefig(fomSaveFolder + "vTimeSeries.png", format="png")
-                            fig,axs = subplotTimeSeries([y[tplot,:,:] for y in combinedResults[0]], x, xLabels="x", yLabels=combinedLabels, title = title,legends=legends, subplotSize=(2.65, 2))
-                            if usePodRom:
-                                plt.savefig(romSaveFolder + "combinedTimeSeries.pdf", format="pdf")
-                                plt.savefig(romSaveFolder + "combinedTimeSeries.png", format="png")
-                            else:
-                                plt.savefig(fomSaveFolder + "combinedTimeSeries.pdf", format="pdf")
-                                plt.savefig(fomSaveFolder + "combinedTimeSeries.png", format="png")
-                            if usePodRom and plotError:
-                                fig,axs = subplotTimeSeries([u[tplot,1:3,:]-u[tplot,0:1,:] for u in uResults[0]], x, xLabels="x", yLabels=uLabels, title = title,legends=legends[1:3], subplotSize=(2.65, 2),lineTypeStart=1)
-                                plt.savefig(romSaveFolder + "uErrorTimeSeries.pdf", format="pdf")
-                                plt.savefig(romSaveFolder + "uErrorTimeSeries.png", format="png")
-                                fig,axs = subplotTimeSeries([v[tplot,1:3,:]-v[tplot,0:1,:] for v in vResults[0]], x, xLabels="x", yLabels=vLabels, title = title,legends=legends[1:3], subplotSize=(2.65, 2),lineTypeStart=1)
-                                plt.savefig(romSaveFolder + "vErrorTimeSeries.pdf", format="pdf")
-                                plt.savefig(romSaveFolder + "vErrorTimeSeries.png", format="png")
-                            if plotRomCoeff:
-                                coeffLabels = ["Coeff " + str(i+1) for i in range(romData.uNmodes)]
-                                uCoeffData=[np.array([rom,pod]) for pod,rom in zip(romData.uTimeModes[:,:romData.uNmodes].transpose(),\
-                                                                                romCoeff[:,:romData.uNmodes].transpose())]
-                                
-                                fig,axs = subplot(uCoeffData, tEval, xLabels="t", yLabels=coeffLabels, legends=legends[1:3], subplotSize=(2.65, 2),lineTypeStart=1)
-                                plt.savefig(romSaveFolder + "uRomCoeff.pdf", format="pdf")
-                                plt.savefig(romSaveFolder + "uRomCoeff.png", format="png")
-
-                                coeffLabels = ["Coeff " + str(i+1) for i in range(romData.vNmodes)]
-                                vCoeffData=[np.array([rom,pod]) for pod,rom in zip(romData.vTimeModes[:,:romData.vNmodes].transpose(),\
-                                                                                romCoeff[:,romData.uNmodes:romData.uNmodes+romData.vNmodes].transpose())]
-                                fig,axs = subplot(vCoeffData, tEval, xLabels="t", yLabels=coeffLabels,legends=legends[1:3], subplotSize=(2.65, 2),lineTypeStart=1)
-                                plt.savefig(romSaveFolder + "vRomCoeff.pdf", format="pdf")
-                                plt.savefig(romSaveFolder + "vRomCoeff.png", format="png")
-                            if plotModes:
-                                #Compute linearization of nonlinear term
-                                nonLinearTerm = lambda u, v: baseParams["Da"]*romData.vModesWeighted.transpose()\
-                                            @((1-(romData.uModes@u+romData.uMean))*np.exp(baseParams["gamma"]*baseParams["beta"]\
-                                            *(romData.vModes@v+romData.vMean)/(1+baseParams["beta"]*(romData.vModes@v+romData.vMean))))
-                                nonLinearLinearized = [None]*tplot.size
-                                for it in range(tplot.size):
-                                    nonLinearLinearized[it] =np.empty((romData.vNmodes,romData.vNmodes))
-                                    baseU=romCoeff[tplot[it],:romData.uNmodes]
-                                    baseV=romCoeff[tplot[it],romData.uNmodes:romData.uNmodes+romData.vNmodes]
-                                    for i in range(romData.vNmodes):
-                                        adjustedV=baseV.copy()
-                                        adjustedV[i]+=1e-6
-                                        if verbosity >= 3:
-                                            print("Difference between adjusted and standard v basis:", adjustedV-baseV)
-                                            print("Nonlinear evaluations with standard basis:", nonLinearTerm(baseU,baseV))
-                                            print("Difference between nonlinear evaluations:", (nonLinearTerm(baseU,adjustedV)-nonLinearTerm(baseU,baseV))/1e-6)
-                                        nonLinearLinearized[it][i,:]=(nonLinearTerm(baseU,adjustedV)-nonLinearTerm(baseU,baseV))/1e-6
-                                
-                                fig, axes = plotRomMatrices(nonLinearLinearized,\
-                                                            xLabels=r"$v_j$",yLabels=[r"$\frac{\partial \mathcal{N}(v_i)}{\partial v_j}$"," "," ", " "],\
-                                                            title=["t=" + str(round(1000*tEval[it])/1000) for it in tplot],\
-                                                            cmap="coolwarm",
-                                                            fontsize=18)
-                                plt.savefig(romSaveFolder + "vRomMatrices_linearization.pdf", format="pdf", bbox_inches='tight', pad_inches=0.02)
-                                plt.savefig(romSaveFolder + "vRomMatrices_linearization.png", format="png", bbox_inches='tight', pad_inches=0.02)
-
                         #------------------------------------------ Plot POD Modes --------------------------------------------------------
                         if plotModes and usePodRom:
                             subplot([mode for mode in romData.uModes.transpose()], x, xLabels="x", yLabels=["Mode " + str(i+1) for i in range(romData.uNmodes)])
@@ -505,7 +466,48 @@ def main():
                             plt.savefig(romSaveFolder + "uRomMatrices.pdf", format="pdf")
                             plt.savefig(romSaveFolder + "uRomMatrices.png", format="png")
                             
+                        if plotRomCoeff:
+                            coeffLabels = ["Coeff " + str(i+1) for i in range(romData.uNmodes)]
+                            uCoeffData=[np.array([rom,pod]) for pod,rom in zip(romData.uTimeModes[:,:romData.uNmodes].transpose(),\
+                                                                            romCoeff[:,:romData.uNmodes].transpose())]
+                            
+                            fig,axs = subplot(uCoeffData, tEval, xLabels="t", yLabels=coeffLabels, legends=legends[1:3], subplotSize=(2.65, 2),lineTypeStart=1)
+                            plt.savefig(romSaveFolder + "uRomCoeff.pdf", format="pdf")
+                            plt.savefig(romSaveFolder + "uRomCoeff.png", format="png")
 
+                            coeffLabels = ["Coeff " + str(i+1) for i in range(romData.vNmodes)]
+                            vCoeffData=[np.array([rom,pod]) for pod,rom in zip(romData.vTimeModes[:,:romData.vNmodes].transpose(),\
+                                                                            romCoeff[:,romData.uNmodes:romData.uNmodes+romData.vNmodes].transpose())]
+                            fig,axs = subplot(vCoeffData, tEval, xLabels="t", yLabels=coeffLabels,legends=legends[1:3], subplotSize=(2.65, 2),lineTypeStart=1)
+                            plt.savefig(romSaveFolder + "vRomCoeff.pdf", format="pdf")
+                            plt.savefig(romSaveFolder + "vRomCoeff.png", format="png")
+                        if plotModes:
+                            #Compute linearization of nonlinear term
+                            nonLinearTerm = lambda u, v: baseParams["Da"]*romData.vModesWeighted.transpose()\
+                                        @((1-(romData.uModes@u+romData.uMean))*np.exp(baseParams["gamma"]*baseParams["beta"]\
+                                        *(romData.vModes@v+romData.vMean)/(1+baseParams["beta"]*(romData.vModes@v+romData.vMean))))
+                            nonLinearLinearized = [None]*tplot.size
+                            for it in range(tplot.size):
+                                nonLinearLinearized[it] =np.empty((romData.vNmodes,romData.vNmodes))
+                                baseU=romCoeff[tplot[it],:romData.uNmodes]
+                                baseV=romCoeff[tplot[it],romData.uNmodes:romData.uNmodes+romData.vNmodes]
+                                for i in range(romData.vNmodes):
+                                    adjustedV=baseV.copy()
+                                    adjustedV[i]+=1e-6
+                                    if verbosity >= 3:
+                                        print("Difference between adjusted and standard v basis:", adjustedV-baseV)
+                                        print("Nonlinear evaluations with standard basis:", nonLinearTerm(baseU,baseV))
+                                        print("Difference between nonlinear evaluations:", (nonLinearTerm(baseU,adjustedV)-nonLinearTerm(baseU,baseV))/1e-6)
+                                    nonLinearLinearized[it][i,:]=(nonLinearTerm(baseU,adjustedV)-nonLinearTerm(baseU,baseV))/1e-6
+                            
+                            fig, axes = plotRomMatrices(nonLinearLinearized,\
+                                                        xLabels=r"$v_j$",yLabels=[r"$\frac{\partial \mathcal{N}(v_i)}{\partial v_j}$"," "," ", " "],\
+                                                        title=["t=" + str(round(1000*tEval[it])/1000) for it in tplot],\
+                                                        cmap="coolwarm",
+                                                        fontsize=18)
+                            plt.savefig(romSaveFolder + "vRomMatrices_linearization.pdf", format="pdf", bbox_inches='tight', pad_inches=0.02)
+                            plt.savefig(romSaveFolder + "vRomMatrices_linearization.png", format="png", bbox_inches='tight', pad_inches=0.02)
+                        
                         #------------------------------------------- Plot Singular Values --------------------------------------------------------
                         if plotSingularValues:
                             #Compute culmulative truncation
@@ -568,9 +570,8 @@ def main():
                             plt.savefig(romSaveFolder + "propInformation.png", format="png")
                         if not showPlots:
                             plt.close()
-                #=========================================== Plot Convergence ===================================================================
-                    
-                    if usePodRom and plotConvergence and len(error)>1 and not adaptiveControlCutoff:
+                    #=========================================== Plot Convergence ===================================================================
+                    if usePodRom and plotConvergence and len(error)>1:
                         #Don't plot error convergence for sensitivities or multiple parameter values
                         errorPlot = np.array([errorRet[0,0,:] for errorRet in error]).T.tolist()
                         errorPlot = [np.array(error) for error in errorPlot]
