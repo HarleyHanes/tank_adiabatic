@@ -6,7 +6,8 @@ class RomData:
                  uRomSecondOrderMat, uRomSecondOrderMean, vTimeModes, vMean,
                  vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
                  vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
-                 vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues,vSingularValues,uNonlinDim,vNonlinDim,
+                 vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues, 
+                 uFullSpectra, vSingularValues, vFullSpectra, uNonlinDim,vNonlinDim,
                  deimProjection,uNonLinProjection,vNonLinProjection):
         
         self.x = x
@@ -41,9 +42,11 @@ class RomData:
         self.vRomSecondOrderMat = vRomSecondOrderMat
         self.vRomSecondOrderMean = vRomSecondOrderMean
         self.uSingularValues = uSingularValues
+        self.uFullSpectra = uFullSpectra
         self.vSingularValues = vSingularValues
-        self.uNonlinDim=uNonlinDim
-        self.vNonlinDim=vNonlinDim
+        self.vFullSpectra = vFullSpectra
+        self.uNonlinDim = uNonlinDim
+        self.vNonlinDim = vNonlinDim
         self.uNonLinProjection = uNonLinProjection
         self.vNonLinProjection = vNonLinProjection
         self.deimProjection = deimProjection
@@ -313,7 +316,7 @@ class RomData:
     def uNonlinDim(self, value):
         if type(value)!= int:
             raise ValueError("Incorrect type for uNonlinDim: ", type(value))
-        elif value <1 or value>self.uNmodes:
+        elif value <0 or value>self.uNmodes:
             raise ValueError("Icompatible value for uNonlinDim: ",value)
         else:
             self._uNonlinDim = value
@@ -326,7 +329,7 @@ class RomData:
     def vNonlinDim(self, value):
         if type(value)!= int:
             raise ValueError("Incorrect type for vNonlinDim: ", type(value))
-        elif value <1 or value>self.vNmodes:
+        elif value <0 or value>self.vNmodes:
             raise ValueError("Icompatible value for vNonlinDim: ",value)
         else:
             self._vNonlinDim = value

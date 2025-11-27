@@ -71,14 +71,15 @@ def subplotMovie(yVariables, xVariables, output_filename, fps=5, xLabels="X", yL
         # Create the subplot using the provided function
         fig, axes = subplot(frame_yVariables, xVariables, xLabels=xLabels, yLabels=yLabels,legends=legends,legendLoc=legendLoc, subplotSize=subplotSize,yRanges=yRanges,lineTypeStart=lineTypeStart)
 
-        # Render the figure to a buffer
+        # Render the figure to an RGBA buffer (4 channels) to be robust across backends
         canvas = FigureCanvas(fig)
         canvas.draw()
-        img = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
-        img = img.reshape(canvas.get_width_height()[::-1] + (3,))
+        w, h = canvas.get_width_height()
+        rgba = np.frombuffer(canvas.buffer_rgba(), dtype=np.uint8)
+        img = rgba.reshape(h, w, 4)
 
-        # Convert RGB to BGR for OpenCV
-        img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        # Convert RGBA to BGR for OpenCV
+        img_bgr = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
 
         # Resize the frame to match the expected resolution
         img_bgr = cv2.resize(img_bgr, frame_size)
@@ -437,55 +438,82 @@ def plotRomMatrices(matrices,xLabels="null",yLabels="null",title="null",cmap="co
     plt.tight_layout()
     return fig, axes
 
-def plotErrorConvergence(error,fidelity, xLabel="X", yLabel="Y", plotType="loglog", title="null", legends="null",legendLoc="best",figsize=(4,3.3)):
+def plotErrorConvergence(error,fidelity, xLabel="X", yLabel="Y", plotType="loglog", title="null", legends="null",legendLoc="best",figsize=(4,3.3),yRanges = "auto"):
     #Parse input data types
-    if not isinstance(error,np.ndarray):
-        raise(ValueError("error must be a 1D or 2D numpy array"))
-    if isinstance(fidelity,list):
-        fidelity = np.array(fidelity)
-    elif not isinstance(fidelity,np.ndarray):
-        print("fidelity: ",fidelity)
-        raise(ValueError("fidelity must be a 1D numpy array or list"))
-    # Parse error input size
-    if error.ndim==1:
-        error=error.reshape((error.size,1))
-    elif error.ndim!=2:
-        raise(ValueError("error must be a 1D or 2D numpy array"))
-    # Parse fidelity/ error input size
-    if fidelity.ndim==1:
-        if error.shape[0] != fidelity.shape[0]:
-            print("error shape: ", error.shape)
-            print("fidelity shape: ", fidelity.shape)
-            raise(ValueError("error and fidelity must have the same number of columns"))
+    if isinstance(error,list):
+        #Check that error is a list of 1D numpy arrays
+        for i in range(len(error)):
+            if not isinstance(error[i],np.ndarray):
+                raise(ValueError("All elements in error list must be numpy arrays"))
+            if error[i].ndim!=1:
+                raise(ValueError("All elements in error list must be 1D numpy arrays"))
+        #Check that fidelity is either a list of or single 1D numpy arrays of same length as error
+        if isinstance(fidelity,list):
+            if len(error)!=len(fidelity):
+                raise(ValueError("error and fidelity lists must have the same length"))
+        elif isinstance(fidelity,np.ndarray):
+            if fidelity.ndim!=1:
+                raise(ValueError("fidelity can't be a multi-dimensional numpy array"))
+            else:
+                for i in range(len(error)):
+                    if error[i].shape[0]!=fidelity.shape[0]:
+                        raise(ValueError("error["+str(i)+"] and fidelity must have the same number of rows"))
+            fidelity = [fidelity]*len(error)
         else:
-            fidelity=np.tile(fidelity[:,None],error.shape[1])
-    elif fidelity.shape != error.shape:
-        raise(ValueError("error and fidelity must have the same shape"))
+            raise(ValueError("fidelity must be a 1D numpy array or list"))
+    elif isinstance(error,np.ndarray):
+        #Check that error is 1D
+        if error.ndim!=1:
+            raise(ValueError("error must be a 1D numpy array"))
+        #Check that fidelity is also 1D numpy array of same length or a list of just that numpy array
+        if isinstance(fidelity,np.ndarray):
+            if fidelity.ndim!=1:
+                raise(ValueError("fidelity can't be a multi-dimensional numpy array"))
+            else:
+                if error.shape[0]!=fidelity.shape[0]:
+                    raise(ValueError("error and fidelity must have the same number of rows"))
+            fidelity = [fidelity]
+        elif isinstance(fidelity,list):
+            if len(fidelity)!=1:
+                raise(ValueError("fidelity list must have length 1 when error is a numpy array"))
+            elif not isinstance(fidelity[0],np.ndarray):
+                raise(ValueError("fidelity list must contain a numpy array when error is a numpy array"))
+            elif fidelity[0].ndim!=1:
+                raise(ValueError("fidelity can't be a multi-dimensional numpy array"))
+            else:
+                if error.shape[0]!=fidelity[0].shape[0]:
+                    raise(ValueError("error and fidelity must have the same number of rows"))
+        error = [error]
+    else:
+        raise(ValueError("error must be a 1D numpy array or a list of them"))
+    
     if legends!="null":
         if isinstance(legends,str):
             legends=[legends]
         elif isinstance(legends,list):
-            if len(legends)!=error.shape[1]:
-                raise(ValueError("Invalid length of "+ str(len(legends))+" for legends for error of length " + str(error.shape[1])))
+            if len(legends)!=len(error):
+                raise(ValueError("Invalid length of "+ str(len(legends))+" for legends for error of length " + len(error)))
         else:
             raise(ValueError("Invalid type entered for legends: " + str(type(legends))))
         
     fig, axes = plt.subplots(1,1, figsize=figsize)
-    for i in range(error.shape[1]):
+    for i in range(len(error)):
         if plotType=="loglog":
-            axes.loglog(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=.75*figsize[0],ms=1.6*figsize[0])
+            axes.loglog(fidelity[i],error[i],getLineFormat("line-marker",i),lw=.75*figsize[0],ms=1.6*figsize[0])
         elif plotType=="semilogx":
-            axes.semilogx(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=.75*figsize[0],ms=1.6*figsize[0])
+            axes.semilogx(fidelity[i],error[i],getLineFormat("line-marker",i),lw=.75*figsize[0],ms=1.6*figsize[0])
         elif plotType=="semilogy":
-            axes.semilogy(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=.75*figsize[0],ms=1.6*figsize[0])
+            axes.semilogy(fidelity[i],error[i],getLineFormat("line-marker",i),lw=.75*figsize[0],ms=1.6*figsize[0])
         else :
-            axes.plot(fidelity[:,i],error[:,i],getLineFormat("line-marker",i),lw=.75*figsize[0],ms=1.6*figsize[0])
+            axes.plot(fidelity[i],error[i],getLineFormat("line-marker",i),lw=.75*figsize[0],ms=1.6*figsize[0])
     if legends!="null":
         axes.legend(legends,  loc = legendLoc)
     if title!="null":
         fig.suptitle(title, fontsize=16)
     axes.set_xlabel(xLabel)
     axes.set_ylabel(yLabel)
+    if yRanges!="auto":
+        axes.set_ylim(yRanges)
     fig.tight_layout()
     return fig, axes
 
