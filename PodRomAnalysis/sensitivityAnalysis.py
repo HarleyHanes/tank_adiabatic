@@ -144,10 +144,15 @@ def main():
     # Determine parameters to get sensitivity of
     neq, paramSelect, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
     # Construct parameter samples
-    # Determine parameter samples (lower, center, upper for FOM; evenly spaced for ROM)
-    fomParamSamples, romParamSamples = constructParameterSamples(
-        baseParams, paramBounding, param, nRomSamples, extrapolatory
-    )
+    if param == "none":
+        fomParamSamples = [baseParams]
+        romParamSamples = [baseParams]
+    else:
+        if extrapolatory:
+            fomParamSamples, romParamSamples = constructParameterSamples(baseParams, paramBounding,3,nRomSamples, "linspace", extrapolatoryProportion=.5)
+        else:
+            fomParamSamples, romParamSamples = constructParameterSamples(baseParams, paramBounding,3,nRomSamples, "linspace")
+
 
     # Setup system
     if verbosity >= 1:
