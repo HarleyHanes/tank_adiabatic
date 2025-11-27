@@ -1,0 +1,28 @@
+{
+    // Formatting
+    "editor.formatOnSave": true,
+    "editor.rulers": [
+        100
+    ],
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    // Python formatting via Black
+    "python.formatting.provider": "black",
+    "python.formatting.blackArgs": [
+        "--line-length",
+        "100"
+    ],
+    // Import sorting with isort (aligns with Black)
+    "python.sortImports.args": [
+        "--profile",
+        "black",
+        "--line-length",
+        "100"
+    ],
+    // Ruff (if extension installed) for linting on save
+    "ruff.lint.args": [
+        "--line-length",
+        "100"
+    ],
+    "ruff.enable": true
+}

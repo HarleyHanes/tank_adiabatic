@@ -1,0 +1,42 @@
+# Pre-commit configuration to enforce code style and quality on commit.
+# Install and enable with:
+#   pip install pre-commit
+#   pre-commit install
+# Optionally run on all files once:
+#   pre-commit run --all-files
+
+repos:
+  # Basic sanity checks and whitespace fixes
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+
+  # Ruff: fast linter and import sorting (via rule I)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.0
+    hooks:
+      - id: ruff
+        # Auto-fix what it safely can, and fail if it had to change files
+        args: ["--fix", "--exit-non-zero-on-fix"]
+
+  # isort (kept for explicit import sorting; aligns with Black profile)
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black", "--line-length", "100"]
+
+  # Black: opinionated formatter
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        args: ["--line-length", "100"]
+        language_version: python3

@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py310", "py39"]
+# Black expects a single regex string for exclude
+exclude = "(\\.git|\\.venv|venv|build|dist|__pycache__)"
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["tankModel", "postProcessing", "PodRomAnalyis", "collocationElement", "mms", "bifurcationAnalysis"]
+
+[tool.ruff]
+line-length = 100
+# Enable common rule sets. Adjust as you like.
+select = [
+  "E",  # pycodestyle errors
+  "F",  # pyflakes
+  "W",  # pycodestyle warnings
+  "I",  # isort import ordering
+]
+ignore = [
+  # Add any rule codes to ignore here
+  "N",  # pep8-naming (allow CamelCase identifiers by default)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.ruff.isort]
+known-first-party = ["tankModel", "postProcessing", "PodRomAnalyis", "collocationElement", "mms", "bifurcationAnalysis"]
+
+[tool.pydocstyle]
+convention = "numpy"
+add-ignore = ["D105", "D107"]
+
+# Optional: mypy configuration (static typing)
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
