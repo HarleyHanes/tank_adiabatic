@@ -1,0 +1,19 @@
+# EditorConfig helps editors and tools maintain consistent coding styles
+# Docs: https://editorconfig.org/
+
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Keep Python lines reasonably wide but readable
+max_line_length = 100
+
+[*.md]
+# Don't strip trailing spaces in Markdown (for tables)
+trim_trailing_whitespace = false
