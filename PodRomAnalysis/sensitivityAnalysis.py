@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Rectangle
 
-from PodRomAnalyis.podRomAnalysis import (
+from PodRomAnalysis.podRomAnalysis import (
     computeInitialCondition,
     computeSensitivity,
     constructParameterSamples,

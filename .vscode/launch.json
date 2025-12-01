@@ -5,7 +5,7 @@
             "name": "Python: Control Analysis (module)",
             "type": "debugpy",
             "request": "launch",
-            "module": "PodRomAnalyis.controlAnalysis",
+            "module": "PodRomAnalysis.controlAnalysis",
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "env": {
@@ -17,7 +17,7 @@
             "name": "Python: Sensitivity Analysis (module)",
             "type": "debugpy",
             "request": "launch",
-            "module": "PodRomAnalyis.sensitivityAnalysis",
+            "module": "PodRomAnalysis.sensitivityAnalysis",
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "env": {

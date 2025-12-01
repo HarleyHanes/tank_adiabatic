@@ -11,7 +11,7 @@ exclude = "(\\.git|\\.venv|venv|build|dist|__pycache__)"
 [tool.isort]
 profile = "black"
 line_length = 120
-known_first_party = ["tankModel", "postProcessing", "PodRomAnalyis", "collocationElement", "mms", "bifurcationAnalysis"]
+known_first_party = ["tankModel", "postProcessing", "PodRomAnalysis", "collocationElement", "mms", "bifurcationAnalysis"]
 
 [tool.ruff]
 line-length = 120
@@ -33,11 +33,11 @@ indent-style = "space"
 line-ending = "lf"
 
 [tool.ruff.isort]
-known-first-party = ["tankModel", "postProcessing", "PodRomAnalyis", "collocationElement", "mms", "bifurcationAnalysis"]
+known-first-party = ["tankModel", "postProcessing", "PodRomAnalysis", "collocationElement", "mms", "bifurcationAnalysis"]
 
 [tool.ruff.per-file-ignores]
-"PodRomAnalyis/controlAnalysis.py" = ["F811"]
-"PodRomAnalyis/sensitivityAnalysis.py" = ["F811"]
+"PodRomAnalysis/controlAnalysis.py" = ["F811"]
+"PodRomAnalysis/sensitivityAnalysis.py" = ["F811"]
 
 [tool.pydocstyle]
 convention = "numpy"
