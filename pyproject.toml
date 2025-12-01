@@ -3,18 +3,18 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.black]
-line-length = 100
+line-length = 120
 target-version = ["py311", "py310", "py39"]
 # Black expects a single regex string for exclude
 exclude = "(\\.git|\\.venv|venv|build|dist|__pycache__)"
 
 [tool.isort]
 profile = "black"
-line_length = 100
+line_length = 120
 known_first_party = ["tankModel", "postProcessing", "PodRomAnalyis", "collocationElement", "mms", "bifurcationAnalysis"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 # Enable common rule sets. Adjust as you like.
 select = [
   "E",  # pycodestyle errors
@@ -34,6 +34,10 @@ line-ending = "lf"
 
 [tool.ruff.isort]
 known-first-party = ["tankModel", "postProcessing", "PodRomAnalyis", "collocationElement", "mms", "bifurcationAnalysis"]
+
+[tool.ruff.per-file-ignores]
+"PodRomAnalyis/controlAnalysis.py" = ["F811"]
+"PodRomAnalyis/sensitivityAnalysis.py" = ["F811"]
 
 [tool.pydocstyle]
 convention = "numpy"

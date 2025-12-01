@@ -1,22 +1,50 @@
-import numpy as np
-
 class RomData:
-    def __init__(self, x,W, uTimeModes, uMean, uModes, uModesx, uModesxx, uModesWeighted,
-                 uModesInt, uRomMassMean, uRomFirstOrderMat, uRomFirstOrderMean,
-                 uRomSecondOrderMat, uRomSecondOrderMean, vTimeModes, vMean,
-                 vModes, vModesx, vModesxx, vModesWeighted, vModesInt,
-                 vRomMassMean, vRomFirstOrderMat, vRomFirstOrderMean,
-                 vRomSecondOrderMat, vRomSecondOrderMean,uSingularValues, 
-                 uFullSpectra, vSingularValues, vFullSpectra, uNonlinDim,vNonlinDim,
-                 deimProjection,uNonLinProjection,vNonLinProjection):
-        
+    def __init__(
+        self,
+        x,
+        W,
+        uTimeModes,
+        uMean,
+        uModes,
+        uModesx,
+        uModesxx,
+        uModesWeighted,
+        uModesInt,
+        uRomMassMean,
+        uRomFirstOrderMat,
+        uRomFirstOrderMean,
+        uRomSecondOrderMat,
+        uRomSecondOrderMean,
+        vTimeModes,
+        vMean,
+        vModes,
+        vModesx,
+        vModesxx,
+        vModesWeighted,
+        vModesInt,
+        vRomMassMean,
+        vRomFirstOrderMat,
+        vRomFirstOrderMean,
+        vRomSecondOrderMat,
+        vRomSecondOrderMean,
+        uSingularValues,
+        uFullSpectra,
+        vSingularValues,
+        vFullSpectra,
+        uNonlinDim,
+        vNonlinDim,
+        deimProjection,
+        uNonLinProjection,
+        vNonLinProjection,
+    ):
+
         self.x = x
         self.nPoints = len(x)
         self.uNmodes = uModes.shape[1]
         self.vNmodes = vModes.shape[1]
 
         # Initialize all other attributes
-        self.W=W
+        self.W = W
         self.uTimeModes = uTimeModes
         self.uMean = uMean
         self.uModes = uModes
@@ -89,14 +117,16 @@ class RomData:
     @property
     def W(self):
         return self._W
+
     @W.setter
     def W(self, value):
-        self._validate_shape(value, (self.nPoints,self.nPoints), "W")
+        self._validate_shape(value, (self.nPoints, self.nPoints), "W")
         self._W = value
 
     @property
     def uTimeModes(self):
         return self._uTimeModes
+
     @uTimeModes.setter
     def uTimeModes(self, value):
         self._validate_shape(value, (value.shape[0], self.uNmodes), "uTimeModes")
@@ -105,6 +135,7 @@ class RomData:
     @property
     def uMean(self):
         return self._uMean
+
     @uMean.setter
     def uMean(self, value):
         self._validate_shape(value, (self.nPoints,), "uMean")
@@ -314,10 +345,10 @@ class RomData:
 
     @uNonlinDim.setter
     def uNonlinDim(self, value):
-        if type(value)!= int:
+        if not isinstance(value, int):
             raise ValueError("Incorrect type for uNonlinDim: ", type(value))
-        elif value <0 or value>self.uNmodes:
-            raise ValueError("Icompatible value for uNonlinDim: ",value)
+        elif value < 0 or value > self.uNmodes:
+            raise ValueError("Icompatible value for uNonlinDim: ", value)
         else:
             self._uNonlinDim = value
 
@@ -327,13 +358,12 @@ class RomData:
 
     @vNonlinDim.setter
     def vNonlinDim(self, value):
-        if type(value)!= int:
+        if not isinstance(value, int):
             raise ValueError("Incorrect type for vNonlinDim: ", type(value))
-        elif value <0 or value>self.vNmodes:
-            raise ValueError("Icompatible value for vNonlinDim: ",value)
+        elif value < 0 or value > self.vNmodes:
+            raise ValueError("Icompatible value for vNonlinDim: ", value)
         else:
             self._vNonlinDim = value
-
 
     @property
     def deimProjection(self):
@@ -358,4 +388,3 @@ class RomData:
     @vNonLinProjection.setter
     def vNonLinProjection(self, value):
         self._vNonLinProjection = value
-            
