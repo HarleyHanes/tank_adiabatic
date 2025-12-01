@@ -27,7 +27,9 @@ A = np.matmul(U, np.matmul(np.diag(S), V))
 Ax = np.matmul(Ux, np.matmul(np.diag(S), V))
 Axx = np.matmul(Uxx, np.matmul(np.diag(S), V))
 # Compute SVD by QR and Graham-Schmidt
-podModes, podModesx, podModesxx, timeModes, podError = model.computePODmodes(np.eye(U.shape[0]), A, Ax, Axx, 0.9)
+podModes, podModesx, podModesxx, timeModes, podError, s, sFull = model.computePODmodes(
+    np.eye(U.shape[0]), A, Ax, Axx, 0.9
+)
 # Have to do absolute value because SVD non-unique up to sign switches of orthogonal matrices
 assert np.isclose(np.abs(podModes[:, :2]), np.abs(U[:, :2])).all()
 assert np.isclose(np.abs(podModesx[:, :2]), np.abs(Ux[:, :2])).all()
@@ -37,14 +39,13 @@ assert np.isclose(np.abs(podModesxx[:, :2]), np.abs(Uxx[:, :2])).all()
 # Test ROM matrix calculation
 model = TankModel(nCollocation=1, nElements=2, spacing="legendre", bounds=[0, 1], params=params)
 # Exact uniform case
-x = np.linspace(0, 1, 9)
+x, W = model.getQuadWeights(9, "uniform-unitary")
 podModes = np.array([x * 0 + 1, x]).transpose()
 podModesx = np.array([x * 0 + 1, x * 0 + 1]).transpose()
 podModesxx = np.array([x, x]).transpose()
 mean = np.zeros(x.shape)
 meanx = np.zeros(x.shape)
 meanxx = np.zeros(x.shape)
-W = model.getQuadWeights(x, "uniform")
 (
     podModesWeighted,
     podModesInt,
@@ -62,14 +63,13 @@ assert np.isclose(podModesWeighted, podModesWeightedTrue).all()
 # assert(np.isclose(romSecondOrderMat,romSecondOrderMatTrue).all())
 
 # Exact simpson case
-x = np.linspace(0, 1, 7)
+x, W = model.getQuadWeights(7, "simpson")
 mean = x**2
 meanx = 2 * x
 meanxx = 2 + 0 * x
 podModes = np.array([x * 0 + 1, x]).transpose()
 podModesx = np.array([x * 0, x * 0 + 1]).transpose()
 podModesxx = np.array([x * 0, x * 0]).transpose()
-W = model.getQuadWeights(x, "simpson")
 (
     podModesWeighted,
     podModesInt,
@@ -105,8 +105,7 @@ assert np.isclose(podModesWeighted.transpose() @ podModes, np.array([[1, 1 / 2],
 # Legendre Modes case - Continuous
 model = TankModel(nCollocation=1, nElements=2, spacing="legendre", bounds=[-1, 1], params=params)
 # Get points and quad weights matrices
-x = np.linspace(-1, 1, 11)
-W = model.getQuadWeights(x, "simpson")
+x, W = model.getQuadWeights(11, "simpson")
 
 uModes = np.array([1 + x * 0, x]).transpose()
 uModesx = np.array([x * 0, 1 + x * 0]).transpose()
@@ -181,6 +180,15 @@ romData = RomData(
     vFirstOrderMean,
     vSecondOrderMat,
     vSecondOrderMean,
+    np.array([1, 0, 0, 0]),
+    np.array([1, 0, 0, 0]),
+    np.array([1, 0, 0, 0]),
+    np.array([1, 0, 0, 0]),
+    uModes.shape[1],
+    vModes.shape[1],
+    np.identity(uModes.shape[0]),
+    uModesWeighted.transpose(),
+    vModesWeighted.transpose(),
 )
 # Case 1: Linear cases
 params = {
@@ -423,7 +431,7 @@ assert (
 params = {"PeM": 1, "PeT": 1, "f": 0, "Le": 3, "Da": 0, "beta": 0, "gamma": 0, "delta": 2, "vH": 1}
 model = TankModel(nCollocation=2, nElements=2, spacing="legendre", bounds=[-1, 1], params=params)
 # Get points and quad weights matrices
-x = np.linspace(-1, 1, 11)
+x, W = model.getQuadWeights(11, "simpson")
 # Construct model Coeff
 # NEED TO UPDATE MODES SO SATISFY BC
 modelCoeff = np.array(
@@ -441,22 +449,15 @@ vModes = np.array([1 + x * 0, 1 / 2 * (3 * x**2 - 1)]).transpose()
 vModesx = np.array([x * 0, 3 * x]).transpose()
 vModesxx = np.array([x * 0, 3 + x * 0]).transpose()
 
-# mean   = 1+x
-# meanx   = 1+x*0
-# meanxx   = x*0
-# uMean = 1+x-x
-# vMean = 1+x-x
-# mean = np.append(uMean,vMean)
-romData, truncationError = model.constructPodRom(
-    modelCoeff, x, 2, quadRule="simpson", mean="zero", useEnergyThreshold=False
-)
+romData, truncationError = model.constructPodRom(modelCoeff, x, W, 2, mean="zero", useEnergyThreshold=False)
 
-print(romData.uModes)
+
+# Following tests failing due to unclear error in modelCoeff
 assert np.isclose(model.eval(x, modelCoeff, output="u").transpose(), uModes).all()
 assert np.isclose(model.eval(x, modelCoeff, output="v").transpose(), vModes).all()
 assert np.isclose(romData.uModes, uModes).all()
 assert np.isclose(romData.vModes, vModes).all()
-# assert(np.isclose(romData.uMassMean,np.array([2,2/3])).all())
+
 assert np.isclose(romData.uRomFirstOrderMat, np.array([[0, 2], [0, 0]])).all()
 assert np.isclose(romData.uRomFirstOrderMean, np.array([2, 0])).all()
 assert np.isclose(romData.uRomSecondOrderMat, np.array([[0, 0], [0, 0]])).all()

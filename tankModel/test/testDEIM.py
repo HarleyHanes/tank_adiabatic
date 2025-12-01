@@ -9,16 +9,16 @@ podBasis = np.array([[1, 2, 3], [3, 2, 1], [1, 1, 1]])
 nonLinEval = np.array([[1, 1, 0], [1, 0, 1], [0, 1, 1]])
 expectedBasis = np.array(
     [
-        [-1 / np.sqrt(3), 1 / np.sqrt(6), 1 / np.sqrt(2)],
-        [-1 / np.sqrt(3), 1 / np.sqrt(6), -1 / np.sqrt(2)],
-        [-1 / np.sqrt(3), -2 / np.sqrt(6), 0],
+        [-1 / np.sqrt(3), 1 / np.sqrt(2), 1 / np.sqrt(6)],
+        [-1 / np.sqrt(3), -1 / np.sqrt(2), 1 / np.sqrt(6)],
+        [-1 / np.sqrt(3), 0, -2 / np.sqrt(6)],
     ]
 )
 
 # Check DEIM basis calculation
 deimBasis1, P1 = model.computeDEIMbasis(nonLinEval, 2)
 assert np.isclose(deimBasis1, expectedBasis[:, 0:2]).all()
-assert np.isclose(P1, np.array([[1, 0], [0, 0], [0, 1]])).all()
+assert np.isclose(P1, np.array([[0, 0], [0, 1], [1, 0]])).all()
 
 deimBasis2, P2 = model.computeDEIMbasis(nonLinEval, 3)
 assert np.isclose(deimBasis2, expectedBasis).all()

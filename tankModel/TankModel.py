@@ -1498,6 +1498,9 @@ class TankModel:
         elif quadRule == "uniform":
             x = np.linspace(self.bounds[0], self.bounds[1], nPoints)
             w = np.ones(np.size(x)) / ((x.size) * (self.bounds[1] - self.bounds[0]))
+        elif quadRule == "uniform-unitary":
+            x = np.linspace(self.bounds[0], self.bounds[1], nPoints)
+            w = np.ones(np.size(x))
         elif quadRule == "monte carlo":
             x = np.array([self.bounds[0]])
             x = np.append(
