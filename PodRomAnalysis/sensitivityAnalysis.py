@@ -25,7 +25,7 @@ def main():
 
     plotRomInterpolation = True
 
-    plotTimeSeries = True
+    plotTimeSeries = False
     plotModes = False
     plotError = False
     plotRomCoeff = False
@@ -44,18 +44,18 @@ def main():
     nT = 600
 
     # Parameter Sampling
-    param = "vH"
+    param = "gamma"
     if param != "none":
         extrapolatory = False
         equationSet = param  # Comment out to do parameter sampling without sensitivity
-        paramBounding = 0.5
-        nRomSamples = 5
+        paramBounding = 0.25
+        nRomSamples = 3
 
     # ROM parameters
     usePodRom = True
     useEnergyThreshold = True
     nDeimPoints = "max"  # Base value for DEIM, max or integer
-    nonLinReduction = 4.0  # Base value for nonLinReduction, 1 means no reduction
+    nonLinReduction = 1.0  # Base value for nonLinReduction, 1 means no reduction
     penaltyStrength = 0
     sensInit = ["zero"]
     quadRule = ["gauss-legendre"]  # simpson, gauss-legendre, uniform, monte carlo
@@ -149,10 +149,13 @@ def main():
         romParamSamples = [baseParams]
     else:
         if extrapolatory:
-            fomParamSamples, romParamSamples = constructParameterSamples(baseParams, paramBounding,3,nRomSamples, "linspace", extrapolatoryProportion=.5)
+            fomParamSamples, romParamSamples = constructParameterSamples(
+                baseParams, param, paramBounding, 3, nRomSamples, "linspace", extrapolatoryProportion=0.5
+            )
         else:
-            fomParamSamples, romParamSamples = constructParameterSamples(baseParams, paramBounding,3,nRomSamples, "linspace")
-
+            fomParamSamples, romParamSamples = constructParameterSamples(
+                baseParams, param, paramBounding, 3, nRomSamples, "linspace"
+            )
 
     # Setup system
     if verbosity >= 1:

@@ -622,11 +622,11 @@ def computeSensitivity(
     return romCoeff
 
 
-def sampleParameter(baseParams,param ,paramBounding, samplingApproach, nSamples, samplingDistribution="uniform"):
+def sampleParameter(baseParams, param, paramBounding, samplingApproach, nSamples, samplingDistribution="uniform"):
     base_val = baseParams[param]
     lo = base_val * (1 - paramBounding)
     hi = base_val * (1 + paramBounding)
-    #Loop through FOM Sampling Options
+    # Loop through FOM Sampling Options
     # Option 1) Bounding Box Sampling
     if samplingApproach == "linspace":
         # FOM: 3 samples (lo, base, hi)
@@ -646,12 +646,30 @@ def sampleParameter(baseParams,param ,paramBounding, samplingApproach, nSamples,
             raise ValueError("Invalid samplingDistribution entered: " + str(samplingDistribution))
         paramSamples = [{**baseParams, param: v} for v in paramValues]
 
-
     return paramSamples
 
-def constructParameterSamples(baseParams, paramBounding,nFomSamples,nRomSamples, samplingApproach, samplingDistribution="uniform", extrapolatoryProportion=0):
-    fomParamSamples = sampleParameter(baseParams, paramBounding, samplingApproach, nFomSamples, samplingDistribution="uniform")
-    romParamSamples = sampleParameter(baseParams, paramBounding * (1 + extrapolatoryProportion), samplingApproach, nRomSamples, samplingDistribution=samplingDistribution)
+
+def constructParameterSamples(
+    baseParams,
+    param,
+    paramBounding,
+    nFomSamples,
+    nRomSamples,
+    samplingApproach,
+    samplingDistribution="uniform",
+    extrapolatoryProportion=0,
+):
+    fomParamSamples = sampleParameter(
+        baseParams, param, paramBounding, samplingApproach, nFomSamples, samplingDistribution="uniform"
+    )
+    romParamSamples = sampleParameter(
+        baseParams,
+        param,
+        paramBounding * (1 + extrapolatoryProportion),
+        samplingApproach,
+        nRomSamples,
+        samplingDistribution=samplingDistribution,
+    )
     return fomParamSamples, romParamSamples
 
 
