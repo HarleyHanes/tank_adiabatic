@@ -1591,8 +1591,12 @@ class TankModel:
                 eqCounter * (romData.uNmodes + romData.vNmodes)
                 + romData.uNmodes : (eqCounter + 1) * (romData.uNmodes + romData.vNmodes)
             ]
-            dudParamFull = np.matmul(romData.uModes, dudParam) + romData.uMean
-            dvdParamFull = np.matmul(romData.vModes, dvdParam) + romData.vMean
+            dudParamNonlin = romData.deimProjection.transpose() @ (
+                romData.uModes[:, : romData.uNonlinDim] @ dudParam[: romData.uNonlinDim] + romData.uMean
+            )
+            dvdParamNonlin = romData.deimProjection.transpose() @ (
+                romData.vModes[:, : romData.vNonlinDim] @ dvdParam[: romData.vNonlinDim] + romData.vMean
+            )
             # Define Advection/ Diffusion terms
             ddudParamdt = (
                 (romData.uRomSecondOrderMat / self.params["PeM"] - romData.uRomFirstOrderMat) @ dudParam
@@ -1633,47 +1637,47 @@ class TankModel:
             if param in ["vH", "delta", "Le", "PeM", "PeT", "f"]:
                 nonlinearTerm = (
                     self.params["Da"]
-                    * np.exp(self.params["gamma"] * self.params["beta"] * vFull / (1 + self.params["beta"] * vFull))
+                    * np.exp(self.params["gamma"] * self.params["beta"] * vNonlin / (1 + self.params["beta"] * vNonlin))
                     * (
-                        (1 - uFull)
+                        (1 - uNonlin)
                         * (
                             self.params["gamma"]
                             * self.params["beta"]
-                            * dvdParamFull
-                            / ((1 + self.params["beta"] * vFull) ** 2)
+                            * dvdParamNonlin
+                            / ((1 + self.params["beta"] * vNonlin) ** 2)
                         )
-                        - dudParamFull
+                        - dudParamNonlin
                     )
                 )
             elif param == "Da":
                 nonlinearTerm = (
                     self.params["Da"]
                     * (
-                        (1 - uFull)
+                        (1 - uNonlin)
                         * (
                             self.params["gamma"]
                             * self.params["beta"]
-                            * dvdParamFull
-                            / ((1 + self.params["beta"] * vFull) ** 2)
+                            * dvdParamNonlin
+                            / ((1 + self.params["beta"] * vNonlin) ** 2)
                         )
-                        - dudParamFull
+                        - dudParamNonlin
                     )
-                    + (1 - uFull)
-                ) * np.exp(self.params["gamma"] * self.params["beta"] * vFull / (1 + self.params["beta"] * vFull))
+                    + (1 - uNonlin)
+                ) * np.exp(self.params["gamma"] * self.params["beta"] * vNonlin / (1 + self.params["beta"] * vNonlin))
             elif param == "beta":
                 nonlinearTerm = self.params["Da"] * np.exp(
-                    self.params["gamma"] * self.params["beta"] * vFull / (1 + self.params["beta"] * vFull)
+                    self.params["gamma"] * self.params["beta"] * vNonlin / (1 + self.params["beta"] * vNonlin)
                 )
-                nonlinearTerm *= (1 - uFull) * self.params["gamma"] * (vFull + self.params["beta"] * dvdParamFull) / (
-                    (1 + self.params["beta"] * vFull) ** 2
-                ) - dudParamFull
+                nonlinearTerm *= (1 - uNonlin) * self.params["gamma"] * (
+                    vNonlin + self.params["beta"] * dvdParamNonlin
+                ) / ((1 + self.params["beta"] * vNonlin) ** 2) - dudParamNonlin
             elif param == "gamma":
                 nonlinearTerm = self.params["Da"] * np.exp(
-                    self.params["gamma"] * self.params["beta"] * vFull / (1 + self.params["beta"] * vFull)
+                    self.params["gamma"] * self.params["beta"] * vNonlin / (1 + self.params["beta"] * vNonlin)
                 )
-                nonlinearTerm *= (1 - uFull) * self.params["beta"] * (
-                    vFull + self.params["beta"] * (vFull**2) + self.params["gamma"] * dvdParamFull
-                ) / ((1 + self.params["beta"] * vFull) ** 2) - dudParamFull
+                nonlinearTerm *= (1 - uNonlin) * self.params["beta"] * (
+                    vNonlin + self.params["beta"] * (vNonlin**2) + self.params["gamma"] * dvdParamNonlin
+                ) / ((1 + self.params["beta"] * vNonlin) ** 2) - dudParamNonlin
             else:
                 raise (Exception("Invalid param value: " + param))
             ddudParamdt += romData.uModesWeighted.transpose() @ nonlinearTerm
@@ -1700,20 +1704,8 @@ class TankModel:
             # error = np.sqrt(np.max(np.sum(W @(uEval-uRom)**2,axis=0)))#/np.sum((W @vEval)**2))
             # error = np.sqrt(np.max(np.sum(W @(vEval-vRom)**2,axis=0)))#/np.sum((W @vEval)**2))
         elif norm == "Linf" or norm == r"$L_\infty$" or norm == r"$L_\infty$ Error":
-            errorU = np.max(np.abs(uEval - uRom))/np.max(np.abs(uEval))
-            errorV = np.max(np.abs(vEval - vRom))/np.max(np.abs(vEval))
-
-    def computeRomError(self,uEval,vEval,uRom,vRom, W,tPoints,norm="Linf"):
-        #Map from romCoeff to rom Solution
-        if norm == "L2" or norm==r"$L_2$" or norm == r"$L_2$ Error":
-            #Compute joint-error
-            errorU = np.sqrt(np.sum(W @ (uEval-uRom)**2))/ np.sum(W @ (uEval)**2)
-            errorV = np.sqrt(np.sum(W @ (vEval-vRom)**2))/ np.sum(W @ (vEval)**2)
-            #error = np.sqrt(np.max(np.sum(W @(uEval-uRom)**2,axis=0)))#/np.sum((W @vEval)**2))
-            #error = np.sqrt(np.max(np.sum(W @(vEval-vRom)**2,axis=0)))#/np.sum((W @vEval)**2))
-        elif norm == "Linf" or norm==r"$L_\infty$" or norm == r"$L_\infty$ Error":
-            errorU = np.max(np.abs(uEval-uRom))/np.max(np.abs(uEval))
-            errorV = np.max(np.abs(vEval-vRom))/np.max(np.abs(vEval))
+            errorU = np.max(np.abs(uEval - uRom)) / np.max(np.abs(uEval))
+            errorV = np.max(np.abs(vEval - vRom)) / np.max(np.abs(vEval))
         else:
             raise ValueError("Invalid norm selected: " + norm)
         error = (errorU + errorV) / 2
