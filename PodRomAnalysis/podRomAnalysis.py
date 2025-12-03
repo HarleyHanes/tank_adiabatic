@@ -96,6 +96,18 @@ def getSensitivityOptions(equationSet):
         uLabels = [r"$u$", r"$u_{\gamma}$"]
         vLabels = [r"$v$", r"$v_{\gamma}$"]
         combinedLabels = [r"$u$", r"$v$", r"$u_{\gamma}$", r"$v_{\gamma}$"]
+    elif equationSet == "beta":
+        neq = 2
+        paramSelect = ["beta"]
+        uLabels = [r"$u$", r"$u_{\beta}$"]
+        vLabels = [r"$v$", r"$v_{\beta}$"]
+        combinedLabels = [r"$u$", r"$v$", r"$u_{\beta}$", r"$v_{\beta}$"]
+    elif equationSet == "PeT":
+        neq = 2
+        paramSelect = ["PeT"]
+        uLabels = [r"$u$", r"$u_{\mathrm{Pe}_T}$"]
+        vLabels = [r"$v$", r"$v_{\mathrm{Pe}_T}$"]
+        combinedLabels = [r"$u$", r"$v$", r"$u_{\mathrm{Pe}_T}$", r"$v_{\mathrm{Pe}_T}$"]
     elif equationSet == "linearParams":
         neq = 4
         paramSelect = ["Le", "delta", "vH"]

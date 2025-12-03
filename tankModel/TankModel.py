@@ -1592,46 +1592,27 @@ class TankModel:
                 + romData.uNmodes : (eqCounter + 1) * (romData.uNmodes + romData.vNmodes)
             ]
             dudParamNonlin = romData.deimProjection.transpose() @ (
-                romData.uModes[:, : romData.uNonlinDim] @ dudParam[: romData.uNonlinDim] + romData.uMean
+                romData.uModes[:, : romData.uNonlinDim] @ dudParam[: romData.uNonlinDim]
             )
             dvdParamNonlin = romData.deimProjection.transpose() @ (
-                romData.vModes[:, : romData.vNonlinDim] @ dvdParam[: romData.vNonlinDim] + romData.vMean
+                romData.vModes[:, : romData.vNonlinDim] @ dvdParam[: romData.vNonlinDim]
             )
             # Define Advection/ Diffusion terms
-            ddudParamdt = (
-                (romData.uRomSecondOrderMat / self.params["PeM"] - romData.uRomFirstOrderMat) @ dudParam
-                + romData.uRomSecondOrderMean / self.params["PeM"]
-                - romData.uRomFirstOrderMean
-            )
-            ddvdParamdt = (
-                (romData.vRomSecondOrderMat / self.params["PeT"] - romData.vRomFirstOrderMat) @ dvdParam
-                + romData.vRomSecondOrderMean / self.params["PeT"]
-                - romData.vRomFirstOrderMean
-            )
+            ddudParamdt = (romData.uRomSecondOrderMat / self.params["PeM"] - romData.uRomFirstOrderMat) @ dudParam
+            ddvdParamdt = (romData.vRomSecondOrderMat / self.params["PeT"] - romData.vRomFirstOrderMat) @ dvdParam
             if param == "PeM":
-                ddudParamdt += -(romData.uRomSecondOrderMat @ u + romData.uRomSecondOrderMean) / (
-                    self.params["PeM"] ** 2
-                )
+                ddudParamdt += -(romData.uRomSecondOrderMat @ u) / (self.params["PeM"] ** 2)
             elif param == "PeT":
-                ddvdParamdt += -(romData.vRomSecondOrderMat @ v + romData.vRomSecondOrderMean) / (
-                    self.params["PeT"] ** 2
-                )
+                ddvdParamdt += -(romData.vRomSecondOrderMat @ v) / (self.params["PeT"] ** 2)
             # Construct Additional Linear terms
             if param == "vH":
-                ddvdParamdt += (romData.vModesInt - dvdParam) * self.params["delta"] - self.params[
-                    "delta"
-                ] * romData.vRomMassMean
+                ddvdParamdt += (romData.vModesInt - dvdParam) * self.params["delta"]
             elif param == "delta":
-                ddvdParamdt += (
-                    self.params["vH"] * romData.vModesInt
-                    - v
-                    - self.params["delta"] * dvdParam
-                    - self.params["delta"] * romData.vRomMassMean
-                )
+                ddvdParamdt += self.params["vH"] * romData.vModesInt - v - self.params["delta"] * dvdParam
             elif param == "Le":
-                ddvdParamdt += -dvdt - self.params["delta"] * dvdParam - self.params["delta"] * romData.vRomMassMean
+                ddvdParamdt += -dvdt - self.params["delta"] * dvdParam
             else:
-                ddvdParamdt += -self.params["delta"] * dvdParam - self.params["delta"] * romData.vRomMassMean
+                ddvdParamdt += -self.params["delta"] * dvdParam
 
             # Construct nonlinear term
             if param in ["vH", "delta", "Le", "PeM", "PeT", "f"]:

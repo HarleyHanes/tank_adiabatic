@@ -44,18 +44,18 @@ def main():
     nT = 600
 
     # Parameter Sampling
-    param = "gamma"
+    param = "beta"
     if param != "none":
-        extrapolatory = False
+        extrapolatory = True
         equationSet = param  # Comment out to do parameter sampling without sensitivity
-        paramBounding = 0.25
+        paramBounding = 0.15
         nRomSamples = 3
 
     # ROM parameters
     usePodRom = True
     useEnergyThreshold = True
     nDeimPoints = "max"  # Base value for DEIM, max or integer
-    nonLinReduction = 1.0  # Base value for nonLinReduction, 1 means no reduction
+    nonLinReduction = 4.0  # Base value for nonLinReduction, 1 means no reduction
     penaltyStrength = 0
     sensInit = ["zero"]
     quadRule = ["gauss-legendre"]  # simpson, gauss-legendre, uniform, monte carlo
