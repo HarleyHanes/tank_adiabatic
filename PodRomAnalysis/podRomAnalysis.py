@@ -96,6 +96,18 @@ def getSensitivityOptions(equationSet):
         uLabels = [r"$u$", r"$u_{\gamma}$"]
         vLabels = [r"$v$", r"$v_{\gamma}$"]
         combinedLabels = [r"$u$", r"$v$", r"$u_{\gamma}$", r"$v_{\gamma}$"]
+    elif equationSet == "beta":
+        neq = 2
+        paramSelect = ["beta"]
+        uLabels = [r"$u$", r"$u_{\beta}$"]
+        vLabels = [r"$v$", r"$v_{\beta}$"]
+        combinedLabels = [r"$u$", r"$v$", r"$u_{\beta}$", r"$v_{\beta}$"]
+    elif equationSet == "PeT":
+        neq = 2
+        paramSelect = ["PeT"]
+        uLabels = [r"$u$", r"$u_{\mathrm{Pe}_T}$"]
+        vLabels = [r"$v$", r"$v_{\mathrm{Pe}_T}$"]
+        combinedLabels = [r"$u$", r"$v$", r"$u_{\mathrm{Pe}_T}$", r"$v_{\mathrm{Pe}_T}$"]
     elif equationSet == "linearParams":
         neq = 4
         paramSelect = ["Le", "delta", "vH"]
@@ -622,11 +634,11 @@ def computeSensitivity(
     return romCoeff
 
 
-def sampleParameter(baseParams,param ,paramBounding, samplingApproach, nSamples, samplingDistribution="uniform"):
+def sampleParameter(baseParams, param, paramBounding, samplingApproach, nSamples, samplingDistribution="uniform"):
     base_val = baseParams[param]
     lo = base_val * (1 - paramBounding)
     hi = base_val * (1 + paramBounding)
-    #Loop through FOM Sampling Options
+    # Loop through FOM Sampling Options
     # Option 1) Bounding Box Sampling
     if samplingApproach == "linspace":
         # FOM: 3 samples (lo, base, hi)
@@ -646,12 +658,30 @@ def sampleParameter(baseParams,param ,paramBounding, samplingApproach, nSamples,
             raise ValueError("Invalid samplingDistribution entered: " + str(samplingDistribution))
         paramSamples = [{**baseParams, param: v} for v in paramValues]
 
-
     return paramSamples
 
-def constructParameterSamples(baseParams, paramBounding,nFomSamples,nRomSamples, samplingApproach, samplingDistribution="uniform", extrapolatoryProportion=0):
-    fomParamSamples = sampleParameter(baseParams, paramBounding, samplingApproach, nFomSamples, samplingDistribution="uniform")
-    romParamSamples = sampleParameter(baseParams, paramBounding * (1 + extrapolatoryProportion), samplingApproach, nRomSamples, samplingDistribution=samplingDistribution)
+
+def constructParameterSamples(
+    baseParams,
+    param,
+    paramBounding,
+    nFomSamples,
+    nRomSamples,
+    samplingApproach,
+    samplingDistribution="uniform",
+    extrapolatoryProportion=0,
+):
+    fomParamSamples = sampleParameter(
+        baseParams, param, paramBounding, samplingApproach, nFomSamples, samplingDistribution="uniform"
+    )
+    romParamSamples = sampleParameter(
+        baseParams,
+        param,
+        paramBounding * (1 + extrapolatoryProportion),
+        samplingApproach,
+        nRomSamples,
+        samplingDistribution=samplingDistribution,
+    )
     return fomParamSamples, romParamSamples
 
 

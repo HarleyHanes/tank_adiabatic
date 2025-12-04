@@ -25,7 +25,7 @@ def main():
 
     plotRomInterpolation = True
 
-    plotTimeSeries = True
+    plotTimeSeries = False
     plotModes = False
     plotError = False
     plotRomCoeff = False
@@ -44,12 +44,12 @@ def main():
     nT = 600
 
     # Parameter Sampling
-    param = "vH"
+    param = "beta"
     if param != "none":
-        extrapolatory = False
+        extrapolatory = True
         equationSet = param  # Comment out to do parameter sampling without sensitivity
-        paramBounding = 0.5
-        nRomSamples = 5
+        paramBounding = 0.15
+        nRomSamples = 3
 
     # ROM parameters
     usePodRom = True
@@ -149,10 +149,13 @@ def main():
         romParamSamples = [baseParams]
     else:
         if extrapolatory:
-            fomParamSamples, romParamSamples = constructParameterSamples(baseParams, paramBounding,3,nRomSamples, "linspace", extrapolatoryProportion=.5)
+            fomParamSamples, romParamSamples = constructParameterSamples(
+                baseParams, param, paramBounding, 3, nRomSamples, "linspace", extrapolatoryProportion=0.5
+            )
         else:
-            fomParamSamples, romParamSamples = constructParameterSamples(baseParams, paramBounding,3,nRomSamples, "linspace")
-
+            fomParamSamples, romParamSamples = constructParameterSamples(
+                baseParams, param, paramBounding, 3, nRomSamples, "linspace"
+            )
 
     # Setup system
     if verbosity >= 1:
