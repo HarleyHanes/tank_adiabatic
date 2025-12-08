@@ -11,6 +11,7 @@
 """
 
 import numpy as np
+from UQLibrary.sampling import saltelli_uniform
 
 
 def computeControlMetric(error, controlParam, truncationError, metric):
@@ -96,6 +97,18 @@ def getSensitivityOptions(equationSet):
         uLabels = [r"$u$", r"$u_{\gamma}$"]
         vLabels = [r"$v$", r"$v_{\gamma}$"]
         combinedLabels = [r"$u$", r"$v$", r"$u_{\gamma}$", r"$v_{\gamma}$"]
+    elif equationSet == "beta":
+        neq = 2
+        paramSelect = ["beta"]
+        uLabels = [r"$u$", r"$u_{\beta}$"]
+        vLabels = [r"$v$", r"$v_{\beta}$"]
+        combinedLabels = [r"$u$", r"$v$", r"$u_{\beta}$", r"$v_{\beta}$"]
+    elif equationSet == "PeT":
+        neq = 2
+        paramSelect = ["PeT"]
+        uLabels = [r"$u$", r"$u_{\mathrm{Pe}_T}$"]
+        vLabels = [r"$v$", r"$v_{\mathrm{Pe}_T}$"]
+        combinedLabels = [r"$u$", r"$v$", r"$u_{\mathrm{Pe}_T}$", r"$v_{\mathrm{Pe}_T}$"]
     elif equationSet == "linearParams":
         neq = 4
         paramSelect = ["Le", "delta", "vH"]
@@ -152,6 +165,21 @@ def getSensitivityOptions(equationSet):
             r"$v_{\delta}$",
             r"$v_{v_H}$",
         ]
+    elif equationSet == "nonLinearParams":
+        neq = 4
+        paramSelect = ["Da", "beta", "gamma"]
+        uLabels = [r"$u$", r"$u_{\mathrm{Da}}$", r"$u_{\beta}$", r"$u_{\gamma}$"]
+        vLabels = [r"$v$", r"$v_{\mathrm{Da}}$", r"$v_{\beta}$", r"$v_{\gamma}$"]
+        combinedLabels = [
+            r"$u$",
+            r"$v$",
+            r"$u_{\mathrm{Da}}$",
+            r"$v_{\mathrm{Da}}$",
+            r"$u_{\beta}$",
+            r"$v_{\beta}$",
+            r"$u_{\gamma}$",
+            r"$v_{\gamma}$",
+        ]
     elif equationSet == "allParams":
         neq = 10
         paramSelect = ["PeM", "PeT", "f", "Le", "Da", "beta", "gamma", "delta", "vH"]
@@ -207,6 +235,39 @@ def getSensitivityOptions(equationSet):
             r"$v_{\mathrm{Le}}$",
             r"$u_{\mathrm{Da}}$",
             r"$v_{\mathrm{Da}}$",
+            r"$u_{\beta}$",
+            r"$v_{\beta}$",
+            r"$u_{\gamma}$",
+            r"$v_{\gamma}$",
+            r"$u_{\delta}$",
+            r"$v_{\delta}$",
+            r"$u_{v_H}$",
+            r"$v_{v_H}$",
+        ]
+    elif equationSet == "nonBoundaryParams-noDa":
+        neq = 6
+        paramSelect = ["Le", "beta", "gamma", "delta", "vH"]
+        uLabels = [
+            r"$u$",
+            r"$u_{\mathrm{Le}}$",
+            r"$u_{\beta}$",
+            r"$u_{\gamma}$",
+            r"$u_{\delta}$",
+            r"$u_{v_H}$",
+        ]
+        vLabels = [
+            r"$v$",
+            r"$v_{\mathrm{Le}}$",
+            r"$v_{\beta}$",
+            r"$v_{\gamma}$",
+            r"$v_{\delta}$",
+            r"$v_{v_H}$",
+        ]
+        combinedLabels = [
+            r"$u$",
+            r"$v$",
+            r"$u_{\mathrm{Le}}$",
+            r"$v_{\mathrm{Le}}$",
             r"$u_{\beta}$",
             r"$v_{\beta}$",
             r"$u_{\gamma}$",
@@ -583,12 +644,11 @@ def computeSensitivity(
             elif sensInit == "zero":
                 # If finite-diff is zero at t=0 then u(0,x+delta)=u(0,x)
                 perturbedRomCoeff = romCoeff[0, : romData.uNmodes + romData.vNmodes].astype(complex)
-            perturbedParams = model.params.copy()
-            perturbedParams[paramSelect[iparam]] += complexDelta * 1j
-            perturbedModel = model.copy(params=perturbedParams)
+            # Cant copy the model because if we can't compute boundary matrices with complex parameters
+            model.params[paramSelect[iparam]] += complexDelta * 1j
 
             def rhs(t, y):
-                return perturbedModel.dydtPodRom(y, t, romData, paramSelect=[])
+                return model.dydtPodRom(y, t, romData, paramSelect=[])
 
             romCoeff[
                 :,
@@ -622,28 +682,113 @@ def computeSensitivity(
     return romCoeff
 
 
-def constructParameterSamples(baseParams, paramBounding, param, nRomSamples, extrapolatory):
-    if param == "none":
-        # No parameter sampling
-        fomParamSamples = [baseParams]
-        romParamSamples = [baseParams]
-    else:
-        base_val = baseParams[param]
-        lo = base_val * (1 - paramBounding)
-        hi = base_val * (1 + paramBounding)
-
+def sampleParameter(baseParams, param, paramBounding, samplingApproach, nSamples, samplingDistribution="uniform"):
+    base_val = baseParams[param]
+    lo = base_val * (1 - paramBounding)
+    hi = base_val * (1 + paramBounding)
+    # Loop through FOM Sampling Options
+    # Option 1) Bounding Box Sampling
+    if samplingApproach == "linspace":
         # FOM: 3 samples (lo, base, hi)
-        fom_values = np.linspace(lo, hi, 3).tolist()
-        fomParamSamples = [{**baseParams, param: v} for v in fom_values]
+        paramValues = np.linspace(lo, hi, nSamples).tolist()
+        paramSamples = [{**baseParams, param: v} for v in paramValues]
+    # Option 2) Random Sampling
+    elif samplingApproach == "random":
+        if samplingDistribution == "uniform":
+            paramValues = np.random.uniform(lo, hi, size=nSamples).tolist()
+        elif samplingDistribution == "normal":
+            mean = base_val
+            std = paramBounding * base_val / 3  # 99.7% values within bounding box
+            paramValues = np.random.normal(mean, std, size=nSamples).tolist()
+            # Clip values to be within bounding box
+            paramValues = [max(min(v, hi), lo) for v in paramValues]
+        else:
+            raise ValueError("Invalid samplingDistribution entered: " + str(samplingDistribution))
+        paramSamples = [{**baseParams, param: v} for v in paramValues]
 
-        if extrapolatory:
-            # Extend ROM values out to 50% beyond FOM range
-            lo = base_val * (1 - paramBounding * 2)
-            hi = base_val * (1 + paramBounding * 2)
+    return paramSamples
 
-        # ROM: nRomSamples across the same interval
-        rom_values = np.linspace(lo, hi, nRomSamples).tolist()
-        romParamSamples = [{**baseParams, param: v} for v in rom_values]
+
+def constructParameterSamples(
+    baseParams,
+    param,
+    paramBounding,
+    nFomSamples,
+    nRomSamples,
+    samplingApproach,
+    samplingDistribution="uniform",
+    extrapolatoryProportion=0,
+):
+    fomParamSamples = sampleParameter(
+        baseParams, param, paramBounding, samplingApproach, nFomSamples, samplingDistribution="uniform"
+    )
+    romParamSamples = sampleParameter(
+        baseParams,
+        param,
+        paramBounding * (1 + extrapolatoryProportion),
+        samplingApproach,
+        nRomSamples,
+        samplingDistribution=samplingDistribution,
+    )
+    return fomParamSamples, romParamSamples
+
+
+def constructGlobalParameterSamples(
+    baseParams,
+    paramSelect,
+    paramBounding,
+    nFomSamples,
+    nRomSamples,
+    samplingApproach,
+    samplingDistribution="uniform",
+    extrapolatoryProportion=0,
+):
+    """
+    Construct global parameter samples over multiple parameters.
+
+    This generalizes the single-parameter linspace sampling used by
+    sampleParameter() to multiple parameters specified by paramSelect,
+    forming the Cartesian product of linearly spaced values for each.
+
+    Parameters
+    ----------
+    baseParams : dict
+        Baseline parameter dictionary from which bounds are derived.
+    paramSelect : list[str]
+        List of parameter names to sample jointly.
+    paramBounding : float
+        Relative bounding proportion around each base value (e.g., 0.5 → ±50%).
+    nFomSamples : int
+        Number of samples per-dimension for the FOM grid.
+    nRomSamples : int
+        Number of samples per-dimension for the ROM grid.
+    samplingApproach : str
+        Sampling strategy. Currently supports only "linspace" for global sampling.
+    samplingDistribution : str
+        Unused for linspace; kept for API compatibility.
+    extrapolatoryProportion : float
+        Additional proportion to expand ROM bounds beyond FOM (e.g., 0.2 expands by 20%).
+
+    Returns
+    -------
+    (list[dict], list[dict])
+        Tuple of (fomParamSamples, romParamSamples), where each entry is a list
+        of parameter dictionaries representing one point on the sampling grid.
+    """
+
+    if samplingApproach == "saltelli":
+        baseSampledParams = np.array([baseParams[p] for p in paramSelect])
+        distParam = np.array([baseSampledParams * (1 - paramBounding), baseSampledParams * (1 + paramBounding)])
+        paramSample = saltelli_uniform(nRomSamples + nFomSamples, distParam)
+        # Create independent dict copies per sample to avoid shared-reference bugs
+        romParamSamples = [dict(baseParams) for _ in range(nRomSamples)]
+        for iSample in range(nRomSamples):
+            for iParam in range(len(paramSelect)):
+                romParamSamples[iSample][paramSelect[iParam]] = float(paramSample[iSample, iParam])
+        fomParamSamples = [dict(baseParams) for _ in range(nFomSamples)]
+        for iSample in range(nFomSamples):
+            for iParam in range(len(paramSelect)):
+                fomParamSamples[iSample][paramSelect[iParam]] = float(paramSample[iSample + nRomSamples, iParam])
 
     return fomParamSamples, romParamSamples
 

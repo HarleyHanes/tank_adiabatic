@@ -38,6 +38,7 @@ known-first-party = ["tankModel", "postProcessing", "PodRomAnalysis", "collocati
 [tool.ruff.per-file-ignores]
 "PodRomAnalysis/controlAnalysis.py" = ["F811"]
 "PodRomAnalysis/sensitivityAnalysis.py" = ["F811"]
+"PodRomAnalysis/globalSensitivityAnalysis.py" = ["F811"]
 
 [tool.pydocstyle]
 convention = "numpy"
