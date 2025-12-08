@@ -7,12 +7,12 @@ from matplotlib.patches import Rectangle
 from PodRomAnalysis.podRomAnalysis import (
     computeInitialCondition,
     computeSensitivity,
-    constructParameterSamples,
+    constructGlobalParameterSamples,
     getParameterOptions,
     getSensitivityOptions,
     mapROMdataToFOMspace,
 )
-from postProcessing.plot import plotErrorConvergence, plotRomMatrices, subplot, subplotMovie, subplotTimeSeries
+from postProcessing.plot import plotErrorConvergence, plotRomMatrices, subplot
 from tankModel.TankModel import TankModel
 
 
@@ -23,7 +23,8 @@ def main():
     # Run Types
     plotConvergence = False
 
-    plotRomInterpolation = True
+    plotSensitivity = True
+    plotRomInterpolation = False
 
     plotTimeSeries = False
     plotModes = False
@@ -32,8 +33,6 @@ def main():
     plotSingularValues = False
     plotFullSpectra = False
 
-    makeMovies = True
-    combinedOnly = True
     # FOM parameters
     paramSet = "BizonChaotic"  # BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     nCollocation = 2
@@ -44,12 +43,12 @@ def main():
 
     # Parameter Sampling
 
-    param = "beta"
-    if param != "none":
-        extrapolatory = True
-        equationSet = param  # Comment out to do parameter sampling without sensitivity
-        paramBounding = 0.15
-        nRomSamples = 3
+    gsaMethod = "DGSM"
+    if gsaMethod == "DGSM":
+        equationSet = "nonBoundaryParams-noDa"
+        nRomSamples = 20
+        nFomSamples = 6
+        paramBounding = 0.2  # Percentage around base value
     else:
         equationSet = "tankOnly"
 
@@ -72,9 +71,8 @@ def main():
     romSensitivityApproach = [
         "sensEq",
         "complex",
-        "finite",
     ]  # none, finite, sensEq, complex, only used if equationSet!=tankOnly
-    finiteDelta = 1e-5  # Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
+    finiteDelta = 1e-6  # Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
     complexDelta = 1e-9  # Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
 
     # Set simulation parameters
@@ -151,14 +149,9 @@ def main():
         fomParamSamples = [baseParams]
         romParamSamples = [baseParams]
     else:
-        if extrapolatory:
-            fomParamSamples, romParamSamples = constructParameterSamples(
-                baseParams, paramSelect[0], paramBounding, 3, nRomSamples, "linspace", extrapolatoryProportion=0.5
-            )
-        else:
-            fomParamSamples, romParamSamples = constructParameterSamples(
-                baseParams, paramSelect[0], paramBounding, 3, nRomSamples, "linspace"
-            )
+        fomParamSamples, romParamSamples = constructGlobalParameterSamples(
+            baseParams, paramSelect, paramBounding, nFomSamples, nRomSamples, "saltelli"
+        )
 
     # Setup system
     if verbosity >= 1:
@@ -373,6 +366,7 @@ def main():
                                 or plotRomCoeff
                                 or plotSingularValues
                                 or plotRomInterpolation
+                                or plotSensitivity
                             ):
                                 os.makedirs(romSaveFolder)
 
@@ -476,419 +470,61 @@ def main():
                                     combinedResults[iParamSample, 2 * i + 1, :, :, :] = vResults[
                                         iParamSample, i, :, :, :
                                     ]
-                            # Make plots
-                            if usePodRom:
-                                legends = ["FOM", "ROM", "POD"]
-                            else:
-                                legends = ["FOM"]
-                            # ------------------------------------------- Make Movies ----------------------
-
-                            if usePodRom and makeMovies:
-                                if not combinedOnly:
-                                    subplotMovie(
-                                        [u for u in uResults[iParamSample]],
-                                        x,
-                                        romSaveFolder + "u_" + param + "=" + str(model.params[param]) + ".mov",
-                                        fps=15,
-                                        xLabels="x",
-                                        yLabels=uLabels,
-                                        legends=legends,
-                                        legendLoc="upper left",
-                                        subplotSize=(2.5, 2),
-                                    )
-                                    subplotMovie(
-                                        [v for v in vResults[iParamSample]],
-                                        x,
-                                        romSaveFolder + "v_" + param + "=" + str(model.params[param]) + ".mov",
-                                        fps=15,
-                                        xLabels="x",
-                                        yLabels=vLabels,
-                                        legends=legends,
-                                        legendLoc="upper left",
-                                        subplotSize=(2.5, 2),
-                                    )
-                                subplotMovie(
-                                    [y for y in combinedResults[iParamSample]],
-                                    x,
-                                    romSaveFolder + "combined_" + param + "=" + str(model.params[param]) + ".mov",
-                                    fps=15,
-                                    xLabels="x",
-                                    yLabels=combinedLabels,
-                                    legends=legends,
-                                    legendLoc="upper left",
-                                    subplotSize=(2.5, 2),
-                                )
-                                if plotError:
-                                    subplotMovie(
-                                        [u[:, 1:3, :] - u[:, [0], :] for u in uResults[iParamSample]],
-                                        x,
-                                        romSaveFolder + "uError_" + param + "=" + str(model.params[param]) + ".mov",
-                                        fps=15,
-                                        xLabels="x",
-                                        yLabels=uLabels,
-                                        legends=legends[1:3],
-                                        legendLoc="upper left",
-                                        subplotSize=(2.5, 2),
-                                        lineTypeStart=1,
-                                        yRanges="auto",
-                                    )
-                                    subplotMovie(
-                                        [v[:, 1:3, :] - v[:, [0], :] for v in vResults[iParamSample]],
-                                        x,
-                                        romSaveFolder + "vError_" + param + "=" + str(model.params[param]) + ".mov",
-                                        fps=15,
-                                        xLabels="x",
-                                        yLabels=vLabels,
-                                        legends=legends[1:3],
-                                        legendLoc="upper left",
-                                        subplotSize=(2.5, 2),
-                                        lineTypeStart=1,
-                                        yRanges="auto",
-                                    )
-                            elif makeMovies:
-                                if not combinedOnly:
-                                    subplotMovie(
-                                        [u for u in uResults[iParamSample]],
-                                        x,
-                                        fomSaveFolder + "u_" + param + "=" + str(model.params[param]) + ".mov",
-                                        fps=15,
-                                        xLabels="x",
-                                        yLabels=uLabels,
-                                        legends=legends,
-                                        legendLoc="upper left",
-                                        subplotSize=(2.5, 2),
-                                    )
-                                    subplotMovie(
-                                        [v for v in vResults[iParamSample]],
-                                        x,
-                                        fomSaveFolder + "v_" + param + "=" + str(model.params[param]) + ".mov",
-                                        fps=15,
-                                        xLabels="x",
-                                        yLabels=vLabels,
-                                        legends=legends,
-                                        legendLoc="upper left",
-                                        subplotSize=(2.5, 2),
-                                    )
-                                subplotMovie(
-                                    [y for y in combinedResults[iParamSample]],
-                                    x,
-                                    fomSaveFolder + "combined_" + param + "=" + str(model.params[param]) + ".mov",
-                                    fps=15,
-                                    xLabels="x",
-                                    yLabels=combinedLabels,
-                                    legends=legends,
-                                    legendLoc="upper left",
-                                    subplotSize=(2.5, 2),
-                                )
-                            # Make example plots
-                            if plotTimeSeries:
-                                tplot = np.linspace(0, tEval.size - 1, 4, dtype=int)
-                                title = ["t=" + str(round(1000 * tEval[it]) / 1000) for it in tplot]
-                                if not combinedOnly:
-                                    fig, axs = subplotTimeSeries(
-                                        [u[tplot, :, :] for u in uResults[iParamSample]],
-                                        x,
-                                        xLabels="x",
-                                        yLabels=uLabels,
-                                        title=title,
-                                        legends=legends,
-                                        subplotSize=(2.65, 2),
-                                    )
-                                    if usePodRom:
-                                        plt.savefig(
-                                            romSaveFolder
-                                            + "uTimeSeries_"
-                                            + param
-                                            + "="
-                                            + str(model.params[param])
-                                            + ".pdf",
-                                            format="pdf",
-                                        )
-                                        plt.savefig(
-                                            romSaveFolder
-                                            + "uTimeSeries_"
-                                            + param
-                                            + "="
-                                            + str(model.params[param])
-                                            + ".png",
-                                            format="png",
-                                        )
-                                    else:
-                                        plt.savefig(
-                                            fomSaveFolder
-                                            + "uTimeSeries_"
-                                            + param
-                                            + "="
-                                            + str(model.params[param])
-                                            + ".pdf",
-                                            format="pdf",
-                                        )
-                                        plt.savefig(
-                                            fomSaveFolder
-                                            + "uTimeSeries_"
-                                            + param
-                                            + "="
-                                            + str(model.params[param])
-                                            + ".png",
-                                            format="png",
-                                        )
-                                    fig, axs = subplotTimeSeries(
-                                        [v[tplot, :, :] for v in vResults[iParamSample]],
-                                        x,
-                                        xLabels="x",
-                                        yLabels=vLabels,
-                                        title=title,
-                                        legends=legends,
-                                        subplotSize=(2.65, 2),
-                                    )
-                                    if usePodRom:
-                                        plt.savefig(
-                                            romSaveFolder
-                                            + "vTimeSeries_"
-                                            + param
-                                            + "="
-                                            + str(model.params[param])
-                                            + ".pdf",
-                                            format="pdf",
-                                        )
-                                        plt.savefig(
-                                            romSaveFolder
-                                            + "vTimeSeries_"
-                                            + param
-                                            + "="
-                                            + str(model.params[param])
-                                            + ".png",
-                                            format="png",
-                                        )
-                                    else:
-                                        plt.savefig(
-                                            fomSaveFolder
-                                            + "vTimeSeries_"
-                                            + param
-                                            + "="
-                                            + str(model.params[param])
-                                            + ".pdf",
-                                            format="pdf",
-                                        )
-                                        plt.savefig(
-                                            fomSaveFolder
-                                            + "vTimeSeries_"
-                                            + param
-                                            + "="
-                                            + str(model.params[param])
-                                            + ".png",
-                                            format="png",
-                                        )
-                                fig, axs = subplotTimeSeries(
-                                    [y[tplot, :, :] for y in combinedResults[iParamSample]],
-                                    x,
-                                    xLabels="x",
-                                    yLabels=combinedLabels,
-                                    title=title,
-                                    legends=legends,
-                                    subplotSize=(2.65, 2),
-                                )
-                                if usePodRom:
-                                    plt.savefig(
-                                        romSaveFolder
-                                        + "combinedTimeSeries_"
-                                        + param
-                                        + "="
-                                        + str(model.params[param])
-                                        + ".pdf",
-                                        format="pdf",
-                                    )
-                                    plt.savefig(
-                                        romSaveFolder
-                                        + "combinedTimeSeries_"
-                                        + param
-                                        + "="
-                                        + str(model.params[param])
-                                        + ".png",
-                                        format="png",
-                                    )
-                                else:
-                                    plt.savefig(
-                                        fomSaveFolder
-                                        + "combinedTimeSeries_"
-                                        + param
-                                        + "="
-                                        + str(model.params[param])
-                                        + ".pdf",
-                                        format="pdf",
-                                    )
-                                    plt.savefig(
-                                        fomSaveFolder
-                                        + "combinedTimeSeries_"
-                                        + param
-                                        + "="
-                                        + str(model.params[param])
-                                        + ".png",
-                                        format="png",
-                                    )
-                                if usePodRom and plotError:
-                                    fig, axs = subplotTimeSeries(
-                                        [u[tplot, 1:3, :] - u[tplot, 0:1, :] for u in uResults[iParamSample]],
-                                        x,
-                                        xLabels="x",
-                                        yLabels=uLabels,
-                                        title=title,
-                                        legends=legends[1:3],
-                                        subplotSize=(2.65, 2),
-                                        lineTypeStart=1,
-                                    )
-                                    plt.savefig(
-                                        romSaveFolder
-                                        + "uErrorTimeSeries_"
-                                        + param
-                                        + "="
-                                        + str(model.params[param])
-                                        + ".pdf",
-                                        format="pdf",
-                                    )
-                                    plt.savefig(
-                                        romSaveFolder
-                                        + "uErrorTimeSeries_"
-                                        + param
-                                        + "="
-                                        + str(model.params[param])
-                                        + ".png",
-                                        format="png",
-                                    )
-                                    fig, axs = subplotTimeSeries(
-                                        [v[tplot, 1:3, :] - v[tplot, 0:1, :] for v in vResults[iParamSample]],
-                                        x,
-                                        xLabels="x",
-                                        yLabels=vLabels,
-                                        title=title,
-                                        legends=legends[1:3],
-                                        subplotSize=(2.65, 2),
-                                        lineTypeStart=1,
-                                    )
-                                    plt.savefig(
-                                        romSaveFolder
-                                        + "vErrorTimeSeries_"
-                                        + param
-                                        + "="
-                                        + str(model.params[param])
-                                        + ".pdf",
-                                        format="pdf",
-                                    )
-                                    plt.savefig(
-                                        romSaveFolder
-                                        + "vErrorTimeSeries_"
-                                        + param
-                                        + "="
-                                        + str(model.params[param])
-                                        + ".png",
-                                        format="png",
-                                    )
-                        # Make interpolation plots
-                        if plotRomInterpolation and len(romParamSamples) > 1:
-                            rom_values = np.array([p[param] for p in romParamSamples])
-                            fig, axes = plt.subplots(1, 1, figsize=(4, 3))
-                            # Base ROM error
-                            # L2 Error
-                            axes.semilogy(rom_values, error[iret][0, :, 0], "-bs", lw=3, ms=8)
-                            # Linf Error
-                            axes.semilogy(rom_values, error[iret][0, :, 1], "--m*", lw=3, ms=8)
-                            axes.set_xlabel(param)
-                            axes.set_ylabel("Error")
-                            axes.legend(error_norm)
-                            plt.savefig(
-                                romSaveFolder
-                                + "OATaccuracy_"
-                                + param
-                                + "_a"
-                                + str(paramBounding)
-                                + "nSamp"
-                                + str(nRomSamples)
-                                + ".pdf",
-                                format="pdf",
+                        # Compute GSA indices
+                        if gsaMethod == "DGSM":
+                            # Compute time-variant sensitivity indices
+                            # Need to re-scale against parameter bounds
+                            # Indices are nEq-1 x nT x 3 x nX
+                            uDGSMmean = np.sum(np.abs(uResults[:, 1:, :, :, :]), axis=0) / len(romParamSamples)
+                            uDGSMvar = np.sum(uResults[:, 1:, :, :, :] ** 2, axis=0) / len(romParamSamples)
+                            vDGSMmean = np.sum(np.abs(vResults[:, 1:, :, :, :]), axis=0) / len(romParamSamples)
+                            vDGSMvar = np.sum(vResults[:, 1:, :, :, :] ** 2, axis=0) / len(romParamSamples)
+                            # Integrate sensitivities in time
+                            # Indices are nEq-1 x 3 x nX
+                            uDGSMmean = np.sum(uDGSMmean, axis=1) / nT
+                            uDGSMvar = np.sum(uDGSMvar, axis=1) / nT
+                            vDGSMmean = np.sum(vDGSMmean, axis=1) / nT
+                            vDGSMvar = np.sum(vDGSMvar, axis=1) / nT
+                        # ======= Plot Results =======
+                        if plotSensitivity:
+                            figWidth, figHeight = 3.5 * 3, 2.5 * 4
+                            fig, axes = plt.subplots(4, 3, figsize=(figWidth, figHeight))
+                            plt.subplots_adjust(wspace=0.35)
+                            axes = np.reshape(axes, (4, 3))
+                            axes[0, 0].semilogy(x, uDGSMmean[:, 0, :].T)
+                            axes[0, 0].set_ylabel(r"u, $\mu$")
+                            axes[0, 0].set_title("True Sensitivity")
+                            axes[0, 1].semilogy(x, uDGSMmean[:, 2, :].T)
+                            axes[0, 1].set_title("ROM Sensitivity")
+                            axes[0, 2].semilogy(
+                                x, np.abs(uDGSMmean[:, 2, :] - uDGSMmean[:, 0, :]).T / np.abs(uDGSMmean[:, 0, :].T)
                             )
-                            plt.savefig(
-                                romSaveFolder
-                                + "OATaccuracy_"
-                                + param
-                                + "_a"
-                                + str(paramBounding)
-                                + "nSamp"
-                                + str(nRomSamples)
-                                + ".png",
-                                format="png",
+                            axes[0, 2].set_title("Relative ROM Error")
+                            axes[0, 2].legend(paramSelect)
+                            axes[1, 0].semilogy(x, uDGSMvar[:, 0, :].T)
+                            axes[1, 0].set_ylabel(r"u, $v$")
+                            axes[1, 1].semilogy(x, uDGSMvar[:, 2, :].T)
+                            axes[1, 2].semilogy(
+                                x, np.abs(uDGSMvar[:, 2, :] - uDGSMvar[:, 0, :]).T / np.abs(uDGSMvar[:, 0, :].T)
                             )
-
-                            # Sensitivity Error
-                            for i in range(1, neq):
-                                fig, axes = plt.subplots(1, 1, figsize=(4, 3))
-                                # L2 Error
-                                axes.semilogy(rom_values, error[iret][i, :, 0], "-bs", lw=3, ms=8)
-                                # Linf Error
-                                axes.semilogy(rom_values, error[iret][i, :, 1], "--m*", lw=3, ms=8)
-                                axes.set_xlabel(param)
-                                axes.set_ylabel("Error")
-                                axes.legend(error_norm)
-                                plt.savefig(
-                                    romSaveFolder
-                                    + "OATsensAccuracy_"
-                                    + param
-                                    + "_"
-                                    + str(romSensitivityApproach[isens])
-                                    + "_a"
-                                    + str(paramBounding)
-                                    + "nSamp"
-                                    + str(nRomSamples)
-                                    + ".pdf",
-                                    format="pdf",
-                                )
-                                plt.savefig(
-                                    romSaveFolder
-                                    + "OATsensAccuracy_"
-                                    + param
-                                    + "_"
-                                    + str(romSensitivityApproach[isens])
-                                    + "_a"
-                                    + str(paramBounding)
-                                    + "nSamp"
-                                    + str(nRomSamples)
-                                    + ".png",
-                                    format="png",
-                                )
-
-                            fig, axes = plt.subplots(1, 1, figsize=(4, 3))
-                            # L2 Error
-                            axes.semilogy(rom_values, qoiResults[iret][:, 0], "-bs", lw=3, ms=8)
-                            # Linf Error
-                            axes.semilogy(rom_values, qoiResults[iret][:, 1], "--m*", lw=3, ms=8)
-                            # L2 Error
-                            axes.semilogy(rom_values, qoiResults[iret][:, 2], "-.g^", lw=3, ms=8)
-                            # Linf Error
-                            axes.semilogy(rom_values, qoiResults[iret][:, 3], "-ro", lw=3, ms=8)
-                            axes.set_xlabel(param)
-                            axes.legend(qois)
-                            plt.savefig(
-                                romSaveFolder
-                                + "OATqois_"
-                                + param
-                                + "_a"
-                                + str(paramBounding)
-                                + "nSamp"
-                                + str(nRomSamples)
-                                + ".pdf",
-                                format="pdf",
+                            axes[2, 0].semilogy(x, vDGSMmean[:, 0, :].T)
+                            axes[2, 0].set_ylabel(r"v, $\mu$")
+                            axes[2, 1].semilogy(x, vDGSMmean[:, 2, :].T)
+                            axes[2, 2].semilogy(
+                                x, np.abs(vDGSMmean[:, 2, :] - vDGSMmean[:, 0, :]).T / np.abs(vDGSMmean[:, 0, :].T)
                             )
-                            plt.savefig(
-                                romSaveFolder
-                                + "OATqois_"
-                                + param
-                                + "_a"
-                                + str(paramBounding)
-                                + "nSamp"
-                                + str(nRomSamples)
-                                + ".png",
-                                format="png",
+                            axes[3, 0].semilogy(x, vDGSMvar[:, 0, :].T)
+                            axes[3, 0].set_xlabel("x")
+                            axes[3, 0].set_ylabel(r"v, $v$")
+                            axes[3, 1].semilogy(x, vDGSMvar[:, 2, :].T)
+                            axes[3, 1].set_xlabel("x")
+                            axes[3, 2].semilogy(
+                                x, np.abs(vDGSMvar[:, 2, :] - vDGSMvar[:, 0, :]).T / np.abs(vDGSMvar[:, 0, :].T)
                             )
-
+                            axes[3, 2].set_xlabel("x")
+                            plt.tight_layout()
+                            plt.savefig(romSaveFolder + "dgsmIndices.pdf", format="pdf")
+                            plt.savefig(romSaveFolder + "dgsmIndices.png", format="png")
                         # Plot POD modes
                         if plotModes and usePodRom:
                             subplot(
@@ -970,12 +606,13 @@ def main():
                             plt.savefig(romSaveFolder + "uRomMatrices.pdf", format="pdf")
                             plt.savefig(romSaveFolder + "uRomMatrices.png", format="png")
 
+                        legends = ["FOM", "POD", "ROM"]
                         if plotRomCoeff:
                             coeffLabels = ["Coeff " + str(i + 1) for i in range(romData.uNmodes)]
                             uCoeffData = [
                                 np.array([rom, pod])
                                 for pod, rom in zip(
-                                    romData.uTimeModes[:, : romData.uNmodes].transpose(),
+                                    romData.uTimßeModes[:, : romData.uNmodes].transpose(),
                                     romCoeff[:, : romData.uNmodes].transpose(),
                                 )
                             ]
@@ -1011,74 +648,6 @@ def main():
                             )
                             plt.savefig(romSaveFolder + "vRomCoeff.pdf", format="pdf")
                             plt.savefig(romSaveFolder + "vRomCoeff.png", format="png")
-                        if plotModes:
-                            # Compute linearization of nonlinear term
-                            def nonLinearTerm(u, v):
-                                return (
-                                    baseParams["Da"]
-                                    * romData.vModesWeighted.transpose()
-                                    @ (
-                                        (1 - (romData.uModes @ u + romData.uMean))
-                                        * np.exp(
-                                            baseParams["gamma"]
-                                            * baseParams["beta"]
-                                            * (romData.vModes @ v + romData.vMean)
-                                            / (1 + baseParams["beta"] * (romData.vModes @ v + romData.vMean))
-                                        )
-                                    )
-                                )
-
-                            nonLinearLinearized = [None] * tplot.size
-                            for it in range(tplot.size):
-                                nonLinearLinearized[it] = np.empty((romData.vNmodes, romData.vNmodes))
-                                baseU = romCoeff[tplot[it], : romData.uNmodes]
-                                baseV = romCoeff[tplot[it], romData.uNmodes : romData.uNmodes + romData.vNmodes]
-                                for i in range(romData.vNmodes):
-                                    adjustedV = baseV.copy()
-                                    adjustedV[i] += 1e-6
-                                    if verbosity >= 3:
-                                        print(
-                                            "Difference between adjusted and standard v basis:",
-                                            adjustedV - baseV,
-                                        )
-                                        print(
-                                            "Nonlinear evaluations with standard basis:",
-                                            nonLinearTerm(baseU, baseV),
-                                        )
-                                        print(
-                                            "Difference between nonlinear evaluations:",
-                                            (nonLinearTerm(baseU, adjustedV) - nonLinearTerm(baseU, baseV)) / 1e-6,
-                                        )
-                                    nonLinearLinearized[it][i, :] = (
-                                        nonLinearTerm(baseU, adjustedV) - nonLinearTerm(baseU, baseV)
-                                    ) / 1e-6
-
-                            fig, axes = plotRomMatrices(
-                                nonLinearLinearized,
-                                xLabels=r"$v_j$",
-                                yLabels=[
-                                    r"$\frac{\partial \mathcal{N}(v_i)}{\partial v_j}$",
-                                    " ",
-                                    " ",
-                                    " ",
-                                ],
-                                title=["t=" + str(round(1000 * tEval[it]) / 1000) for it in tplot],
-                                cmap="coolwarm",
-                                fontsize=18,
-                            )
-                            plt.savefig(
-                                romSaveFolder + "vRomMatrices_linearization.pdf",
-                                format="pdf",
-                                bbox_inches="tight",
-                                pad_inches=0.02,
-                            )
-                            plt.savefig(
-                                romSaveFolder + "vRomMatrices_linearization.png",
-                                format="png",
-                                bbox_inches="tight",
-                                pad_inches=0.02,
-                            )
-
                         # Plot singular values
                         if plotSingularValues:
                             # Compute culmulative truncation
