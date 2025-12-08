@@ -831,15 +831,15 @@ def vPODcoeffToFOM(romData, romCoeff):
     return romData.vModes @ romCoeff + romData.vMean.reshape((romData.vMean.size, 1))
 
 
-def mapROMdataToFOMspace(romData, uResults, vResults, romCoeff, iParamSample, sensitivityMean):
-    neq = uResults.shape[1]
+def mapROMdataToFOMspace(romData, uResults, vResults, romCoeff, iParamSample, iPenalty, sensitivityMean):
+    neq = uResults.shape[2]
     for i in range(0, neq):
         # Compute ROM Solution
         romModeStart = i * (romData.uNmodes + romData.vNmodes)
         # ROM Result
         if i == 0:
             # Map ROM results from POD space to FOM space
-            uResults[iParamSample, i, :, 1, :] = (
+            uResults[iParamSample, iPenalty, i, :, 1, :] = (
                 romData.uModes @ romCoeff[:, romModeStart : romModeStart + romData.uNmodes].transpose()
             ).transpose() + romData.uMean
             vResults[iParamSample, i, :, 1, :] = (
@@ -853,10 +853,12 @@ def mapROMdataToFOMspace(romData, uResults, vResults, romCoeff, iParamSample, se
             # Note: Already computed in romData.*TimeModes for samples used in POD construction,
             # but we re-do it here so we use the same approach for all romParamSamples.
             uProjectedFomData = romData.uModesWeighted.transpose() @ (
-                uResults[iParamSample, i, :, 0, :].transpose() - romData.uMean.reshape((romData.uMean.size, 1))
+                uResults[iParamSample, iPenalty, i, :, 0, :].transpose()
+                - romData.uMean.reshape((romData.uMean.size, 1))
             )
             vProjectedFomData = romData.vModesWeighted.transpose() @ (
-                vResults[iParamSample, i, :, 0, :].transpose() - romData.vMean.reshape((romData.vMean.size, 1))
+                vResults[iParamSample, iPenalty, i, :, 0, :].transpose()
+                - romData.vMean.reshape((romData.vMean.size, 1))
             )
             # Map POD results from POD space to FOM space
             uResults[iParamSample, i, :, 2, :] = (

@@ -164,7 +164,6 @@ def main():
         params=baseParams,
         tEval=tEval,
         odeMethod=odeMethod,
-        penaltyStrength=penaltyStrength,
         verbosity=verbosity,
     )
 
@@ -315,6 +314,7 @@ def main():
                                 useEnergyThreshold=useEnergyThreshold,
                                 adjustModePairs=False,
                             )
+                            romData.penaltyStrength = penaltyStrength
 
                         error.append(np.empty((neq, len(romParamSamples), len(error_norm))))
                         qoiResults.append(

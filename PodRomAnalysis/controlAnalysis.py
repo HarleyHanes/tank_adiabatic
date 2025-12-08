@@ -266,7 +266,6 @@ def main():
         params=baseParams,
         tEval=tEval,
         odeMethod=odeMethod,
-        penaltyStrength=penaltyStrength,
         verbosity=verbosity,
     )
 
@@ -421,6 +420,7 @@ def main():
                                 useEnergyThreshold=useEnergyThreshold,
                                 adjustModePairs=adjustModePairs,
                             )
+                            romData.penaltyStrength = penaltyStrength
 
                         # Compute control param range
                         if adaptiveControlCutoff:
