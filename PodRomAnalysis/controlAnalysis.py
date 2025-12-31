@@ -29,12 +29,12 @@ def main():
 
     plotTimeSeries = True
     plotModes = False
-    plotError = True
+    plotError = False
     plotRomCoeff = False
     plotSingularValues = False
     plotFullSpectra = False
 
-    makeMovies = False
+    makeMovies = True
     # FOM parameters
     paramSet = "BizonChaotic"  # BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     equationSet = "tankOnly"  # tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
@@ -56,7 +56,7 @@ def main():
     usePodRom = True
     useEnergyThreshold = False
     adaptiveControlCutoff = False
-    nDeimPoints = "max"  # Base value for DEIM, max or integer
+    nDeimPoints = "max"  # Base value for DEIM, max oxxr integer
     nonLinReduction = 4.0  # Base value for nonLinReduction, 1 means no reduction
     controlApproach = "nonLinReduction"  # none, DEIM, nonLinReduction
     controlMetric = [
@@ -564,12 +564,11 @@ def main():
                                         )
 
                                     # ----------------------------- Map Results Back into Spatial Space
-                                    uResults, vResults = mapROMdataToFOMspace(
+                                    uResults[iParamSample], vResults[iParamSample] = mapROMdataToFOMspace(
                                         romData,
-                                        uResults,
-                                        vResults,
+                                        uResults[iParamSample],
+                                        vResults[iParamSample],
                                         romCoeff,
-                                        iParamSample,
                                         sensInit[iInit],
                                     )
                                     # ==== Compute Error ====

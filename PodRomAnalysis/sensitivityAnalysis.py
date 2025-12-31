@@ -25,7 +25,7 @@ def main():
 
     plotRomInterpolation = True
 
-    plotTimeSeries = False
+    plotTimeSeries = True
     plotModes = False
     plotError = False
     plotRomCoeff = False
@@ -48,7 +48,7 @@ def main():
     if param != "none":
         extrapolatory = True
         equationSet = param  # Comment out to do parameter sampling without sensitivity
-        paramBounding = 0.15
+        paramBounding = 0.1
         nRomSamples = 3
     else:
         equationSet = "tankOnly"
@@ -58,7 +58,7 @@ def main():
     useEnergyThreshold = True
     nDeimPoints = "max"  # Base value for DEIM, max or integer
     nonLinReduction = 4.0  # Base value for nonLinReduction, 1 means no reduction
-    penaltyStrength = 0
+    penaltyStrength = 100000
     sensInit = ["zero"]
     quadRule = ["gauss-legendre"]  # simpson, gauss-legendre, uniform, monte carlo
     mean_reduction = ["mean"]
@@ -69,11 +69,7 @@ def main():
         "Max Outlet Temperature",
         "Average Outlet Temperature",
     ]
-    romSensitivityApproach = [
-        "sensEq",
-        "complex",
-        "finite",
-    ]  # none, finite, sensEq, complex, only used if equationSet!=tankOnly
+    romSensitivityApproach = ["complex"]  # none, finite, sensEq, complex, only used if equationSet!=tankOnly
     finiteDelta = 1e-5  # Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
     complexDelta = 1e-9  # Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
 
@@ -439,14 +435,14 @@ def main():
                                         )
 
                                     # ----------------------------- Map Results Back into Spatial Space
-                                    uResults, vResults = mapROMdataToFOMspace(
-                                        romData,
-                                        uResults,
-                                        vResults,
-                                        romCoeff,
-                                        iParamSample,
-                                        iPenalty,
-                                        sensInit[iInit],
+                                    uResults[iParamSample, iPenalty], vResults[iParamSample, iPenalty] = (
+                                        mapROMdataToFOMspace(
+                                            romData,
+                                            uResults[iParamSample, iPenalty],
+                                            vResults[iParamSample, iPenalty],
+                                            romCoeff,
+                                            sensInit[iInit],
+                                        )
                                     )
                                     # ==== Compute Error ====
                                     for ieq in range(neq):
@@ -534,7 +530,7 @@ def main():
                                     )
                                     if plotError:
                                         subplotMovie(
-                                            [u[:, 1:3, :] - u[:, [0], :] for u in uResults[iParamSample]],
+                                            [u[:, 1:3, :] - u[:, [0], :] for u in uResults[iParamSample, iPenalty]],
                                             x,
                                             romSaveFolder + "uError_" + param + "=" + str(model.params[param]) + ".mov",
                                             fps=15,
@@ -547,7 +543,7 @@ def main():
                                             yRanges="auto",
                                         )
                                         subplotMovie(
-                                            [v[:, 1:3, :] - v[:, [0], :] for v in vResults[iParamSample]],
+                                            [v[:, 1:3, :] - v[:, [0], :] for v in vResults[iParamSample, iPenalty]],
                                             x,
                                             romSaveFolder + "vError_" + param + "=" + str(model.params[param]) + ".mov",
                                             fps=15,
@@ -562,7 +558,7 @@ def main():
                                 elif makeMovies:
                                     if not combinedOnly:
                                         subplotMovie(
-                                            [u for u in uResults[iParamSample]],
+                                            [u for u in uResults[iParamSample, iPenalty]],
                                             x,
                                             fomSaveFolder + "u_" + param + "=" + str(model.params[param]) + ".mov",
                                             fps=15,
@@ -573,7 +569,7 @@ def main():
                                             subplotSize=(2.5, 2),
                                         )
                                         subplotMovie(
-                                            [v for v in vResults[iParamSample]],
+                                            [v for v in vResults[iParamSample, iPenalty]],
                                             x,
                                             fomSaveFolder + "v_" + param + "=" + str(model.params[param]) + ".mov",
                                             fps=15,
@@ -584,7 +580,7 @@ def main():
                                             subplotSize=(2.5, 2),
                                         )
                                     subplotMovie(
-                                        [y for y in combinedResults[iParamSample]],
+                                        [y for y in combinedResults[iParamSample, iPenalty]],
                                         x,
                                         fomSaveFolder + "combined_" + param + "=" + str(model.params[param]) + ".mov",
                                         fps=15,
@@ -600,7 +596,7 @@ def main():
                                     title = ["t=" + str(round(1000 * tEval[it]) / 1000) for it in tplot]
                                     if not combinedOnly:
                                         fig, axs = subplotTimeSeries(
-                                            [u[tplot, :, :] for u in uResults[iParamSample]],
+                                            [u[tplot, :, :] for u in uResults[iParamSample, iPenalty]],
                                             x,
                                             xLabels="x",
                                             yLabels=uLabels,
@@ -647,7 +643,7 @@ def main():
                                                 format="png",
                                             )
                                         fig, axs = subplotTimeSeries(
-                                            [v[tplot, :, :] for v in vResults[iParamSample]],
+                                            [v[tplot, :, :] for v in vResults[iParamSample, iPenalty]],
                                             x,
                                             xLabels="x",
                                             yLabels=vLabels,
@@ -694,7 +690,7 @@ def main():
                                                 format="png",
                                             )
                                     fig, axs = subplotTimeSeries(
-                                        [y[tplot, :, :] for y in combinedResults[iParamSample]],
+                                        [y[tplot, :, :] for y in combinedResults[iParamSample, iPenalty]],
                                         x,
                                         xLabels="x",
                                         yLabels=combinedLabels,
@@ -742,7 +738,10 @@ def main():
                                         )
                                     if usePodRom and plotError:
                                         fig, axs = subplotTimeSeries(
-                                            [u[tplot, 1:3, :] - u[tplot, 0:1, :] for u in uResults[iParamSample]],
+                                            [
+                                                u[tplot, 1:3, :] - u[tplot, 0:1, :]
+                                                for u in uResults[iParamSample, iPenalty]
+                                            ],
                                             x,
                                             xLabels="x",
                                             yLabels=uLabels,
@@ -770,7 +769,10 @@ def main():
                                             format="png",
                                         )
                                         fig, axs = subplotTimeSeries(
-                                            [v[tplot, 1:3, :] - v[tplot, 0:1, :] for v in vResults[iParamSample]],
+                                            [
+                                                v[tplot, 1:3, :] - v[tplot, 0:1, :]
+                                                for v in vResults[iParamSample, iPenalty]
+                                            ],
                                             x,
                                             xLabels="x",
                                             yLabels=vLabels,

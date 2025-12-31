@@ -426,12 +426,11 @@ def main():
                                     )
 
                                 # ----------------------------- Map Results Back into Spatial Space
-                                uResults, vResults = mapROMdataToFOMspace(
+                                uResults[iParamSample], vResults[iParamSample] = mapROMdataToFOMspace(
                                     romData,
-                                    uResults,
-                                    vResults,
+                                    uResults[iParamSample],
+                                    vResults[iParamSample],
                                     romCoeff,
-                                    iParamSample,
                                     sensInit[iInit],
                                 )
                                 # ==== Compute Error ====
