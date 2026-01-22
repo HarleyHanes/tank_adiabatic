@@ -171,6 +171,31 @@ def getSensitivityOptions(equationSet):
             r"$v_{\delta}$",
             r"$v_{v_H}$",
         ]
+    elif equationSet == "boundaryParams":
+        neq = 4
+        paramSelect = ["PeM", "PeT", "f"]
+        uLabels = [
+            r"$u$",
+            r"$u_{\mathrm{Pe_M}}$",
+            r"$u_{\mathrm{Pe_T}}$",
+            r"$u_{f}$",
+        ]
+        vLabels = [
+            r"$v$",
+            r"$v_{\mathrm{Pe_M}}$",
+            r"$v_{\mathrm{Pe_T}}$",
+            r"$v_{f}$",
+        ]
+        combinedLabels = [
+            r"$u$",
+            r"$u_{\mathrm{Pe_M}}$",
+            r"$u_{\mathrm{Pe_T}}$",
+            r"$u_{f}$",
+            r"$v$",
+            r"$v_{\mathrm{Pe_M}}$",
+            r"$v_{\mathrm{Pe_T}}$",
+            r"$v_{f}$",
+        ]
     elif equationSet == "nonLinearParams":
         neq = 4
         paramSelect = ["Da", "beta", "gamma"]

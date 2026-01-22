@@ -45,9 +45,9 @@ def main():
 
     gsaMethod = "DGSM"
     if gsaMethod == "DGSM":
-        equationSet = "nonBoundaryParams-noDa"
-        nRomSamples = 20
-        nFomSamples = 6
+        equationSet = "boundaryParams"
+        nRomSamples = 5
+        nFomSamples = 3
         paramBounding = 0.2  # Percentage around base value
     else:
         equationSet = "tankOnly"
@@ -69,7 +69,7 @@ def main():
         "Average Outlet Temperature",
     ]
     romSensitivityApproach = [
-        "sensEq",
+        # "sensEq",
         "complex",
     ]  # none, finite, sensEq, complex, only used if equationSet!=tankOnly
     finiteDelta = 1e-6  # Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
