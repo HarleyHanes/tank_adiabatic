@@ -388,3 +388,11 @@ class RomData:
     @vNonLinProjection.setter
     def vNonLinProjection(self, value):
         self._vNonLinProjection = value
+
+    @property
+    def penaltyStrength(self):
+        return self._penaltyStrength
+
+    @penaltyStrength.setter
+    def penaltyStrength(self, value):
+        self._penaltyStrength = value

@@ -164,7 +164,6 @@ def main():
         params=baseParams,
         tEval=tEval,
         odeMethod=odeMethod,
-        penaltyStrength=penaltyStrength,
         verbosity=verbosity,
     )
 
@@ -315,6 +314,7 @@ def main():
                                 useEnergyThreshold=useEnergyThreshold,
                                 adjustModePairs=False,
                             )
+                            romData.penaltyStrength = penaltyStrength
 
                         error.append(np.empty((neq, len(romParamSamples), len(error_norm))))
                         qoiResults.append(
@@ -426,12 +426,11 @@ def main():
                                     )
 
                                 # ----------------------------- Map Results Back into Spatial Space
-                                uResults, vResults = mapROMdataToFOMspace(
+                                uResults[iParamSample], vResults[iParamSample] = mapROMdataToFOMspace(
                                     romData,
-                                    uResults,
-                                    vResults,
+                                    uResults[iParamSample],
+                                    vResults[iParamSample],
                                     romCoeff,
-                                    iParamSample,
                                     sensInit[iInit],
                                 )
                                 # ==== Compute Error ====

@@ -389,16 +389,6 @@ class TankModel:
         else:
             raise Exception("Invalid odeMethod, must be a string")
 
-    @property
-    def penaltyStrength(self):
-        return self._penaltyStrength
-
-    @penaltyStrength.setter
-    def penaltyStrength(self, value):
-        if type(value) not in [int, float]:
-            raise Exception("Non-numerical value entered for penaltyStrength: " + str(value))
-        self._penaltyStrength = value
-
     # ================================Object Formation Functions=============================================
 
     def __init__(
@@ -420,7 +410,6 @@ class TankModel:
         },
         tEval=[0, 1],
         odeMethod="LSODA",
-        penaltyStrength=0,
         verbosity=0,
     ):
         self.verbosity = verbosity
@@ -431,7 +420,6 @@ class TankModel:
         self.params = params
         self.tEval = tEval
         self.odeMethod = odeMethod
-        self.penaltyStrength = penaltyStrength
         self.__makeElements__()
         self.__computeCollocationMatrices__()
 
@@ -460,7 +448,6 @@ class TankModel:
                 else (list(self.tEval) if isinstance(self.tEval, list) else self.tEval)
             ),
             "odeMethod": self.odeMethod if hasattr(self, "_odeMethod") else "lsoda",
-            "penaltyStrength": self.penaltyStrength if hasattr(self, "_penaltyStrength") else 0,
             "verbosity": self.verbosity if hasattr(self, "_verbosity") else 0,
         }
 
@@ -1571,15 +1558,15 @@ class TankModel:
         ) / self.params["Le"]
         # Boundary Penalty
         # u
-        dudt -= self.penaltyStrength * romData.uModes[0, :] * (uFull[0] - uFullx[0] / self.params["PeM"])
-        dudt -= self.penaltyStrength * romData.uModes[-1, :] * uFull[-1]
+        dudt -= romData.penaltyStrength * romData.uModes[0, :] * (uFull[0] - uFullx[0] / self.params["PeM"])
+        dudt -= romData.penaltyStrength * romData.uModes[-1, :] * uFull[-1]
         # v
         dvdt -= (
-            self.penaltyStrength
+            romData.penaltyStrength
             * romData.vModes[0, :]
             * (vFull[0] - vFullx[0] / self.params["PeM"] - self.params["f"] * vFull[-1])
         )
-        dvdt -= self.penaltyStrength * romData.vModes[-1, :] * vFullx[-1]
+        dvdt -= romData.penaltyStrength * romData.vModes[-1, :] * vFullx[-1]
         dydt = np.append(dudt, dvdt)
         eqCounter = 1
         for param in paramSelect:

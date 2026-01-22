@@ -18,6 +18,7 @@ from tankModel.TankModel import TankModel
 
 
 def main():
+    plt.rc("text", usetex=True)
     # ===================== Define Simulation Details =====================
     verbosity = 1
     showPlots = True
@@ -28,15 +29,15 @@ def main():
     plotRomInterpolation = False
 
     plotTimeSeries = True
-    plotModes = False
-    plotError = True
-    plotRomCoeff = False
+    plotModes = True
+    plotError = False
+    plotRomCoeff = True
     plotSingularValues = False
     plotFullSpectra = False
 
-    makeMovies = False
+    makeMovies = True
     # FOM parameters
-    paramSet = "BizonChaotic"  # BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
+    paramSet = "BizonNonLinear"  # BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     equationSet = "tankOnly"  # tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
     nCollocation = 2
     nElements = 64
@@ -56,9 +57,9 @@ def main():
     usePodRom = True
     useEnergyThreshold = False
     adaptiveControlCutoff = False
-    nDeimPoints = "max"  # Base value for DEIM, max or integer
-    nonLinReduction = 4.0  # Base value for nonLinReduction, 1 means no reduction
-    controlApproach = "nonLinReduction"  # none, DEIM, nonLinReduction
+    nDeimPoints = "max"  # Base value for DEIM, max oxxr integer
+    nonLinReduction = 1.0  # Base value for nonLinReduction, 1 means no reduction
+    controlApproach = "none"  # none, DEIM, nonLinReduction
     controlMetric = [
         "Error at 99% Retention",
         "Error at 99.9% Retention",
@@ -67,7 +68,7 @@ def main():
     ]
     penaltyStrength = 0
     sensInit = ["zero"]
-    quadRule = ["gauss-legendre"]  # simpson, gauss-legendre, uniform, monte carlo
+    quadRule = ["simpson"]  # simpson, gauss-legendre, uniform, monte carlo
     mean_reduction = ["mean"]
     adjustModePairs = False
     error_norm = [r"$L_2$ Error", r"$L_\infty$ Error"]
@@ -104,7 +105,7 @@ def main():
             elif paramSet == "BizonNonLinear":
                 modeRetention = list(range(7, 59))
         else:
-            modeRetention = [27]
+            modeRetention = [7]
 
     # Change all POD-ROM parameters to lists if not already
     if isinstance(modeRetention, (float, int)):
@@ -266,7 +267,6 @@ def main():
         params=baseParams,
         tEval=tEval,
         odeMethod=odeMethod,
-        penaltyStrength=penaltyStrength,
         verbosity=verbosity,
     )
 
@@ -421,6 +421,7 @@ def main():
                                 useEnergyThreshold=useEnergyThreshold,
                                 adjustModePairs=adjustModePairs,
                             )
+                            romData.penaltyStrength = penaltyStrength
 
                         # Compute control param range
                         if adaptiveControlCutoff:
@@ -564,12 +565,11 @@ def main():
                                         )
 
                                     # ----------------------------- Map Results Back into Spatial Space
-                                    uResults, vResults = mapROMdataToFOMspace(
+                                    uResults[iParamSample], vResults[iParamSample] = mapROMdataToFOMspace(
                                         romData,
-                                        uResults,
-                                        vResults,
+                                        uResults[iParamSample],
+                                        vResults[iParamSample],
                                         romCoeff,
-                                        iParamSample,
                                         sensInit[iInit],
                                     )
                                     # ==== Compute Error ====
@@ -949,7 +949,8 @@ def main():
                                     plt.savefig(romSaveFolder + "vErrorTimeSeries.pdf", format="pdf")
                                     plt.savefig(romSaveFolder + "vErrorTimeSeries.png", format="png")
                                 if plotRomCoeff:
-                                    coeffLabels = ["Coeff " + str(i + 1) for i in range(romData.uNmodes)]
+                                    uCoeffLabels = [r"$a^{(u)}_{" + str(i + 1) + r"}$" for i in range(romData.uNmodes)]
+                                    vCoeffLabels = [r"$a^{(v)}_{" + str(i + 1) + r"}$" for i in range(romData.vNmodes)]
                                     uCoeffData = [
                                         np.array([rom, pod])
                                         for pod, rom in zip(
@@ -962,7 +963,7 @@ def main():
                                         uCoeffData,
                                         tEval,
                                         xLabels="t",
-                                        yLabels=coeffLabels,
+                                        yLabels=uCoeffLabels,
                                         legends=legends[1:3],
                                         subplotSize=(2.65, 2),
                                         lineTypeStart=1,
@@ -970,7 +971,6 @@ def main():
                                     plt.savefig(romSaveFolder + "uRomCoeff.pdf", format="pdf")
                                     plt.savefig(romSaveFolder + "uRomCoeff.png", format="png")
 
-                                    coeffLabels = ["Coeff " + str(i + 1) for i in range(romData.vNmodes)]
                                     vCoeffData = [
                                         np.array([rom, pod])
                                         for pod, rom in zip(
@@ -985,7 +985,7 @@ def main():
                                         vCoeffData,
                                         tEval,
                                         xLabels="t",
-                                        yLabels=coeffLabels,
+                                        yLabels=vCoeffLabels,
                                         legends=legends[1:3],
                                         subplotSize=(2.65, 2),
                                         lineTypeStart=1,
@@ -1013,10 +1013,7 @@ def main():
                                     for it in range(tplot.size):
                                         nonLinearLinearized[it] = np.empty((romData.vNmodes, romData.vNmodes))
                                         baseU = romCoeff[tplot[it], : romData.uNmodes]
-                                        baseV = romCoeff[
-                                            tplot[it],
-                                            romData.uNmodes : romData.uNmodes + romData.vNmodes,
-                                        ]
+                                        baseV = romCoeff[tplot[it], romData.uNmodes : romData.uNmodes + romData.vNmodes]
                                         for i in range(romData.vNmodes):
                                             adjustedV = baseV.copy()
                                             adjustedV[i] += 1e-6
@@ -1040,16 +1037,19 @@ def main():
 
                                     fig, axes = plotRomMatrices(
                                         nonLinearLinearized,
-                                        xLabels=r"$v_j$",
+                                        xLabels=r"$j$",
                                         yLabels=[
-                                            r"$\frac{\partial \mathcal{N}(v_i)}{\partial v_j}$",
+                                            r"$i$",
                                             " ",
                                             " ",
                                             " ",
                                         ],
-                                        title=["t=" + str(round(1000 * tEval[it]) / 1000) for it in tplot],
+                                        title=[
+                                            r"$\mathbf{N}(" + str(round(1000 * tEval[it]) / 1000) + r")$"
+                                            for it in tplot
+                                        ],
                                         cmap="coolwarm",
-                                        fontsize=18,
+                                        fontsize=24,
                                     )
                                     plt.savefig(
                                         romSaveFolder + "vRomMatrices_linearization.pdf",
@@ -1070,7 +1070,8 @@ def main():
                                     [mode for mode in romData.uModes.transpose()],
                                     x,
                                     xLabels="x",
-                                    yLabels=["Mode " + str(i + 1) for i in range(romData.uNmodes)],
+                                    yLabels=[r"$\phi^{(u)}_{ " + str(i + 1) + r"}$" for i in range(romData.uNmodes)],
+                                    subplotSize=(5 * 0.6, 4 * 0.6),
                                 )
                                 plt.savefig(romSaveFolder + "uModes.pdf", format="pdf")
                                 plt.savefig(romSaveFolder + "uModes.png", format="png")
@@ -1078,69 +1079,76 @@ def main():
                                     [mode for mode in romData.vModes.transpose()],
                                     x,
                                     xLabels="x",
-                                    yLabels=["Mode " + str(i + 1) for i in range(romData.vNmodes)],
+                                    yLabels=[r"$\phi^{(v)}_{ " + str(i + 1) + r"}$" for i in range(romData.vNmodes)],
+                                    subplotSize=(5 * 0.5, 4 * 0.5),
                                 )
                                 plt.savefig(romSaveFolder + "vModes.pdf", format="pdf")
                                 plt.savefig(romSaveFolder + "vModes.png", format="png")
 
                                 fig, axes = plotRomMatrices(
                                     romData.vRomFirstOrderMat,
-                                    xLabels=r"$\phi'_{v,j}$",
-                                    yLabels=r"$\phi_{v,i}$",
-                                    title=r"1st Order v ROM matrix: $\langle\phi_{v,i},\phi'_{v,j}\rangle_{L^2}$",
+                                    xLabels=r"$j$",
+                                    yLabels=r"$i$",
+                                    title=r"$\mathbf{Q}^{(v)}_{ij}=\langle\phi^{(v)}_{i},\phi'^{(v)}_{j}\rangle_{L^2}$",
                                     cmap="coolwarm",
+                                    subplotSize=(5 * 0.85, 4 * 0.85),
                                 )
                                 plt.savefig(romSaveFolder + "vRomMatrices_1stOrder.pdf", format="pdf")
                                 plt.savefig(romSaveFolder + "vRomMatrices_1stOrder.png", format="png")
                                 fig, axes = plotRomMatrices(
                                     romData.vRomSecondOrderMat,
-                                    xLabels=r"$\phi''_{v,j}$",
-                                    yLabels=r"$\phi_{v,i}$",
-                                    title=r"2nd Order v ROM matrix: $\langle\phi_{v,i},\phi''_{v,j}\rangle_{L^2}$",
+                                    xLabels=r"$j$",
+                                    yLabels=r"$i$",
+                                    title=r"$\mathbf{R}^{(v)}_{ij}=\langle\phi^{(v)}_{i},\phi''^{(v)}_{j}\rangle_{L^2}$",
                                     cmap="coolwarm",
+                                    subplotSize=(5 * 0.85, 4 * 0.85),
                                 )
                                 plt.savefig(romSaveFolder + "vRomMatrices_2ndOrder.pdf", format="pdf")
                                 plt.savefig(romSaveFolder + "vRomMatrices_2ndOrder.png", format="png")
                                 fig, axes = plotRomMatrices(
                                     [romData.vRomFirstOrderMat, romData.vRomSecondOrderMat],
-                                    xLabels=[r"$\phi'_{v,j}$", r"$\phi''_{v,j}$"],
-                                    yLabels=r"$\phi_{v,i}$",
+                                    xLabels=[r"$j$", r"$j$"],
+                                    yLabels=r"$i$",
                                     title=[
-                                        r"1st Order v ROM matrix: $\langle\phi_{v,i},\phi'_{v,j}\rangle_{L^2}$",
-                                        r"2nd Order v ROM matrix: $\langle\phi_{v,i},\phi''_{v,j}\rangle_{L^2}$",
+                                        r"$\mathbf{Q}^{(v)}_{ij}=\langle\phi^{(v)}_{i},\phi'^{(v)}_{j}\rangle_{L^2}$",
+                                        r"$\mathbf{R}^{(v)}_{ij}=\langle\phi^{(v)}_{i},\phi''^{(v)}_{j}\rangle_{L^2}$",
                                     ],
                                     cmap="coolwarm",
+                                    subplotSize=(5 * 0.85, 4 * 0.85),
                                 )
                                 plt.savefig(romSaveFolder + "vRomMatrices.pdf", format="pdf")
                                 plt.savefig(romSaveFolder + "vRomMatrices.png", format="png")
 
                                 fig, axes = plotRomMatrices(
                                     romData.uRomFirstOrderMat,
-                                    xLabels=r"$\phi'_{u,j}$",
-                                    yLabels=r"$\phi_{u,i}$",
-                                    title=r"1st Order u ROM matrix: $\langle\phi_{u,i},\phi'_{u,j}\rangle_{L^2}$",
+                                    xLabels=r"$j$",
+                                    yLabels=r"$i$",
+                                    title=r"$\mathbf{Q}^{(u)}_{ij}=\langle\phi^{(u)}_{i},\phi'^{(u)}_{j}\rangle_{L^2}$",
                                     cmap="coolwarm",
+                                    subplotSize=(5 * 0.85, 4 * 0.85),
                                 )
                                 plt.savefig(romSaveFolder + "uRomMatrices_1stOrder.pdf", format="pdf")
                                 plt.savefig(romSaveFolder + "uRomMatrices_1stOrder.png", format="png")
                                 fig, axes = plotRomMatrices(
                                     romData.uRomSecondOrderMat,
-                                    xLabels=r"$\phi''_{u,j}$",
-                                    yLabels=r"$\phi_{u,i}$",
-                                    title=r"2nd Order u ROM matrix: $\langle\phi_{u,i},\phi''_{u,j}\rangle_{L^2}$",
+                                    xLabels=r"$j$",
+                                    yLabels=r"$i$",
+                                    title=r"$\mathbf{R}^{(u)}_{ij}=\langle\phi^{(u)}_{i},\phi''^{(u)}_{j}\rangle_{L^2}$",
                                     cmap="coolwarm",
+                                    subplotSize=(5 * 0.85, 4 * 0.85),
                                 )
                                 plt.savefig(romSaveFolder + "uRomMatrices_2ndOrder.pdf", format="pdf")
                                 plt.savefig(romSaveFolder + "uRomMatrices_2ndOrder.png", format="png")
                                 fig, axes = plotRomMatrices(
                                     [romData.uRomFirstOrderMat, romData.uRomSecondOrderMat],
-                                    xLabels=[r"$\phi'_{u,j}$", r"$\phi''_{u,j}$"],
-                                    yLabels=r"$\phi_{u,i}$",
+                                    xLabels=[r"$j$", r"$j$"],
+                                    yLabels=r"$i$",
                                     title=[
-                                        r"1st Order u ROM matrix: $\langle\phi_{u,i},\phi'_{u,j}\rangle_{L^2}$",
-                                        r"2nd Order u ROM matrix: $\langle\phi_{u,i},\phi''_{u,j}\rangle_{L^2}$",
+                                        r"$\mathbf{Q}^{(u)}_{ij}=\langle\phi^{(u)}_{i},\phi'^{(u)}_{j}\rangle_{L^2}$",
+                                        r"$\mathbf{R}^{(u)}_{ij}=\langle\phi^{(u)}_{i},\phi''^{(u)}_{j}\rangle_{L^2}$",
                                     ],
                                     cmap="coolwarm",
+                                    subplotSize=(5 * 0.85, 4 * 0.85),
                                 )
                                 plt.savefig(romSaveFolder + "uRomMatrices.pdf", format="pdf")
                                 plt.savefig(romSaveFolder + "uRomMatrices.png", format="png")
