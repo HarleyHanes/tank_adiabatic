@@ -662,6 +662,7 @@ def computeSensitivity(
             ] = (
                 np.imag(model.solve_ivp(rhs, perturbedRomCoeff)) / complexDelta
             )
+            model.params[paramSelect[iparam]] = np.real(model.params[paramSelect[iparam]])
         elif romSensitivityApproach == "sensEq":
             if verbosity >= 1:
                 print("Computing sensitivity for " + paramSelect[iparam])

@@ -382,10 +382,10 @@ class TankModel:
     @odeMethod.setter
     def odeMethod(self, value):
         if isinstance(value, str):
-            if value in ["LSODA", "RK45", "BDF"]:
+            if value in ["LSODA", "Radau", "BDF", "RK45"]:
                 self._odeMethod = value
             else:
-                raise Exception("Invalid odeMethod, must be one of: LSODA, RK45, BDF")
+                raise Exception("Invalid odeMethod, must be one of: LSODA, RK45, BDF, Radau")
         else:
             raise Exception("Invalid odeMethod, must be a string")
 

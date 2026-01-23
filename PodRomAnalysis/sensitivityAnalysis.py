@@ -1,4 +1,5 @@
 import os
+import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,43 +23,49 @@ def main():
     showPlots = True
     # Run Types
     plotConvergence = False
+    plotComputationTime = True
 
-    plotRomInterpolation = True
+    plotRomInterpolation = False
 
-    plotTimeSeries = True
+    plotTimeSeries = False
     plotModes = False
     plotError = False
     plotRomCoeff = False
     plotSingularValues = False
     plotFullSpectra = False
 
-    makeMovies = True
-    combinedOnly = True
+    makeMovies = False
+    combinedOnly = False
     # FOM parameters
     paramSet = "BizonChaotic"  # BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     nCollocation = 2
     nElements = 64
-    odeMethod = "BDF"  # LSODA, BDF, Note: Need a stiff solver, LSODA fastest but BDF needed to support complex step
+    odeMethod = [
+        "RK45",
+        "BDF",
+        "LSODA",
+        "Radau",
+    ]  # LSODA, BDF, Note: Need a stiff solver, LSODA fastest but BDF needed to support complex step
     nPoints = 599
     nT = 600
 
     # Parameter Sampling
 
-    param = "f"
+    param = "Le"
     if param != "none":
         extrapolatory = True
         equationSet = param  # Comment out to do parameter sampling without sensitivity
         paramBounding = 0.1
-        nRomSamples = 3
+        nRomSamples = 1
     else:
         equationSet = "tankOnly"
 
     # ROM parameters
     usePodRom = True
-    useEnergyThreshold = True
+    useEnergyThreshold = False
     nDeimPoints = "max"  # Base value for DEIM, max or integer
     nonLinReduction = 4.0  # Base value for nonLinReduction, 1 means no reduction
-    penaltyStrength = 100000
+    penaltyStrength = 0
     sensInit = ["zero"]
     quadRule = ["gauss-legendre"]  # simpson, gauss-legendre, uniform, monte carlo
     mean_reduction = ["mean"]
@@ -69,14 +76,14 @@ def main():
         "Max Outlet Temperature",
         "Average Outlet Temperature",
     ]
-    romSensitivityApproach = ["complex"]  # none, finite, sensEq, complex, only used if equationSet!=tankOnly
+    romSensitivityApproach = ["complex", "sensEq"]  # none, finite, sensEq, complex, only used if equationSet!=tankOnly
     finiteDelta = 1e-5  # Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
     complexDelta = 1e-9  # Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
 
     # Set simulation parameters
     # Set POD Retention
     if useEnergyThreshold:
-        modeRetention = 0.995
+        modeRetention = [0.95, 0.99]
     else:
         if plotConvergence:
             if paramSet == "BizonChaotic":
@@ -93,7 +100,7 @@ def main():
             elif paramSet == "BizonNonLinear":
                 modeRetention = list(range(7, 59))
         else:
-            modeRetention = [27]
+            modeRetention = [25, 30, 35, 40]
 
     # Change all POD-ROM parameters to lists if not already
     if isinstance(modeRetention, (float, int)):
@@ -116,24 +123,6 @@ def main():
     # Get Parameter Settings
     baseParams, stabalized = getParameterOptions(paramSet)
 
-    fomSaveFolder = "../../results/sensitivityAnalysis/" + paramSet
-
-    fomSaveFolder += (
-        "_nCol"
-        + str(nCollocation)
-        + "_nElem"
-        + str(nElements)
-        + "_nT"
-        + str(nT)
-        + "_nX"
-        + str(nPoints)
-        + "_"
-        + odeMethod
-        + "/"
-        + equationSet
-    )
-    if not os.path.exists(fomSaveFolder):
-        os.makedirs(fomSaveFolder)
     # Simulation Settings
     bounds = [0, 1]
     if stabalized:
@@ -168,7 +157,7 @@ def main():
         bounds=bounds,
         params=baseParams,
         tEval=tEval,
-        odeMethod=odeMethod,
+        odeMethod="LSODA",
         verbosity=verbosity,
     )
 
@@ -215,17 +204,60 @@ def main():
         refModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition)
         if verbosity >= 3:
             print("refModelCoeff shape: ", refModelCoeff.shape)
+    # ----------------------- Construct Method List-----------------------
+    # Since complex step can only be used on LSODA, have to make a common list of dictionaries for sensitivity
+    # approach and ode Method
+    solverMethod = []
+    if ("complex" in romSensitivityApproach) and ("BDF" not in odeMethod):
+        raise ValueError("Complex step sensitivity approach can only be used with LSODA ODE method.")
+
+    for j in range(len(odeMethod)):
+        for i in range(len(romSensitivityApproach)):
+            if romSensitivityApproach[i] != "complex" or odeMethod[j] == "BDF" or odeMethod[j] == "RK45":
+                solverMethod.append({"sens": romSensitivityApproach[i], "ode": odeMethod[j]})
+
     # ===== Run POD-ROM =====
 
     for iquad in range(len(quadRule)):
-        for isens in range(len(romSensitivityApproach)):
-            for iInit in range(len(sensInit)):
+        for iInit in range(len(sensInit)):
+            # Preallocate sensitivity timing across all methods/retentions/samples/penalties once
+            sensTime = np.empty(
+                [
+                    len(solverMethod),
+                    len(mean_reduction),
+                    len(modeRetention),
+                    len(romParamSamples),
+                    len(penaltyStrength),
+                ]
+            )
+            for iMethod in range(len(solverMethod)):
                 if verbosity >= 1:
                     print(
                         f"Using {quadRule[iquad]} quadrature rule, "
-                        f"{romSensitivityApproach[isens]} sensitivity approach, "
+                        f"{solverMethod[iMethod]['sens']} sensitivity approach, "
+                        f"{solverMethod[iMethod]['ode']} ODE method, "
                         f"{sensInit[iInit]} sensitivity initialization"
                     )
+                model.odeMethod = solverMethod[iMethod]["ode"]
+
+                fomSaveFolder = "../../results/sensitivityAnalysis/" + paramSet
+
+                fomSaveFolder += (
+                    "_nCol"
+                    + str(nCollocation)
+                    + "_nElem"
+                    + str(nElements)
+                    + "_nT"
+                    + str(nT)
+                    + "_nX"
+                    + str(nPoints)
+                    + "_"
+                    + solverMethod[iMethod]["ode"]
+                    + "/"
+                    + equationSet
+                )
+                if not os.path.exists(fomSaveFolder):
+                    os.makedirs(fomSaveFolder)
                 for imean in range(len(mean_reduction)):
                     truncationError = np.empty((len(modeRetention),))
                     error = []
@@ -262,11 +294,11 @@ def main():
                         if usePodRom:
                             if equationSet != "tankOnly":
                                 podSaveFolder = (
-                                    fomSaveFolder + "_" + romSensitivityApproach[isens] + "_" + sensInit[iInit]
+                                    fomSaveFolder + "_" + solverMethod[iMethod]["sens"] + "_" + sensInit[iInit]
                                 )
-                                if romSensitivityApproach[isens] == "finite":
+                                if solverMethod[iMethod]["sens"] == "finite":
                                     podSaveFolder += "_d" + str(finiteDelta)
-                                elif romSensitivityApproach[isens] == "complex":
+                                elif solverMethod[iMethod]["sens"] == "complex":
                                     podSaveFolder += "_d" + str(complexDelta)
                             else:
                                 podSaveFolder = fomSaveFolder
@@ -422,16 +454,22 @@ def main():
 
                                     # ------------------------------- Compute Sensitivity
                                     if equationSet != "tankOnly":
+
+                                        # Measure time to compute sensitivities
+                                        _t0 = time.perf_counter()
                                         romCoeff = computeSensitivity(
                                             romCoeff,
                                             model,
                                             romData,
                                             paramSelect,
-                                            romSensitivityApproach[isens],
+                                            solverMethod[iMethod]["sens"],
                                             sensInit[iInit],
                                             finiteDelta=finiteDelta,
                                             complexDelta=complexDelta,
                                             verbosity=verbosity,
+                                        )
+                                        sensTime[iMethod, imean, iret, iParamSample, iPenalty] = (
+                                            time.perf_counter() - _t0
                                         )
 
                                     # ----------------------------- Map Results Back into Spatial Space
@@ -849,7 +887,7 @@ def main():
                                     + "OATsensAccuracy_"
                                     + param
                                     + "_"
-                                    + str(romSensitivityApproach[isens])
+                                    + str(solverMethod[iMethod]["sens"])
                                     + "_a"
                                     + str(paramBounding)
                                     + "nSamp"
@@ -862,7 +900,7 @@ def main():
                                     + "OATsensAccuracy_"
                                     + param
                                     + "_"
-                                    + str(romSensitivityApproach[isens])
+                                    + str(solverMethod[iMethod]["sens"])
                                     + "_a"
                                     + str(paramBounding)
                                     + "nSamp"
@@ -1249,6 +1287,33 @@ def main():
                             + ".png",
                             format="png",
                         )
+            if usePodRom and plotComputationTime:
+                # Plot Computation Time
+                # Average over evething except method and retention
+                sensTimeMean = np.mean(sensTime, axis=(1, 3, 4))
+                sensTimeMean = [sensTimeMean[iMethod, :] for iMethod in range(sensTimeMean.shape[0])]
+                legends = [method["ode"] + ", " + method["sens"] for method in solverMethod]
+                if useEnergyThreshold:
+                    xlabel = "Energy Retained"
+                else:
+                    xlabel = "Number of Retained Modes"
+                fig, axs = plotErrorConvergence(
+                    sensTimeMean, np.array(modeRetention), xLabel=xlabel, yLabel="Computation Time (s)", legends=legends
+                )
+                saveLocation = (
+                    "../../results/sensitivityAnalysis"
+                    + equationSet
+                    + "_nCol"
+                    + str(nCollocation)
+                    + "_nElem"
+                    + str(nElements)
+                    + "_nT"
+                    + str(nT)
+                    + "_nX"
+                    + str(nPoints)
+                )
+                plt.savefig(saveLocation + "computationTime.pdf", format="pdf")
+                plt.savefig(saveLocation + "computationTime.png", format="png")
 
     if showPlots:
         plt.show()
