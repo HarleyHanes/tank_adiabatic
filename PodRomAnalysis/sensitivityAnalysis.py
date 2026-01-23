@@ -25,7 +25,7 @@ def main():
     plotConvergence = False
     plotComputationTime = False
 
-    plotRomInterpolation = True
+    plotRomInterpolation = False
 
     plotTimeSeries = False
     plotModes = False
@@ -61,7 +61,7 @@ def main():
 
     # ROM parameters
     usePodRom = True
-    useEnergyThreshold = True
+    useEnergyThreshold = False
     nDeimPoints = "max"  # Base value for DEIM, max or integer
     nonLinReduction = 4.0  # Base value for nonLinReduction, 1 means no reduction
     penaltyStrength = 0
