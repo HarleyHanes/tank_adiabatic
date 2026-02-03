@@ -41,10 +41,9 @@ def main():
     nCollocation = 2
     nElements = 64
     odeMethod = [
-        "RK45",
+        #       "RK45",
         "BDF",
         "LSODA",
-        "Radau",
     ]  # LSODA, BDF, Note: Need a stiff solver, LSODA fastest but BDF needed to support complex step
     nPoints = 599
     nT = 600
@@ -76,7 +75,11 @@ def main():
         "Max Outlet Temperature",
         "Average Outlet Temperature",
     ]
-    romSensitivityApproach = ["complex", "sensEq"]  # none, finite, sensEq, complex, only used if equationSet!=tankOnly
+    romSensitivityApproach = [
+        "complex",
+        "sensEq",
+        "finite",
+    ]  # none, finite, sensEq, complex, only used if equationSet!=tankOnly
     finiteDelta = 1e-5  # Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
     complexDelta = 1e-9  # Only used if equationSet!=tankOnly and romSensitivityApproach=="complex"
 
@@ -175,7 +178,7 @@ def main():
             dydtStabilization,
             initialCondition[: model.nCollocation * model.nElements * 2],
             tEval=[0, stabalizationTime],
-        )[-1, :]
+        ).y.transpose()[-1, :]
     else:
         initialCondition = computeInitialCondition(model, neq)
     # ===== Get Simulation Data =====
@@ -189,7 +192,7 @@ def main():
         def dydtSens(y, t):
             return perturbedModel.dydtSens(y, t, paramSelect=paramSelect)
 
-        dataModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition)
+        dataModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition).y.transpose()
         if verbosity >= 3:
             print("dataModelCoeff shape: ", dataModelCoeff.shape)
 
@@ -201,7 +204,7 @@ def main():
         def dydtSens(y, t):
             return perturbedModel.dydtSens(y, t, paramSelect=paramSelect)
 
-        refModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition)
+        refModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition).y.transpose()
         if verbosity >= 3:
             print("refModelCoeff shape: ", refModelCoeff.shape)
     # ----------------------- Construct Method List-----------------------
@@ -228,6 +231,16 @@ def main():
                     len(modeRetention),
                     len(romParamSamples),
                     len(penaltyStrength),
+                ]
+            )
+            odeEvals = np.empty(
+                [
+                    len(solverMethod),
+                    len(mean_reduction),
+                    len(modeRetention),
+                    len(romParamSamples),
+                    len(penaltyStrength),
+                    3,
                 ]
             )
             for iMethod in range(len(solverMethod)):
@@ -448,16 +461,21 @@ def main():
                                     ]
                                     # Compute Base Rom Value
                                     romCoeff = np.empty((nT, neq * (romData.uNmodes + romData.vNmodes)))
-                                    romCoeff[:, : romData.uNmodes + romData.vNmodes] = model.solve_ivp(
-                                        lambda t, y: dydtPodRom(y, t), romInit
-                                    )
+
+                                    _t0 = time.perf_counter()
+                                    odeOutput = model.solve_ivp(lambda t, y: dydtPodRom(y, t), romInit)
+                                    if solverMethod[iMethod]["sens"] == "finite":
+                                        sensTime[iMethod, imean, iret, iParamSample, iPenalty] += (
+                                            time.perf_counter() - _t0
+                                        )
+                                    romCoeff[:, : romData.uNmodes + romData.vNmodes] = odeOutput.y.transpose()
 
                                     # ------------------------------- Compute Sensitivity
                                     if equationSet != "tankOnly":
 
                                         # Measure time to compute sensitivities
                                         _t0 = time.perf_counter()
-                                        romCoeff = computeSensitivity(
+                                        romCoeff, solverStats = computeSensitivity(
                                             romCoeff,
                                             model,
                                             romData,
@@ -468,9 +486,10 @@ def main():
                                             complexDelta=complexDelta,
                                             verbosity=verbosity,
                                         )
-                                        sensTime[iMethod, imean, iret, iParamSample, iPenalty] = (
+                                        sensTime[iMethod, imean, iret, iParamSample, iPenalty] += (
                                             time.perf_counter() - _t0
                                         )
+                                        odeEvals[iMethod, imean, iret, iParamSample, iPenalty, :] = solverStats
 
                                     # ----------------------------- Map Results Back into Spatial Space
                                     uResults[iParamSample, iPenalty], vResults[iParamSample, iPenalty] = (
@@ -1292,14 +1311,16 @@ def main():
                 # Average over evething except method and retention
                 sensTimeMean = np.mean(sensTime, axis=(1, 3, 4))
                 sensTimeMean = [sensTimeMean[iMethod, :] for iMethod in range(sensTimeMean.shape[0])]
+                odeEvalsMean = np.mean(odeEvals, axis=(1, 3, 4))
+                odeEvalsMean = [
+                    [odeEvalsMean[iMethod, :, iEval] for iMethod in range(odeEvalsMean.shape[0])]
+                    for iEval in range(odeEvalsMean.shape[2])
+                ]
                 legends = [method["ode"] + ", " + method["sens"] for method in solverMethod]
                 if useEnergyThreshold:
                     xlabel = "Energy Retained"
                 else:
                     xlabel = "Number of Retained Modes"
-                fig, axs = plotErrorConvergence(
-                    sensTimeMean, np.array(modeRetention), xLabel=xlabel, yLabel="Computation Time (s)", legends=legends
-                )
                 saveLocation = (
                     "../../results/sensitivityAnalysis"
                     + equationSet
@@ -1312,8 +1333,30 @@ def main():
                     + "_nX"
                     + str(nPoints)
                 )
+
+                fig, axs = plotErrorConvergence(
+                    sensTimeMean, np.array(modeRetention), xLabel=xlabel, yLabel="Computation Time (s)", legends=legends
+                )
                 plt.savefig(saveLocation + "computationTime.pdf", format="pdf")
                 plt.savefig(saveLocation + "computationTime.png", format="png")
+
+                fig, axs = plotErrorConvergence(
+                    odeEvalsMean[0], np.array(modeRetention), xLabel=xlabel, yLabel="RHS Evals", legends=legends
+                )
+                plt.savefig(saveLocation + "rhsEvals.pdf", format="pdf")
+                plt.savefig(saveLocation + "rhsEvals.png", format="png")
+
+                fig, axs = plotErrorConvergence(
+                    odeEvalsMean[1], np.array(modeRetention), xLabel=xlabel, yLabel="Jacobian Evals", legends=legends
+                )
+                plt.savefig(saveLocation + "jacobianEvals.pdf", format="pdf")
+                plt.savefig(saveLocation + "jacobianEvals.png", format="png")
+
+                fig, axs = plotErrorConvergence(
+                    odeEvalsMean[2], np.array(modeRetention), xLabel=xlabel, yLabel="LU Decomps", legends=legends
+                )
+                plt.savefig(saveLocation + "luDecomps.pdf", format="pdf")
+                plt.savefig(saveLocation + "luDecomps.png", format="png")
 
     if showPlots:
         plt.show()

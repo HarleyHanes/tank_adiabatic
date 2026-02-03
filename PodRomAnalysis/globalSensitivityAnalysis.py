@@ -181,7 +181,7 @@ def main():
             dydtStabilization,
             initialCondition[: model.nCollocation * model.nElements * 2],
             tEval=[0, stabalizationTime],
-        )[-1, :]
+        ).y.transpose()[-1, :]
     else:
         initialCondition = computeInitialCondition(model, neq)
     # ===== Get Simulation Data =====
@@ -195,7 +195,7 @@ def main():
         def dydtSens(y, t):
             return perturbedModel.dydtSens(y, t, paramSelect=paramSelect)
 
-        dataModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition)
+        dataModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition).y.transpose()
         if verbosity >= 3:
             print("dataModelCoeff shape: ", dataModelCoeff.shape)
 
@@ -207,7 +207,7 @@ def main():
         def dydtSens(y, t):
             return perturbedModel.dydtSens(y, t, paramSelect=paramSelect)
 
-        refModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition)
+        refModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition).y.transpose()
         if verbosity >= 3:
             print("refModelCoeff shape: ", refModelCoeff.shape)
     # ===== Run POD-ROM =====
@@ -409,11 +409,11 @@ def main():
                                 romCoeff = np.empty((nT, neq * (romData.uNmodes + romData.vNmodes)))
                                 romCoeff[:, : romData.uNmodes + romData.vNmodes] = model.solve_ivp(
                                     lambda t, y: dydtPodRom(y, t), romInit
-                                )
+                                ).y.transpose()
 
                                 # ------------------------------- Compute Sensitivity
                                 if equationSet != "tankOnly":
-                                    romCoeff = computeSensitivity(
+                                    romCoeff, solverStats = computeSensitivity(
                                         romCoeff,
                                         model,
                                         romData,

@@ -814,17 +814,23 @@ class TankModel:
         return dydt
 
     def solve_ivp(self, dydt, y0, tEval="none", atol=1e-9, rtol=1e-9):
+        """Solve an IVP using the model's configured ODE method.
+
+        Returns the full SciPy OdeResult to allow inspection of internal steps,
+        function evaluation counts, and other solver metadata.
+        """
         if tEval == "none":
             tEval = self.tEval
-        return scipy.integrate.solve_ivp(
+        res = scipy.integrate.solve_ivp(
             dydt,
             (tEval[0], tEval[-1]),
             y0,
             t_eval=tEval,
             method=self.odeMethod,
-            atol=1e-9,
-            rtol=1e-9,
-        ).y.transpose()
+            atol=atol,
+            rtol=rtol,
+        )
+        return res
 
     def eval(self, xEval, modelCoeff, output="full", deriv=0):
         """Evaluate u and v at each point in xEval.
