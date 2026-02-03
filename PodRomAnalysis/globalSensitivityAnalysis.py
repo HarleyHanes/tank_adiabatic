@@ -231,60 +231,79 @@ def main():
         for i in range(len(fomParamSamples)):
             perturbedModel = model.copy(params=fomParamSamples[i])
 
-            def dydt(y, t):
-                return perturbedModel.dydtSens(y, t, paramSelect=[])
+    # ------------------------ Run Stabilization ------------------------
+    if verbosity >= 1:
+        print("Running Stabalization")
+    if stabalized:
+        # Run out till stabalizing in periodic domain
+        initialCondition = np.zeros(model.nCollocation * model.nElements * 2 * neq)
+        # Note: Sensitivities have 0 initial condition
+        initialCondition[: model.nCollocation * model.nElements * 2] = model.solve_ivp(
+            dydtStabilization,
+            initialCondition[: model.nCollocation * model.nElements * 2],
+            tEval=[0, stabalizationTime],
+        ).y.transpose()[-1, :]
+    else:
+        initialCondition = computeInitialCondition(model, neq)
+    # ===== Get Simulation Data =====
+    # Step 1: Get FOM Data that will be used to generate ROM
+    if verbosity >= 1:
+        print("Getting Simulation Data")
+    dataModelCoeff = np.empty((len(fomParamSamples), nT, model.nCollocation * model.nElements * 2 * neq))
+    for i in range(len(fomParamSamples)):
+        perturbedModel = model.copy(params=fomParamSamples[i])
 
-            dataModelCoeff[i] = model.solve_ivp(
-                lambda t, y: dydt(y, t), initialCondition[: model.nCollocation * model.nElements * 2]
-            ).y.transpose()
-            if verbosity >= 3:
-                print("dataModelCoeff shape: ", dataModelCoeff.shape)
+        dataModelCoeff[i] = model.solve_ivp(
+            lambda t, y: dydt(y, t), initialCondition[: model.nCollocation * model.nElements * 2]
+        ).y.transpose()
+        if verbosity >= 3:
+            print("dataModelCoeff shape: ", dataModelCoeff.shape)
 
-        # Step 2: Get FOM Data that will be used to compare to ROM
-        refModelCoeff = np.empty((len(romParamSamples), nT, model.nCollocation * model.nElements * 2 * neq))
-        for i in range(len(romParamSamples)):
-            perturbedModel = model.copy(params=romParamSamples[i])
+    # Step 2: Get FOM Data that will be used to compare to ROM
+    refModelCoeff = np.empty((len(romParamSamples), nT, model.nCollocation * model.nElements * 2 * neq))
+    for i in range(len(romParamSamples)):
+        perturbedModel = model.copy(params=romParamSamples[i])
 
-            def dydtSens(y, t):
-                return perturbedModel.dydtSens(y, t, paramSelect=paramSelect)
+        def dydtSens(y, t):
+            return perturbedModel.dydtSens(y, t, paramSelect=paramSelect)
 
-            refModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition).y.transpose()
-            if scaleSensitivities:
-                for j in range(neq - 1):
-                    refModelCoeff[
-                        i,
-                        :,
-                        model.nCollocation
-                        * model.nElements
-                        * 2
-                        * (j + 1) : model.nCollocation
-                        * model.nElements
-                        * 2
-                        * (j + 2),
-                    ] *= np.abs(romParamSamples[i][paramSelect[j]])
+        refModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition).y.transpose()
+        if scaleSensitivities:
+            for j in range(neq - 1):
+                refModelCoeff[
+                    i,
+                    :,
+                    model.nCollocation
+                    * model.nElements
+                    * 2
+                    * (j + 1) : model.nCollocation
+                    * model.nElements
+                    * 2
+                    * (j + 2),
+                ] *= np.abs(romParamSamples[i][paramSelect[j]])
 
-            if verbosity >= 3:
-                print("refModelCoeff shape: ", refModelCoeff.shape)
-        np.savez(
-            fomSaveFolder
-            + "/fomData"
-            + "_"
-            + str(gsaMethod)
-            + "_nRomSamples"
-            + str(nRomSamples)
-            + "_nFomSamples"
-            + str(nFomSamples)
-            + "_paramBounding"
-            + str(paramBounding)
-            + ".npz",
-            paramSelect=paramSelect,
-            odeMethod=odeMethod,
-            fomParamSamples=fomParamSamples,
-            romParamSamples=romParamSamples,
-            paramBounding=paramBounding,
-            dataModelCoeff=dataModelCoeff,
-            refModelCoeff=refModelCoeff,
-        )
+    if verbosity >= 3:
+        print("refModelCoeff shape: ", refModelCoeff.shape)
+    np.savez(
+        fomSaveFolder
+        + "/fomData"
+        + "_"
+        + str(gsaMethod)
+        + "_nRomSamples"
+        + str(nRomSamples)
+        + "_nFomSamples"
+        + str(nFomSamples)
+        + "_paramBounding"
+        + str(paramBounding)
+        + ".npz",
+        paramSelect=paramSelect,
+        odeMethod=odeMethod,
+        fomParamSamples=fomParamSamples,
+        romParamSamples=romParamSamples,
+        paramBounding=paramBounding,
+        dataModelCoeff=dataModelCoeff,
+        refModelCoeff=refModelCoeff,
+    )
 
     # ===== Run POD-ROM =====
 
@@ -471,10 +490,73 @@ def main():
                                     # Compute time modes for sensitivity equations
 
                                 print(romData.uNonlinDim, ", ", romData.vNonlinDim)
-
                             # ===== Run POD-ROM =====
                             for iParamSample in range(len(romParamSamples)):
-                                if usePodRom:
+                                # ------------------------------ Run ROM
+                                # Get Initial Modal Values
+                                # NOTE: Confirm POD indexing and initial condition layout.
+                                # All have same initial condition; decide 2D vs 3D array.
+                                romInit = np.empty((romData.uNmodes + romData.vNmodes))
+                                romInit[: romData.uNmodes] = romData.uTimeModes[0, : romData.uNmodes]
+                                romInit[romData.uNmodes : romData.uNmodes + romData.vNmodes] = romData.vTimeModes[
+                                    0, : romData.vNmodes
+                                ]
+                                # Compute Base Rom Value
+                                romCoeff = np.empty((nT, neq * (romData.uNmodes + romData.vNmodes)))
+                                romCoeff[:, : romData.uNmodes + romData.vNmodes] = model.solve_ivp(
+                                    lambda t, y: dydtPodRom(y, t), romInit
+                                ).y.transpose()
+
+                                # ------------------------------- Compute Sensitivity
+                                if equationSet != "tankOnly":
+                                    romCoeff, solverStats = computeSensitivity(
+                                        romCoeff,
+                                        model,
+                                        romData,
+                                        paramSelect,
+                                        romSensitivityApproach[isens],
+                                        sensInit[iInit],
+                                        finiteDelta=finiteDelta,
+                                        complexDelta=complexDelta,
+                                        verbosity=verbosity,
+                                    )
+
+                                # ----------------------------- Map Results Back into Spatial Space
+                                uResults[iParamSample], vResults[iParamSample] = mapROMdataToFOMspace(
+                                    romData,
+                                    uResults[iParamSample],
+                                    vResults[iParamSample],
+                                    romCoeff,
+                                    sensInit[iInit],
+                                )
+                                # ==== Compute Error ====
+                                for ieq in range(neq):
+                                    for k in range(len(error_norm)):
+                                        # Error for ith sample (domain eqs, all times/points): FOM vs ROM
+                                        error[iret][ieq, iParamSample, k] = model.computeRomError(
+                                            uResults[iParamSample, ieq, :, 0, :].transpose(),
+                                            vResults[iParamSample, ieq, :, 0, :].transpose(),
+                                            uResults[iParamSample, ieq, :, 1, :].transpose(),
+                                            vResults[iParamSample, ieq, :, 1, :].transpose(),
+                                            romData.W,
+                                            tEval,
+                                            norm=error_norm[k],
+                                        )
+                                        if verbosity >= 2:
+                                            print(
+                                                "ROM Error in norm " + error_norm[k] + " for ieq " + str(ieq) + ": ",
+                                                error[iret][ieq, iParamSample, k],
+                                            )
+                                # ==== Compute QOIs ====
+                                for k in range(len(qois)):
+                                    # QOIs for ith sample (domain eqs, all times/points)
+                                    qoiResults[iret][iParamSample, k] = model.computeQOIs(
+                                        uResults[iParamSample, 0, :, 1, :].transpose(),
+                                        vResults[iParamSample, 0, :, 1, :].transpose(),
+                                        romData.W,
+                                        tEval,
+                                        qoi=qois[k],
+                                    )
                                     if verbosity >= 2:
                                         print(
                                             "                 Running POD-ROM for parameter sample ",
