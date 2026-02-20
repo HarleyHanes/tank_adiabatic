@@ -606,6 +606,9 @@ def computeSensitivity(
     complexDelta=1e-14,
     verbosity=0,
 ):
+    nfev = 0
+    njev = 0
+    nlu = 0
     for iparam in range(len(paramSelect)):
         if romSensitivityApproach == "finite":
             if verbosity >= 1:
@@ -629,12 +632,14 @@ def computeSensitivity(
             def rhs(t, y):
                 return perturbedModel.dydtPodRom(y, t, romData, paramSelect=[])
 
+            perturbedOdeOutput = perturbedModel.solve_ivp(rhs, perturbedRomCoeff)
+            nfev += perturbedOdeOutput.nfev
+            njev += perturbedOdeOutput.njev
+            nlu += perturbedOdeOutput.nlu
             romCoeff[
                 :,
                 (iparam + 1) * (romData.uNmodes + romData.vNmodes) : (iparam + 2) * (romData.uNmodes + romData.vNmodes),
-            ] = (
-                model.solve_ivp(rhs, perturbedRomCoeff) - romCoeff[:, : romData.uNmodes + romData.vNmodes]
-            ) / finiteDelta
+            ] = (perturbedOdeOutput.y.transpose() - romCoeff[:, : romData.uNmodes + romData.vNmodes]) / finiteDelta
         elif romSensitivityApproach == "complex":
             if verbosity >= 1:
                 print("Computing sensitivity for " + paramSelect[iparam])
@@ -656,12 +661,18 @@ def computeSensitivity(
             def rhs(t, y):
                 return model.dydtPodRom(y, t, romData, paramSelect=[])
 
+            perturbedOdeOutput = model.solve_ivp(rhs, perturbedRomCoeff)
+            nfev += perturbedOdeOutput.nfev
+            njev += perturbedOdeOutput.njev
+            nlu += perturbedOdeOutput.nlu
+
             romCoeff[
                 :,
                 (iparam + 1) * (romData.uNmodes + romData.vNmodes) : (iparam + 2) * (romData.uNmodes + romData.vNmodes),
             ] = (
-                np.imag(model.solve_ivp(rhs, perturbedRomCoeff)) / complexDelta
+                np.imag(perturbedOdeOutput.y.transpose()) / complexDelta
             )
+            model.params[paramSelect[iparam]] = np.real(model.params[paramSelect[iparam]])
         elif romSensitivityApproach == "sensEq":
             if verbosity >= 1:
                 print("Computing sensitivity for " + paramSelect[iparam])
@@ -681,11 +692,16 @@ def computeSensitivity(
             def rhs(t, y):
                 return model.dydtPodRom(y, t, romData, paramSelect=paramSelect[iparam])
 
+            odeOutput = model.solve_ivp(rhs, romInit)
+            nfev += odeOutput.nfev
+            njev += odeOutput.njev
+            nlu += odeOutput.nlu
+
             romCoeff[
                 :,
                 (iparam + 1) * (romData.uNmodes + romData.vNmodes) : (iparam + 2) * (romData.uNmodes + romData.vNmodes),
-            ] = model.solve_ivp(rhs, romInit)[:, romData.uNmodes + romData.vNmodes :]
-    return romCoeff
+            ] = odeOutput.y.transpose()[:, romData.uNmodes + romData.vNmodes :]
+    return romCoeff, [nfev, njev, nlu]
 
 
 def sampleParameter(baseParams, param, paramBounding, samplingApproach, nSamples, samplingDistribution="uniform"):

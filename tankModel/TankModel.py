@@ -382,10 +382,10 @@ class TankModel:
     @odeMethod.setter
     def odeMethod(self, value):
         if isinstance(value, str):
-            if value in ["LSODA", "RK45", "BDF"]:
+            if value in ["LSODA", "Radau", "BDF", "RK45"]:
                 self._odeMethod = value
             else:
-                raise Exception("Invalid odeMethod, must be one of: LSODA, RK45, BDF")
+                raise Exception("Invalid odeMethod, must be one of: LSODA, RK45, BDF, Radau")
         else:
             raise Exception("Invalid odeMethod, must be a string")
 
@@ -814,17 +814,23 @@ class TankModel:
         return dydt
 
     def solve_ivp(self, dydt, y0, tEval="none", atol=1e-9, rtol=1e-9):
+        """Solve an IVP using the model's configured ODE method.
+
+        Returns the full SciPy OdeResult to allow inspection of internal steps,
+        function evaluation counts, and other solver metadata.
+        """
         if tEval == "none":
             tEval = self.tEval
-        return scipy.integrate.solve_ivp(
+        res = scipy.integrate.solve_ivp(
             dydt,
             (tEval[0], tEval[-1]),
             y0,
             t_eval=tEval,
             method=self.odeMethod,
-            atol=1e-9,
-            rtol=1e-9,
-        ).y.transpose()
+            atol=atol,
+            rtol=rtol,
+        )
+        return res
 
     def eval(self, xEval, modelCoeff, output="full", deriv=0):
         """Evaluate u and v at each point in xEval.
