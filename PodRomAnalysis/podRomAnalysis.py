@@ -76,48 +76,56 @@ def getSensitivityOptions(equationSet):
     if equationSet == "tankOnly":
         neq = 1
         paramSelect = []
+        paramLabel = []
         uLabels = [r"$u$"]
         vLabels = [r"$v$"]
         combinedLabels = [r"$u$", r"$v$"]
     elif equationSet == "Le":
         neq = 2
         paramSelect = ["Le"]
+        paramLabel = [r"$\mathrm{Le}$"]
         uLabels = [r"$u$", r"$u_{\mathrm{Le}}$"]
         vLabels = [r"$v$", r"$v_{\mathrm{Le}}$"]
         combinedLabels = [r"$u$", r"$v$", r"$u_{\mathrm{Le}}$", r"$v_{\mathrm{Le}}$"]
     elif equationSet == "vH":
         neq = 2
         paramSelect = ["vH"]
+        paramLabel = [r"$v_H$"]
         uLabels = [r"$u$", r"$u_{v_H}$"]
         vLabels = [r"$v$", r"$v_{v_H}$"]
         combinedLabels = [r"$u$", r"$v$", r"$u_{v_H}$", r"$v_{v_H}$"]
     elif equationSet == "gamma":
         neq = 2
         paramSelect = ["gamma"]
+        paramLabel = [r"$\gamma$"]
         uLabels = [r"$u$", r"$u_{\gamma}$"]
         vLabels = [r"$v$", r"$v_{\gamma}$"]
         combinedLabels = [r"$u$", r"$v$", r"$u_{\gamma}$", r"$v_{\gamma}$"]
     elif equationSet == "beta":
         neq = 2
         paramSelect = ["beta"]
+        paramLabel = [r"$\beta$"]
         uLabels = [r"$u$", r"$u_{\beta}$"]
         vLabels = [r"$v$", r"$v_{\beta}$"]
         combinedLabels = [r"$u$", r"$v$", r"$u_{\beta}$", r"$v_{\beta}$"]
     elif equationSet == "PeT":
         neq = 2
         paramSelect = ["PeT"]
+        paramLabel = [r"$\mathrm{Pe}_T$"]
         uLabels = [r"$u$", r"$u_{\mathrm{Pe}_T}$"]
         vLabels = [r"$v$", r"$v_{\mathrm{Pe}_T}$"]
         combinedLabels = [r"$u$", r"$v$", r"$u_{\mathrm{Pe}_T}$", r"$v_{\mathrm{Pe}_T}$"]
     elif equationSet == "f":
         neq = 2
         paramSelect = ["f"]
+        paramLabel = [r"$f$"]
         uLabels = [r"$u$", r"$u_{f}$"]
         vLabels = [r"$v$", r"$v_{f}$"]
         combinedLabels = [r"$u$", r"$v$", r"$u_{f}$", r"$v_{f}$"]
     elif equationSet == "linearParams":
         neq = 4
         paramSelect = ["Le", "delta", "vH"]
+        paramLabel = [r"$\mathrm{Le}$", r"$\delta$", r"$v_H$"]
         uLabels = [r"$u$", r"$u_{\mathrm{Le}}$", r"$u_{\delta}$", r"$u_{v_H}$"]
         vLabels = [r"$v$", r"$v_{\mathrm{Le}}$", r"$v_{\delta}$", r"$v_{v_H}$"]
         combinedLabels = [
@@ -133,6 +141,15 @@ def getSensitivityOptions(equationSet):
     elif equationSet == "linearBoundaryParams":
         neq = 8
         paramSelect = ["PeM", "PeT", "f", "Le", "Da", "delta", "vH"]
+        paramLabel = [
+            r"$\mathrm{Pe}_M$",
+            r"$\mathrm{Pe}_T$",
+            r"$f$",
+            r"$\mathrm{Le}$",
+            r"$\mathrm{Da}$",
+            r"$\delta$",
+            r"$v_H$",
+        ]
         uLabels = [
             r"$u$",
             r"$u_{\mathrm{Pe_M}}$",
@@ -174,6 +191,7 @@ def getSensitivityOptions(equationSet):
     elif equationSet == "nonLinearParams":
         neq = 4
         paramSelect = ["Da", "beta", "gamma"]
+        paramLabel = [r"$\mathrm{Da}$", r"$\beta$", r"$\gamma$"]
         uLabels = [r"$u$", r"$u_{\mathrm{Da}}$", r"$u_{\beta}$", r"$u_{\gamma}$"]
         vLabels = [r"$v$", r"$v_{\mathrm{Da}}$", r"$v_{\beta}$", r"$v_{\gamma}$"]
         combinedLabels = [
@@ -189,6 +207,17 @@ def getSensitivityOptions(equationSet):
     elif equationSet == "allParams":
         neq = 10
         paramSelect = ["PeM", "PeT", "f", "Le", "Da", "beta", "gamma", "delta", "vH"]
+        paramLabel = [
+            r"$\mathrm{Pe}_M$",
+            r"$\mathrm{Pe}_T$",
+            r"$f$",
+            r"$\mathrm{Le}$",
+            r"$\mathrm{Da}$",
+            r"$\beta$",
+            r"$\gamma$",
+            r"$\delta$",
+            r"$v_H$",
+        ]
         uLabels = [
             r"$u$",
             r"$u_{\mathrm{Pe_M}}$",
@@ -237,6 +266,14 @@ def getSensitivityOptions(equationSet):
     elif equationSet == "nonBoundaryParams":
         neq = 7
         paramSelect = ["Le", "Da", "beta", "gamma", "delta", "vH"]
+        paramLabel = [
+            r"$\mathrm{Le}$",
+            r"$\mathrm{Da}$",
+            r"$\beta$",
+            r"$\gamma$",
+            r"$\delta$",
+            r"$v_H$",
+        ]
         uLabels = [
             r"$u$",
             r"$u_{\mathrm{Le}}$",
@@ -274,6 +311,13 @@ def getSensitivityOptions(equationSet):
     elif equationSet == "nonBoundaryParams-noDa":
         neq = 6
         paramSelect = ["Le", "beta", "gamma", "delta", "vH"]
+        paramLabel = [
+            r"$\mathrm{Le}$",
+            r"$\beta$",
+            r"$\gamma$",
+            r"$\delta$",
+            r"$v_H$",
+        ]
         uLabels = [
             r"$u$",
             r"$u_{\mathrm{Le}}$",
@@ -306,7 +350,7 @@ def getSensitivityOptions(equationSet):
         ]
     else:
         raise ValueError("Invalid equationSet entered: " + str(equationSet))
-    return neq, paramSelect, uLabels, vLabels, combinedLabels
+    return neq, paramSelect, paramLabel, uLabels, vLabels, combinedLabels
 
 
 def getParameterOptions(paramSet):

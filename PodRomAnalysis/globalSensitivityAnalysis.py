@@ -2,7 +2,6 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.patches import Rectangle
 
 from PodRomAnalysis.podRomAnalysis import (
     computeInitialCondition,
@@ -36,7 +35,7 @@ def main():
     plotFullSpectra = False
 
     # FOM parameters
-    paramSet = "BizonChaotic"  # BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
+    paramSet = "Bizon Periodic"  # BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     nCollocation = 2
     nElements = 32
     odeMethod = "BDF"  # LSODA, BDF, Note: Need a stiff solver, LSODA fastest but BDF needed to support complex step
@@ -48,8 +47,8 @@ def main():
     gsaMethod = "DGSM"
     if gsaMethod == "DGSM":
         equationSet = "allParams"
-        nRomSamples = 1
-        nFomSamples = 1
+        nRomSamples = 20
+        nFomSamples = 10
         paramBounding = 0.1  # Percentage around base value
     else:
         equationSet = "tankOnly"
@@ -59,7 +58,7 @@ def main():
     useEnergyThreshold = True
     nDeimPoints = "max"  # Base value for DEIM, max or integer
     nonLinReduction = 4.0  # Base value for nonLinReduction, 1 means no reduction
-    penaltyStrength = 0
+    penaltyStrength = 1e-4
     sensInit = ["zero"]
     quadRule = ["gauss-legendre"]  # simpson, gauss-legendre, uniform, monte carlo
     mean_reduction = ["mean"]
@@ -145,7 +144,7 @@ def main():
         tmax = 1.5
     tEval = np.linspace(0, tmax, num=nT)
     # Determine parameters to get sensitivity of
-    neq, paramSelect, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
+    neq, paramSelect, paramLabel, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
     if useSavedData:
         model = TankModel(
             nCollocation=nCollocation,
@@ -168,7 +167,8 @@ def main():
             + str(nFomSamples)
             + "_paramBounding"
             + str(paramBounding)
-            + ".npz"
+            + ".npz",
+            allow_pickle=True,
         )
         fomParamSamples = data["fomParamSamples"]
         romParamSamples = data["romParamSamples"]
@@ -397,7 +397,7 @@ def main():
 
                         error.append(np.empty((neq, len(romParamSamples), len(error_norm))))
                         qoiResults.append(
-                            np.empty((len(romParamSamples), len(qois)))
+                            np.empty((2, neq, len(romParamSamples), len(qois)))
                         )  # Goal: Implement Computation of QoI sensitivity
                         if verbosity >= 1:
                             print(
@@ -533,16 +533,23 @@ def main():
                                             )
                                 # ==== Compute QOIs ====
                                 for k in range(len(qois)):
-                                    # QOIs for ith sample (domain eqs, all times/points)
-                                    qoiResults[iret][iParamSample, k] = model.computeQOIs(
-                                        uResults[iParamSample, 0, :, 1, :].transpose(),
-                                        vResults[iParamSample, 0, :, 1, :].transpose(),
-                                        romData.W,
-                                        tEval,
-                                        qoi=qois[k],
-                                    )
-                                    if verbosity >= 2:
-                                        print(qois[k] + ": ", qoiResults[iret][iParamSample, k])
+                                    for ieq in range(neq):
+                                        # FOM sensitivities
+                                        qoiResults[iret][0, ieq, iParamSample, k] = model.computeQOIs(
+                                            uResults[iParamSample, ieq, :, 0, :].transpose(),
+                                            vResults[iParamSample, ieq, :, 0, :].transpose(),
+                                            romData.W,
+                                            tEval,
+                                            qoi=qois[k],
+                                        )
+                                        # ROM sensitivities
+                                        qoiResults[iret][1, ieq, iParamSample, k] = model.computeQOIs(
+                                            uResults[iParamSample, ieq, :, 1, :].transpose(),
+                                            vResults[iParamSample, ieq, :, 1, :].transpose(),
+                                            romData.W,
+                                            tEval,
+                                            qoi=qois[k],
+                                        )
                                     # INCOMPLETE: Figure out what want to compute for sensitivity error.
                                 for i in range(neq):
                                     combinedResults[iParamSample, 2 * i, :, :, :] = uResults[iParamSample, i, :, :, :]
@@ -551,6 +558,7 @@ def main():
                                     ]
                         # Compute GSA indices
                         if gsaMethod == "DGSM":
+                            # Spatial Sensitivities
                             # Compute time-variant sensitivity indices
                             # Need to re-scale against parameter bounds
                             # Indices are nEq-1 x nT x 3 x nX
@@ -564,8 +572,26 @@ def main():
                             uDGSMvar = np.sum(uDGSMvar, axis=1) / nT
                             vDGSMmean = np.sum(vDGSMmean, axis=1) / nT
                             vDGSMvar = np.sum(vDGSMvar, axis=1) / nT
+
+                            # QOI Sensitivities
+                            # True Sensitivities
+
+                            # ROM Sensitivities
+                            qoiDGSMmean = np.array(
+                                [
+                                    np.sum(np.abs(qoiResults[iret][0, :, :, :]), axis=1) / len(romParamSamples),
+                                    np.sum(np.abs(qoiResults[iret][1, :, :, :]), axis=1) / len(romParamSamples),
+                                ]
+                            )
+                            qoiDGSMvar = np.array(
+                                [
+                                    np.sum(qoiResults[iret][0, :, :, :] ** 2, axis=1) / len(romParamSamples),
+                                    np.sum(qoiResults[iret][1, :, :, :] ** 2, axis=1) / len(romParamSamples),
+                                ]
+                            )
                         # ======= Plot Results =======
                         if plotSensitivity:
+                            # Spatial Sensitivity plots
                             figWidth, figHeight = 3.5 * 3, 2.5 * 4
                             fig, axes = plt.subplots(4, 3, figsize=(figWidth, figHeight))
                             plt.subplots_adjust(wspace=0.35)
@@ -604,6 +630,78 @@ def main():
                             plt.tight_layout()
                             plt.savefig(romSaveFolder + "dgsmIndices.pdf", format="pdf")
                             plt.savefig(romSaveFolder + "dgsmIndices.png", format="png")
+
+                            # QOI indices
+                            for i in range(len(qois)):
+                                figWidth, figHeight = 3.5 * 3, 2.5 * 2
+                                fig, axes = plt.subplots(2, 3, figsize=(figWidth, figHeight))
+                                # ROM
+                                axes[0, 0].set_title("ROM Sensitivity")
+                                axes[0, 0].bar(
+                                    np.arange(len(paramLabel)),
+                                    qoiDGSMmean[1, 1:, i],
+                                    color="b",
+                                    alpha=0.5,
+                                )
+                                axes[0, 0].set_ylabel(r"$\mu$")
+                                axes[0, 0].set_xticks(np.arange(len(paramLabel)))
+                                axes[0, 0].set_xticklabels(paramLabel)
+                                # FOM
+                                axes[0, 1].set_title("FOM Sensitivity")
+                                axes[0, 1].bar(
+                                    np.arange(len(paramLabel)),
+                                    qoiDGSMmean[0, 1:, i],
+                                    color="b",
+                                    alpha=0.5,
+                                )
+                                axes[0, 1].set_xticks(np.arange(len(paramLabel)))
+                                axes[0, 1].set_xticklabels(paramLabel)
+                                # Error
+                                axes[0, 2].set_title("ROM Error")
+                                axes[0, 2].bar(
+                                    np.arange(len(paramLabel)),
+                                    np.abs(qoiDGSMmean[1, 1:, i] - qoiDGSMmean[0, 1:, i]),
+                                    color="b",
+                                    alpha=0.5,
+                                )
+                                axes[0, 2].set_xticks(np.arange(len(paramLabel)))
+                                axes[0, 2].set_xticklabels(paramLabel)
+
+                                # ROM
+                                axes[1, 0].bar(
+                                    np.arange(len(paramLabel)),
+                                    qoiDGSMvar[1, 1:, i],
+                                    color="b",
+                                    alpha=0.5,
+                                )
+                                axes[1, 0].set_ylabel(r"$v$")
+                                axes[1, 0].set_xticks(np.arange(len(paramLabel)))
+                                axes[1, 0].set_xticklabels(paramLabel)
+                                # FOM
+                                axes[1, 1].bar(
+                                    np.arange(len(paramLabel)),
+                                    qoiDGSMvar[0, 1:, i],
+                                    color="b",
+                                    alpha=0.5,
+                                )
+                                axes[1, 1].set_xticks(np.arange(len(paramLabel)))
+                                axes[1, 1].set_xticklabels(paramLabel)
+                                # Error
+                                axes[1, 2].bar(
+                                    np.arange(len(paramLabel)),
+                                    np.abs(qoiDGSMvar[1, 1:, i] - qoiDGSMvar[0, 1:, i]),
+                                    color="b",
+                                    alpha=0.5,
+                                )
+                                axes[1, 2].set_xticks(np.arange(len(paramLabel)))
+                                axes[1, 2].set_xticklabels(paramLabel)
+                                plt.tight_layout()
+                                plt.savefig(
+                                    romSaveFolder + qois[i].replace(" ", "_") + "_sensitivity.pdf", format="pdf"
+                                )
+                                plt.savefig(
+                                    romSaveFolder + qois[i].replace(" ", "_") + "_sensitivity.png", format="png"
+                                )
                         # Plot POD modes
                         if plotModes and usePodRom:
                             subplot(
@@ -685,166 +783,6 @@ def main():
                             plt.savefig(romSaveFolder + "uRomMatrices.pdf", format="pdf")
                             plt.savefig(romSaveFolder + "uRomMatrices.png", format="png")
 
-                        legends = ["FOM", "POD", "ROM"]
-                        if plotRomCoeff:
-                            coeffLabels = ["Coeff " + str(i + 1) for i in range(romData.uNmodes)]
-                            uCoeffData = [
-                                np.array([rom, pod])
-                                for pod, rom in zip(
-                                    romData.uTimßeModes[:, : romData.uNmodes].transpose(),
-                                    romCoeff[:, : romData.uNmodes].transpose(),
-                                )
-                            ]
-
-                            fig, axs = subplot(
-                                uCoeffData,
-                                tEval,
-                                xLabels="t",
-                                yLabels=coeffLabels,
-                                legends=legends[1:3],
-                                subplotSize=(2.65, 2),
-                                lineTypeStart=1,
-                            )
-                            plt.savefig(romSaveFolder + "uRomCoeff.pdf", format="pdf")
-                            plt.savefig(romSaveFolder + "uRomCoeff.png", format="png")
-
-                            coeffLabels = ["Coeff " + str(i + 1) for i in range(romData.vNmodes)]
-                            vCoeffData = [
-                                np.array([rom, pod])
-                                for pod, rom in zip(
-                                    romData.vTimeModes[:, : romData.vNmodes].transpose(),
-                                    romCoeff[:, romData.uNmodes : romData.uNmodes + romData.vNmodes].transpose(),
-                                )
-                            ]
-                            fig, axs = subplot(
-                                vCoeffData,
-                                tEval,
-                                xLabels="t",
-                                yLabels=coeffLabels,
-                                legends=legends[1:3],
-                                subplotSize=(2.65, 2),
-                                lineTypeStart=1,
-                            )
-                            plt.savefig(romSaveFolder + "vRomCoeff.pdf", format="pdf")
-                            plt.savefig(romSaveFolder + "vRomCoeff.png", format="png")
-                        # Plot singular values
-                        if plotSingularValues:
-                            # Compute culmulative truncation
-                            nSV = max(romData.uSingularValues.size, romData.vSingularValues.size)
-                            totalTruncation = 1 - np.cumsum(
-                                np.pad(romData.uSingularValues, (0, nSV - romData.uSingularValues.size))
-                                + np.pad(romData.vSingularValues, (0, nSV - romData.vSingularValues.size))
-                            ) / np.sum(romData.uFullSpectra + romData.vFullSpectra)
-                            # uCutoffIndices = np.array([romData.uSingularValues.size-np.sum(uPropInformation<=.1),
-                            #                            romData.uSingularValues.size-np.sum(uPropInformation<=.01),
-                            #                            romData.uSingularValues.size-np.sum(uPropInformation<=.001),
-                            #                            romData.uSingularValues.size-np.sum(uPropInformation<=.0001)])
-                            # vCutoffIndices = np.array([romData.vSingularValues.size-np.sum(vPropInformation<=.1),
-                            #                            romData.vSingularValues.size-np.sum(vPropInformation<=.01),
-                            #                            romData.vSingularValues.size-np.sum(vPropInformation<=.001),
-                            #                            romData.vSingularValues.size-np.sum(vPropInformation<=.0001)])
-                            cutoffIndices = np.array(
-                                [
-                                    nSV - np.sum(totalTruncation <= 0.1),
-                                    nSV - np.sum(totalTruncation <= 0.01),
-                                    nSV - np.sum(totalTruncation <= 0.001),
-                                    nSV - np.sum(totalTruncation <= 0.0001),
-                                ]
-                            )
-                            cutoffIndices = cutoffIndices[
-                                (cutoffIndices < romData.uSingularValues.size)
-                                & (cutoffIndices < romData.vSingularValues.size)
-                            ]
-                            uCutoffSv = romData.uSingularValues[cutoffIndices]
-                            vCutoffSv = romData.vSingularValues[cutoffIndices]
-                            padding = 1.3
-                            width = 0.95
-                            cutoffSV_padded = np.array(
-                                [
-                                    np.maximum(uCutoffSv, vCutoffSv) * padding,
-                                    np.minimum(uCutoffSv, vCutoffSv) / padding,
-                                ]
-                            ).T
-                            fig, axes = plt.subplots(1, 1, figsize=(5, 4))
-                            axes.semilogy(
-                                np.arange(1, romData.uSingularValues.size + 1),
-                                romData.uSingularValues,
-                                "bs",
-                                lw=5,
-                                ms=5,
-                            )
-                            axes.semilogy(
-                                np.arange(1, romData.vSingularValues.size + 1),
-                                romData.vSingularValues,
-                                "mo",
-                                lw=5,
-                                ms=5,
-                            )
-                            labels = ["90%", "99%", "99.9%", "99.99%"]
-                            for i in range(cutoffIndices.size):
-                                rect = Rectangle(
-                                    (cutoffIndices[i] + 1 - width / 2, cutoffSV_padded[i, 1]),
-                                    width,
-                                    cutoffSV_padded[i, 0] - cutoffSV_padded[i, 1],
-                                    facecolor="none",
-                                    edgecolor="k",
-                                    linewidth=2,
-                                    zorder=3,
-                                )
-                                plt.gca().add_patch(rect)
-                                # Place label just above the TOP edge of the rectangle (robust for log-scale)
-                                y_top = cutoffSV_padded[i, 0]
-                                x_right = cutoffIndices[i] + 1 + width / 2
-                                # Use a small offset so it always appears
-                                # above the line regardless of scale
-                                axes.annotate(
-                                    labels[i],
-                                    xy=(x_right, y_top),
-                                    xytext=(0, 4),
-                                    textcoords="offset points",
-                                    ha="center",
-                                    va="bottom",
-                                    fontsize=10,
-                                    color="k",
-                                    zorder=5,
-                                )
-
-                            # Create legend for first and third lines (indices 0 and 2)
-                            plt.legend(["u", "v"])
-
-                            axes.set_xlabel("Mode")
-                            axes.set_ylabel("Singular Value")
-                            plt.tight_layout()
-                            plt.savefig(romSaveFolder + "singularValues.pdf", format="pdf")
-                            plt.savefig(romSaveFolder + "singularValues.png", format="png")
-
-                            fig, axes = plt.subplots(1, 1, figsize=(5, 4))
-                            uPropInformation = 1 - np.cumsum(romData.uSingularValues) / np.sum(romData.uFullSpectra)
-                            vPropInformation = 1 - np.cumsum(romData.vSingularValues) / np.sum(romData.vFullSpectra)
-                            axes.semilogy(
-                                np.arange(1, romData.uSingularValues.size + 1),
-                                uPropInformation[: romData.uSingularValues.size],
-                                "bs",
-                                lw=5,
-                                ms=8,
-                            )
-                            axes.semilogy(
-                                np.arange(1, romData.vSingularValues.size + 1),
-                                vPropInformation[: romData.vSingularValues.size],
-                                "mo",
-                                lw=5,
-                                ms=8,
-                            )
-                            axes.legend(["u", "v"])
-                            axes.set_xlabel("Mode")
-                            axes.set_ylabel("Singular Value")
-                            plt.tight_layout()
-                            plt.savefig(romSaveFolder + "propInformation.pdf", format="pdf")
-                            plt.savefig(romSaveFolder + "propInformation.png", format="png")
-                        if not showPlots:
-                            plt.close()
-                    # Plot convergence
-                    if usePodRom and plotConvergence and len(error) > 1:
                         # Don't plot error convergence for sensitivities or multiple parameter values
                         errorPlot = np.array([errorRet[0, 0, :] for errorRet in error]).T.tolist()
                         errorPlot = [np.array(error) for error in errorPlot]
@@ -881,39 +819,41 @@ def main():
                             + ".png",
                             format="png",
                         )
-    # Save Data
-    np.savez(
-        romSaveFolder
-        + "/gsaData"
-        + "_"
-        + str(gsaMethod)
-        + "_nRomSamples"
-        + str(nRomSamples)
-        + "_nFomSamples"
-        + str(nFomSamples)
-        + "_paramBounding"
-        + str(paramBounding)
-        + ".npz",
-        paramSelect=paramSelect,
-        odeMethod=odeMethod,
-        penaltyStrength=penaltyStrength,
-        nonLinReduction=nonLinReduction,
-        romSensitivityApproach=romSensitivityApproach,
-        finiteDelta=finiteDelta,
-        complexDelta=complexDelta,
-        fomParamSamples=fomParamSamples,
-        romParamSamples=romParamSamples,
-        paramBounding=paramBounding,
-        dataModelCoeff=dataModelCoeff,
-        refModelCoeff=refModelCoeff,
-        modeRetention=modeRetention,
-        uResults=uResults,
-        vResults=vResults,
-        combinedResults=combinedResults,
-        error=error,
-        qois=qois,
-        qoiResults=qoiResults,
-    )
+                        # Save Data
+                        np.savez(
+                            romSaveFolder
+                            + "/gsaData"
+                            + "_"
+                            + str(gsaMethod)
+                            + "_nRomSamples"
+                            + str(nRomSamples)
+                            + "_nFomSamples"
+                            + str(nFomSamples)
+                            + "_paramBounding"
+                            + str(paramBounding)
+                            + "_ret"
+                            + str(modeRetention[iret])
+                            + ".npz",
+                            paramSelect=paramSelect,
+                            odeMethod=odeMethod,
+                            penaltyStrength=penaltyStrength,
+                            nonLinReduction=nonLinReduction,
+                            romSensitivityApproach=romSensitivityApproach,
+                            finiteDelta=finiteDelta,
+                            complexDelta=complexDelta,
+                            fomParamSamples=fomParamSamples,
+                            romParamSamples=romParamSamples,
+                            paramBounding=paramBounding,
+                            dataModelCoeff=dataModelCoeff,
+                            refModelCoeff=refModelCoeff,
+                            modeRetention=modeRetention,
+                            uResults=uResults,
+                            vResults=vResults,
+                            combinedResults=combinedResults,
+                            error=error,
+                            qois=qois,
+                            qoiResults=qoiResults[iret],
+                        )
     if showPlots:
         plt.show()
 
