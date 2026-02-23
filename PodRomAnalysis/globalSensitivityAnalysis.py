@@ -35,7 +35,7 @@ def main():
     plotFullSpectra = False
 
     # FOM parameters
-    paramSet = "Bizon Periodic"  # BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
+    paramSet = "BizonPeriodic"  # BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     nCollocation = 2
     nElements = 32
     odeMethod = "BDF"  # LSODA, BDF, Note: Need a stiff solver, LSODA fastest but BDF needed to support complex step
@@ -46,9 +46,9 @@ def main():
 
     gsaMethod = "DGSM"
     if gsaMethod == "DGSM":
-        equationSet = "allParams"
-        nRomSamples = 20
-        nFomSamples = 10
+        equationSet = "nonLinearParams"
+        nRomSamples = 2
+        nFomSamples = 2
         paramBounding = 0.1  # Percentage around base value
     else:
         equationSet = "tankOnly"
@@ -58,7 +58,7 @@ def main():
     useEnergyThreshold = True
     nDeimPoints = "max"  # Base value for DEIM, max or integer
     nonLinReduction = 4.0  # Base value for nonLinReduction, 1 means no reduction
-    penaltyStrength = 1e-4
+    penaltyStrength = 0
     sensInit = ["zero"]
     quadRule = ["gauss-legendre"]  # simpson, gauss-legendre, uniform, monte carlo
     mean_reduction = ["mean"]
@@ -531,6 +531,12 @@ def main():
                                                 "ROM Error in norm " + error_norm[k] + " for ieq " + str(ieq) + ": ",
                                                 error[iret][ieq, iParamSample, k],
                                             )
+                                    combinedResults[iParamSample, 2 * ieq, :, :, :] = uResults[
+                                        iParamSample, ieq, :, :, :
+                                    ]
+                                    combinedResults[iParamSample, 2 * ieq + 1, :, :, :] = vResults[
+                                        iParamSample, ieq, :, :, :
+                                    ]
                                 # ==== Compute QOIs ====
                                 for k in range(len(qois)):
                                     for ieq in range(neq):
@@ -551,11 +557,7 @@ def main():
                                             qoi=qois[k],
                                         )
                                     # INCOMPLETE: Figure out what want to compute for sensitivity error.
-                                for i in range(neq):
-                                    combinedResults[iParamSample, 2 * i, :, :, :] = uResults[iParamSample, i, :, :, :]
-                                    combinedResults[iParamSample, 2 * i + 1, :, :, :] = vResults[
-                                        iParamSample, i, :, :, :
-                                    ]
+
                         # Compute GSA indices
                         if gsaMethod == "DGSM":
                             # Spatial Sensitivities
@@ -599,32 +601,32 @@ def main():
                             axes[0, 0].semilogy(x, uDGSMmean[:, 0, :].T)
                             axes[0, 0].set_ylabel(r"u, $\mu$")
                             axes[0, 0].set_title("True Sensitivity")
-                            axes[0, 1].semilogy(x, uDGSMmean[:, 2, :].T)
+                            axes[0, 1].semilogy(x, uDGSMmean[:, 1, :].T)
                             axes[0, 1].set_title("ROM Sensitivity")
                             axes[0, 2].semilogy(
-                                x, np.abs(uDGSMmean[:, 2, :] - uDGSMmean[:, 0, :]).T / np.abs(uDGSMmean[:, 0, :].T)
+                                x, np.abs(uDGSMmean[:, 1, :] - uDGSMmean[:, 0, :]).T / np.abs(uDGSMmean[:, 0, :].T)
                             )
                             axes[0, 2].set_title("Relative ROM Error")
                             axes[0, 2].legend(paramSelect)
                             axes[1, 0].semilogy(x, uDGSMvar[:, 0, :].T)
                             axes[1, 0].set_ylabel(r"u, $v$")
-                            axes[1, 1].semilogy(x, uDGSMvar[:, 2, :].T)
+                            axes[1, 1].semilogy(x, uDGSMvar[:, 1, :].T)
                             axes[1, 2].semilogy(
-                                x, np.abs(uDGSMvar[:, 2, :] - uDGSMvar[:, 0, :]).T / np.abs(uDGSMvar[:, 0, :].T)
+                                x, np.abs(uDGSMvar[:, 1, :] - uDGSMvar[:, 0, :]).T / np.abs(uDGSMvar[:, 0, :].T)
                             )
                             axes[2, 0].semilogy(x, vDGSMmean[:, 0, :].T)
                             axes[2, 0].set_ylabel(r"v, $\mu$")
-                            axes[2, 1].semilogy(x, vDGSMmean[:, 2, :].T)
+                            axes[2, 1].semilogy(x, vDGSMmean[:, 1, :].T)
                             axes[2, 2].semilogy(
-                                x, np.abs(vDGSMmean[:, 2, :] - vDGSMmean[:, 0, :]).T / np.abs(vDGSMmean[:, 0, :].T)
+                                x, np.abs(vDGSMmean[:, 1, :] - vDGSMmean[:, 0, :]).T / np.abs(vDGSMmean[:, 0, :].T)
                             )
                             axes[3, 0].semilogy(x, vDGSMvar[:, 0, :].T)
                             axes[3, 0].set_xlabel("x")
                             axes[3, 0].set_ylabel(r"v, $v$")
-                            axes[3, 1].semilogy(x, vDGSMvar[:, 2, :].T)
+                            axes[3, 1].semilogy(x, vDGSMvar[:, 1, :].T)
                             axes[3, 1].set_xlabel("x")
                             axes[3, 2].semilogy(
-                                x, np.abs(vDGSMvar[:, 2, :] - vDGSMvar[:, 0, :]).T / np.abs(vDGSMvar[:, 0, :].T)
+                                x, np.abs(vDGSMvar[:, 1, :] - vDGSMvar[:, 0, :]).T / np.abs(vDGSMvar[:, 0, :].T)
                             )
                             axes[3, 2].set_xlabel("x")
                             plt.tight_layout()
