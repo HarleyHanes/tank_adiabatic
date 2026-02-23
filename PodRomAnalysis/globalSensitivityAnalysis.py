@@ -19,7 +19,9 @@ from tankModel.TankModel import TankModel
 def main():
     # Define simulation details
     verbosity = 1
+    useSavedData = False
     showPlots = True
+    scaleSensitivities = True
     # Run Types
     plotConvergence = False
 
@@ -36,7 +38,7 @@ def main():
     # FOM parameters
     paramSet = "BizonChaotic"  # BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     nCollocation = 2
-    nElements = 64
+    nElements = 32
     odeMethod = "BDF"  # LSODA, BDF, Note: Need a stiff solver, LSODA fastest but BDF needed to support complex step
     nPoints = 599
     nT = 600
@@ -45,10 +47,10 @@ def main():
 
     gsaMethod = "DGSM"
     if gsaMethod == "DGSM":
-        equationSet = "nonBoundaryParams-noDa"
-        nRomSamples = 20
-        nFomSamples = 6
-        paramBounding = 0.2  # Percentage around base value
+        equationSet = "allParams"
+        nRomSamples = 1
+        nFomSamples = 1
+        paramBounding = 0.1  # Percentage around base value
     else:
         equationSet = "tankOnly"
 
@@ -69,7 +71,6 @@ def main():
         "Average Outlet Temperature",
     ]
     romSensitivityApproach = [
-        "sensEq",
         "complex",
     ]  # none, finite, sensEq, complex, only used if equationSet!=tankOnly
     finiteDelta = 1e-6  # Only used if equationSet!=tankOnly and romSensitivityApproach=="finite"
@@ -78,7 +79,7 @@ def main():
     # Set simulation parameters
     # Set POD Retention
     if useEnergyThreshold:
-        modeRetention = 0.995
+        modeRetention = 0.999
     else:
         if plotConvergence:
             if paramSet == "BizonChaotic":
@@ -117,7 +118,6 @@ def main():
     baseParams, stabalized = getParameterOptions(paramSet)
 
     fomSaveFolder = "../../results/sensitivityAnalysis/" + paramSet
-
     fomSaveFolder += (
         "_nCol"
         + str(nCollocation)
@@ -132,6 +132,8 @@ def main():
         + "/"
         + equationSet
     )
+    if scaleSensitivities:
+        fomSaveFolder += "_scaled"
     if not os.path.exists(fomSaveFolder):
         os.makedirs(fomSaveFolder)
     # Simulation Settings
@@ -144,72 +146,149 @@ def main():
     tEval = np.linspace(0, tmax, num=nT)
     # Determine parameters to get sensitivity of
     neq, paramSelect, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
-    # Construct parameter samples
-    if paramSelect == []:
-        fomParamSamples = [baseParams]
-        romParamSamples = [baseParams]
+    if useSavedData:
+        model = TankModel(
+            nCollocation=nCollocation,
+            nElements=nElements,
+            spacing="legendre",
+            bounds=bounds,
+            params=baseParams,
+            tEval=tEval,
+            odeMethod=odeMethod,
+            verbosity=verbosity,
+        )
+        data = np.load(
+            fomSaveFolder
+            + "/fomData"
+            + "_"
+            + str(gsaMethod)
+            + "_nRomSamples"
+            + str(nRomSamples)
+            + "_nFomSamples"
+            + str(nFomSamples)
+            + "_paramBounding"
+            + str(paramBounding)
+            + ".npz"
+        )
+        fomParamSamples = data["fomParamSamples"]
+        romParamSamples = data["romParamSamples"]
+        dataModelCoeff = data["dataModelCoeff"]
+        refModelCoeff = data["refModelCoeff"]
     else:
-        fomParamSamples, romParamSamples = constructGlobalParameterSamples(
-            baseParams, paramSelect, paramBounding, nFomSamples, nRomSamples, "saltelli"
+        # Construct parameter samples
+        if paramSelect == []:
+            fomParamSamples = [baseParams]
+            romParamSamples = [baseParams]
+        else:
+            fomParamSamples, romParamSamples = constructGlobalParameterSamples(
+                baseParams, paramSelect, paramBounding, nFomSamples, nRomSamples, "saltelli"
+            )
+
+        # Setup system
+        if verbosity >= 1:
+            print("Setting up system")
+        model = TankModel(
+            nCollocation=nCollocation,
+            nElements=nElements,
+            spacing="legendre",
+            bounds=bounds,
+            params=baseParams,
+            tEval=tEval,
+            odeMethod=odeMethod,
+            verbosity=verbosity,
         )
 
-    # Setup system
-    if verbosity >= 1:
-        print("Setting up system")
-    model = TankModel(
-        nCollocation=nCollocation,
-        nElements=nElements,
-        spacing="legendre",
-        bounds=bounds,
-        params=baseParams,
-        tEval=tEval,
-        odeMethod=odeMethod,
-        verbosity=verbosity,
-    )
+        def dydtStabilization(t, y):
+            return model.dydtSens(y, t, paramSelect=[])
 
-    def dydtStabilization(t, y):
-        return model.dydtSens(y, t, paramSelect=[])
+        # ------------------------ Run Stabilization ------------------------
+        if verbosity >= 1:
+            print("Running Stabalization")
+        if stabalized:
+            # Run out till stabalizing in periodic domain
+            initialCondition = np.zeros(model.nCollocation * model.nElements * 2 * neq)
+            # Note: Sensitivities have 0 initial condition
+            initialCondition[: model.nCollocation * model.nElements * 2] = model.solve_ivp(
+                dydtStabilization,
+                initialCondition[: model.nCollocation * model.nElements * 2],
+                tEval=[0, stabalizationTime],
+            ).y.transpose()[-1, :]
+        else:
+            initialCondition = computeInitialCondition(model, neq)
+        # ===== Get Simulation Data =====
+        # Step 1: Get FOM Data that will be used to generate ROM
+        if verbosity >= 1:
+            print("Getting Simulation Data")
+        dataModelCoeff = np.empty((len(fomParamSamples), nT, model.nCollocation * model.nElements * 2 * neq))
+        for i in range(len(fomParamSamples)):
+            perturbedModel = model.copy(params=fomParamSamples[i])
 
-    # ------------------------ Run Stabilization ------------------------
-    if verbosity >= 1:
-        print("Running Stabalization")
-    if stabalized:
-        # Run out till stabalizing in periodic domain
-        initialCondition = np.zeros(model.nCollocation * model.nElements * 2 * neq)
-        # Note: Sensitivities have 0 initial condition
-        initialCondition[: model.nCollocation * model.nElements * 2] = model.solve_ivp(
-            dydtStabilization,
-            initialCondition[: model.nCollocation * model.nElements * 2],
-            tEval=[0, stabalizationTime],
-        ).y.transpose()[-1, :]
-    else:
-        initialCondition = computeInitialCondition(model, neq)
-    # ===== Get Simulation Data =====
-    # Step 1: Get FOM Data that will be used to generate ROM
-    if verbosity >= 1:
-        print("Getting Simulation Data")
-    dataModelCoeff = np.empty((len(fomParamSamples), nT, model.nCollocation * model.nElements * 2 * neq))
-    for i in range(len(fomParamSamples)):
-        perturbedModel = model.copy(params=fomParamSamples[i])
+            def dydtSens(y, t):
+                return perturbedModel.dydtSens(y, t, paramSelect=paramSelect)
 
-        def dydtSens(y, t):
-            return perturbedModel.dydtSens(y, t, paramSelect=paramSelect)
+            dataModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition).y.transpose()
+            if scaleSensitivities:
+                for j in range(neq - 1):
+                    dataModelCoeff[
+                        i,
+                        :,
+                        model.nCollocation
+                        * model.nElements
+                        * 2
+                        * (j + 1) : model.nCollocation
+                        * model.nElements
+                        * 2
+                        * (j + 2),
+                    ] * np.abs(fomParamSamples[i][paramSelect[j]])
+            if verbosity >= 3:
+                print("dataModelCoeff shape: ", dataModelCoeff.shape)
 
-        dataModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition).y.transpose()
-        if verbosity >= 3:
-            print("dataModelCoeff shape: ", dataModelCoeff.shape)
+        # Step 2: Get FOM Data that will be used to compare to ROM
+        refModelCoeff = np.empty((len(romParamSamples), nT, model.nCollocation * model.nElements * 2 * neq))
+        for i in range(len(romParamSamples)):
+            perturbedModel = model.copy(params=romParamSamples[i])
 
-    # Step 2: Get FOM Data that will be used to compare to ROM
-    refModelCoeff = np.empty((len(romParamSamples), nT, model.nCollocation * model.nElements * 2 * neq))
-    for i in range(len(romParamSamples)):
-        perturbedModel = model.copy(params=romParamSamples[i])
+            def dydtSens(y, t):
+                return perturbedModel.dydtSens(y, t, paramSelect=paramSelect)
 
-        def dydtSens(y, t):
-            return perturbedModel.dydtSens(y, t, paramSelect=paramSelect)
+            refModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition).y.transpose()
+            if scaleSensitivities:
+                for j in range(neq - 1):
+                    refModelCoeff[
+                        i,
+                        :,
+                        model.nCollocation
+                        * model.nElements
+                        * 2
+                        * (j + 1) : model.nCollocation
+                        * model.nElements
+                        * 2
+                        * (j + 2),
+                    ] * np.abs(romParamSamples[i][paramSelect[j]])
 
-        refModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition).y.transpose()
-        if verbosity >= 3:
-            print("refModelCoeff shape: ", refModelCoeff.shape)
+            if verbosity >= 3:
+                print("refModelCoeff shape: ", refModelCoeff.shape)
+        np.savez(
+            fomSaveFolder
+            + "/fomData"
+            + "_"
+            + str(gsaMethod)
+            + "_nRomSamples"
+            + str(nRomSamples)
+            + "_nFomSamples"
+            + str(nFomSamples)
+            + "_paramBounding"
+            + str(paramBounding)
+            + ".npz",
+            paramSelect=paramSelect,
+            odeMethod=odeMethod,
+            fomParamSamples=fomParamSamples,
+            romParamSamples=romParamSamples,
+            paramBounding=paramBounding,
+            dataModelCoeff=dataModelCoeff,
+            refModelCoeff=refModelCoeff,
+        )
+
     # ===== Run POD-ROM =====
 
     for iquad in range(len(quadRule)):
@@ -423,6 +502,7 @@ def main():
                                         finiteDelta=finiteDelta,
                                         complexDelta=complexDelta,
                                         verbosity=verbosity,
+                                        scaleSensitivities=scaleSensitivities,
                                     )
 
                                 # ----------------------------- Map Results Back into Spatial Space
@@ -801,7 +881,39 @@ def main():
                             + ".png",
                             format="png",
                         )
-
+    # Save Data
+    np.savez(
+        romSaveFolder
+        + "/gsaData"
+        + "_"
+        + str(gsaMethod)
+        + "_nRomSamples"
+        + str(nRomSamples)
+        + "_nFomSamples"
+        + str(nFomSamples)
+        + "_paramBounding"
+        + str(paramBounding)
+        + ".npz",
+        paramSelect=paramSelect,
+        odeMethod=odeMethod,
+        penaltyStrength=penaltyStrength,
+        nonLinReduction=nonLinReduction,
+        romSensitivityApproach=romSensitivityApproach,
+        finiteDelta=finiteDelta,
+        complexDelta=complexDelta,
+        fomParamSamples=fomParamSamples,
+        romParamSamples=romParamSamples,
+        paramBounding=paramBounding,
+        dataModelCoeff=dataModelCoeff,
+        refModelCoeff=refModelCoeff,
+        modeRetention=modeRetention,
+        uResults=uResults,
+        vResults=vResults,
+        combinedResults=combinedResults,
+        error=error,
+        qois=qois,
+        qoiResults=qoiResults,
+    )
     if showPlots:
         plt.show()
 

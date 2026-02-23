@@ -213,6 +213,27 @@ def getSensitivityOptions(equationSet):
             r"$v_{\delta}$",
             r"$v_{v_H}$",
         ]
+        combinedLabels = [
+            r"$u$",
+            r"$v$" r"$u_{\mathrm{Pe}_M}$",
+            r"$v_{\mathrm{Pe}_M}$",
+            r"$u_{\mathrm{Pe}_T}$",
+            r"$v_{\mathrm{Pe}_T}$",
+            r"$u_{f}$",
+            r"$v_{f}$",
+            r"$u_{\mathrm{Le}}$",
+            r"$v_{\mathrm{Le}}$",
+            r"$u_{\mathrm{Da}}$",
+            r"$v_{\mathrm{Da}}$",
+            r"$u_{\beta}$",
+            r"$v_{\beta}$",
+            r"$u_{\gamma}$",
+            r"$v_{\gamma}$",
+            r"$u_{\delta}$",
+            r"$v_{\delta}$",
+            r"$u_{v_H}$",
+            r"$v_{v_H}$",
+        ]
     elif equationSet == "nonBoundaryParams":
         neq = 7
         paramSelect = ["Le", "Da", "beta", "gamma", "delta", "vH"]
@@ -604,6 +625,7 @@ def computeSensitivity(
     sensInit,
     finiteDelta=1e-8,
     complexDelta=1e-14,
+    scaleSensitivities=True,
     verbosity=0,
 ):
     nfev = 0
@@ -673,6 +695,13 @@ def computeSensitivity(
                 np.imag(perturbedOdeOutput.y.transpose()) / complexDelta
             )
             model.params[paramSelect[iparam]] = np.real(model.params[paramSelect[iparam]])
+            if scaleSensitivities:
+                romCoeff[
+                    :,
+                    (iparam + 1)
+                    * (romData.uNmodes + romData.vNmodes) : (iparam + 2)
+                    * (romData.uNmodes + romData.vNmodes),
+                ] *= np.abs(model.params[paramSelect[iparam]])
         elif romSensitivityApproach == "sensEq":
             if verbosity >= 1:
                 print("Computing sensitivity for " + paramSelect[iparam])
@@ -701,6 +730,13 @@ def computeSensitivity(
                 :,
                 (iparam + 1) * (romData.uNmodes + romData.vNmodes) : (iparam + 2) * (romData.uNmodes + romData.vNmodes),
             ] = odeOutput.y.transpose()[:, romData.uNmodes + romData.vNmodes :]
+            if scaleSensitivities:
+                romCoeff[
+                    :,
+                    (iparam + 1)
+                    * (romData.uNmodes + romData.vNmodes) : (iparam + 2)
+                    * (romData.uNmodes + romData.vNmodes),
+                ] *= np.abs(model.params[paramSelect[iparam]])
     return romCoeff, [nfev, njev, nlu]
 
 
