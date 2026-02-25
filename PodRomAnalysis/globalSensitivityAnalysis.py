@@ -46,7 +46,7 @@ def main():
 
     gsaMethod = "DGSM"
     if gsaMethod == "DGSM":
-        equationSet = "nonLinearParams"
+        equationSet = "linearParams"
         nRomSamples = 2
         nFomSamples = 2
         paramBounding = 0.1  # Percentage around base value
@@ -58,7 +58,7 @@ def main():
     useEnergyThreshold = True
     nDeimPoints = "max"  # Base value for DEIM, max or integer
     nonLinReduction = 4.0  # Base value for nonLinReduction, 1 means no reduction
-    penaltyStrength = 0
+    penaltyStrength = 1e-4
     sensInit = ["zero"]
     quadRule = ["gauss-legendre"]  # simpson, gauss-legendre, uniform, monte carlo
     mean_reduction = ["mean"]
@@ -219,27 +219,16 @@ def main():
         # Step 1: Get FOM Data that will be used to generate ROM
         if verbosity >= 1:
             print("Getting Simulation Data")
-        dataModelCoeff = np.empty((len(fomParamSamples), nT, model.nCollocation * model.nElements * 2 * neq))
+        dataModelCoeff = np.empty((len(fomParamSamples), nT, model.nCollocation * model.nElements * 2))
         for i in range(len(fomParamSamples)):
             perturbedModel = model.copy(params=fomParamSamples[i])
 
-            def dydtSens(y, t):
-                return perturbedModel.dydtSens(y, t, paramSelect=paramSelect)
+            def dydt(y, t):
+                return perturbedModel.dydtSens(y, t, paramSelect=[])
 
-            dataModelCoeff[i] = model.solve_ivp(lambda t, y: dydtSens(y, t), initialCondition).y.transpose()
-            if scaleSensitivities:
-                for j in range(neq - 1):
-                    dataModelCoeff[
-                        i,
-                        :,
-                        model.nCollocation
-                        * model.nElements
-                        * 2
-                        * (j + 1) : model.nCollocation
-                        * model.nElements
-                        * 2
-                        * (j + 2),
-                    ] * np.abs(fomParamSamples[i][paramSelect[j]])
+            dataModelCoeff[i] = model.solve_ivp(
+                lambda t, y: dydt(y, t), initialCondition[: model.nCollocation * model.nElements * 2]
+            ).y.transpose()
             if verbosity >= 3:
                 print("dataModelCoeff shape: ", dataModelCoeff.shape)
 
@@ -314,11 +303,7 @@ def main():
                         for j in range(len(fomParamSamples)):
                             uFomData[j, i], vFomData[j, i] = model.eval(
                                 x,
-                                dataModelCoeff[
-                                    j,
-                                    :,
-                                    fomStart : fomStart + 2 * model.nCollocation * model.nElements,
-                                ],
+                                dataModelCoeff[j, :, :],
                                 output="seperated",
                             )
                         for j in range(len(romParamSamples)):
@@ -366,7 +351,7 @@ def main():
                             # Plot full singular value distribution
                             if iret == 0 and plotFullSpectra:
                                 romData, null = model.constructPodRom(
-                                    dataModelCoeff[:, :, : 2 * nCollocation * nElements],
+                                    dataModelCoeff,
                                     x,
                                     W,
                                     min(nT, nPoints),
@@ -385,7 +370,7 @@ def main():
                                 plt.savefig(podSaveFolder + "../singularValues.png", format="png")
                             # ------------------------------- Compute POD
                             romData, truncationError[iret] = model.constructPodRom(
-                                dataModelCoeff[:, :, : 2 * nCollocation * nElements],
+                                dataModelCoeff,
                                 x,
                                 W,
                                 modeRetention[iret],

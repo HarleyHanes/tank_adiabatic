@@ -23,9 +23,9 @@ def main():
     showPlots = True
     # Run Types
     plotConvergence = False
-    plotComputationTime = True
+    plotComputationTime = False
 
-    plotRomInterpolation = False
+    plotRomInterpolation = True
 
     plotTimeSeries = False
     plotModes = False
@@ -43,7 +43,7 @@ def main():
     odeMethod = [
         #       "RK45",
         "BDF",
-        "LSODA",
+        #    "LSODA",
     ]  # LSODA, BDF, Note: Need a stiff solver, LSODA fastest but BDF needed to support complex step
     nPoints = 599
     nT = 600
@@ -55,13 +55,13 @@ def main():
         extrapolatory = True
         equationSet = param  # Comment out to do parameter sampling without sensitivity
         paramBounding = 0.1
-        nRomSamples = 1
+        nRomSamples = 2
     else:
         equationSet = "tankOnly"
 
     # ROM parameters
     usePodRom = True
-    useEnergyThreshold = False
+    useEnergyThreshold = True
     nDeimPoints = "max"  # Base value for DEIM, max or integer
     nonLinReduction = 4.0  # Base value for nonLinReduction, 1 means no reduction
     penaltyStrength = 0
@@ -86,7 +86,7 @@ def main():
     # Set simulation parameters
     # Set POD Retention
     if useEnergyThreshold:
-        modeRetention = [0.95, 0.99]
+        modeRetention = [0.999]
     else:
         if plotConvergence:
             if paramSet == "BizonChaotic":
@@ -135,7 +135,7 @@ def main():
         tmax = 1.5
     tEval = np.linspace(0, tmax, num=nT)
     # Determine parameters to get sensitivity of
-    neq, paramSelect, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
+    neq, paramSelect, paramLabels, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
     # Construct parameter samples
     if paramSelect == []:
         fomParamSamples = [baseParams]
