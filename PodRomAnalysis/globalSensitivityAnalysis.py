@@ -541,6 +541,9 @@ def main():
                                             tEval,
                                             qoi=qois[k],
                                         )
+                                        if scaleSensitivities and ieq > 0:
+                                            qoiResults[iret][:, ieq, 0, k] / np.abs(qoiResults[iret][:, 0, 0, k])
+                                            qoiResults[iret][:, ieq, 1, k] / np.abs(qoiResults[iret][:, 0, 1, k])
                                     # INCOMPLETE: Figure out what want to compute for sensitivity error.
 
                         # Compute GSA indices
@@ -677,11 +680,10 @@ def main():
                                 axes[0, 1].set_xticks(np.arange(len(paramLabel)))
                                 axes[0, 1].set_xticklabels(paramLabel)
                                 # Error
-                                axes[0, 2].set_title("Relative ROM Error")
+                                axes[0, 2].set_title("ROM Error")
                                 axes[0, 2].bar(
                                     np.arange(len(paramLabel)),
-                                    np.abs(qoiSensAbsMean[1:, 1, i] - qoiSensAbsMean[1:, 0, i])
-                                    / qoiSensAbsMean[1:, 0, i],
+                                    np.abs(qoiSensAbsMean[1:, 0, i] - qoiSensAbsMean[1:, 1, i]),
                                     color="b",
                                     alpha=0.5,
                                 )
@@ -710,7 +712,7 @@ def main():
                                 # Error
                                 axes[1, 2].bar(
                                     np.arange(len(paramLabel)),
-                                    np.abs(qoiSensVar[1:, 1, i] - qoiSensVar[1:, 0, i]) / qoiSensVar[1:, 0, i],
+                                    np.abs(qoiSensVar[1:, 0, i] - qoiSensVar[1:, 1, i]),
                                     color="b",
                                     alpha=0.5,
                                 )

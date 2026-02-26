@@ -782,9 +782,7 @@ def computeSensitivity(
                     (iparam + 1)
                     * (romData.uNmodes + romData.vNmodes) : (iparam + 2)
                     * (romData.uNmodes + romData.vNmodes),
-                ] *= (
-                    10**4
-                )
+                ] *= 10 ** (4.3)
 
         elif romSensitivityApproach == "sensEq":
             if verbosity >= 1:
