@@ -367,7 +367,7 @@ def main():
 
                         error.append(np.empty((neq, len(romParamSamples), len(error_norm))))
                         qoiResults.append(
-                            np.empty((len(romParamSamples), len(qois)))
+                            np.empty((len(romParamSamples), neq, 2, len(qois)))
                         )  # Goal: Implement Computation of QoI sensitivity
                         if verbosity >= 1:
                             print(
@@ -525,16 +525,25 @@ def main():
                                                 )
                                     # ==== Compute QOIs ====
                                     for k in range(len(qois)):
-                                        # QOIs for ith sample (domain eqs, all times/points)
-                                        qoiResults[iret][iParamSample, k] = model.computeQOIs(
-                                            uResults[iParamSample, iPenalty, 0, :, 1, :].transpose(),
-                                            vResults[iParamSample, iPenalty, 0, :, 1, :].transpose(),
-                                            romData.W,
-                                            tEval,
-                                            qoi=qois[k],
-                                        )
+                                        for ieq in range(neq):
+                                            # FOM sensitivities
+                                            qoiResults[iret][iParamSample, ieq, 0, k] = model.computeQOIs(
+                                                uResults[iParamSample, iPenalty, ieq, :, 0, :].transpose(),
+                                                vResults[iParamSample, iPenalty, ieq, :, 0, :].transpose(),
+                                                romData.W,
+                                                tEval,
+                                                qoi=qois[k],
+                                            )
+                                            # ROM sensitivities
+                                            qoiResults[iret][iParamSample, ieq, 1, k] = model.computeQOIs(
+                                                uResults[iParamSample, iPenalty, ieq, :, 1, :].transpose(),
+                                                vResults[iParamSample, iPenalty, ieq, :, 1, :].transpose(),
+                                                romData.W,
+                                                tEval,
+                                                qoi=qois[k],
+                                            )
                                         if verbosity >= 2:
-                                            print(qois[k] + ": ", qoiResults[iret][iParamSample, k])
+                                            print(qois[k] + ": ", qoiResults[iret][iParamSample, 1, 1, k])
                                         # INCOMPLETE: Figure out what want to compute for sensitivity error.
                                     for i in range(neq):
                                         combinedResults[iParamSample, iPenalty, 2 * i, :, :, :] = uResults[
@@ -930,13 +939,13 @@ def main():
 
                             fig, axes = plt.subplots(1, 1, figsize=(4, 3))
                             # L2 Error
-                            axes.semilogy(rom_values, qoiResults[iret][:, 0], "-bs", lw=3, ms=8)
+                            axes.semilogy(rom_values, qoiResults[iret][:, 0, 1, 0], "-bs", lw=3, ms=8)
                             # Linf Error
-                            axes.semilogy(rom_values, qoiResults[iret][:, 1], "--m*", lw=3, ms=8)
+                            axes.semilogy(rom_values, qoiResults[iret][:, 0, 1, 1], "--m*", lw=3, ms=8)
                             # L2 Error
-                            axes.semilogy(rom_values, qoiResults[iret][:, 2], "-.g^", lw=3, ms=8)
+                            axes.semilogy(rom_values, qoiResults[iret][:, 0, 1, 2], "-.g^", lw=3, ms=8)
                             # Linf Error
-                            axes.semilogy(rom_values, qoiResults[iret][:, 3], "-ro", lw=3, ms=8)
+                            axes.semilogy(rom_values, qoiResults[iret][:, 0, 1, 3], "-ro", lw=3, ms=8)
                             axes.set_xlabel(param)
                             axes.legend(qois)
                             plt.savefig(

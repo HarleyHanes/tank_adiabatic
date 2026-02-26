@@ -44,11 +44,11 @@ def main():
 
     # Parameter Sampling
 
-    gsaMethod = "DGSM"
-    if gsaMethod == "DGSM":
-        equationSet = "linearParams"
-        nRomSamples = 2
-        nFomSamples = 2
+    gsaMethod = "Morris"
+    if gsaMethod in ["DGSM", "Morris"]:
+        equationSet = "allParams"
+        nRomSamples = 5
+        nFomSamples = 5
         paramBounding = 0.1  # Percentage around base value
     else:
         equationSet = "tankOnly"
@@ -253,7 +253,7 @@ def main():
                         * model.nElements
                         * 2
                         * (j + 2),
-                    ] * np.abs(romParamSamples[i][paramSelect[j]])
+                    ] *= np.abs(romParamSamples[i][paramSelect[j]])
 
             if verbosity >= 3:
                 print("refModelCoeff shape: ", refModelCoeff.shape)
@@ -382,7 +382,7 @@ def main():
 
                         error.append(np.empty((neq, len(romParamSamples), len(error_norm))))
                         qoiResults.append(
-                            np.empty((2, neq, len(romParamSamples), len(qois)))
+                            np.empty((len(romParamSamples), neq, 2, len(qois)))
                         )  # Goal: Implement Computation of QoI sensitivity
                         if verbosity >= 1:
                             print(
@@ -526,7 +526,7 @@ def main():
                                 for k in range(len(qois)):
                                     for ieq in range(neq):
                                         # FOM sensitivities
-                                        qoiResults[iret][0, ieq, iParamSample, k] = model.computeQOIs(
+                                        qoiResults[iret][iParamSample, ieq, 0, k] = model.computeQOIs(
                                             uResults[iParamSample, ieq, :, 0, :].transpose(),
                                             vResults[iParamSample, ieq, :, 0, :].transpose(),
                                             romData.W,
@@ -534,7 +534,7 @@ def main():
                                             qoi=qois[k],
                                         )
                                         # ROM sensitivities
-                                        qoiResults[iret][1, ieq, iParamSample, k] = model.computeQOIs(
+                                        qoiResults[iret][iParamSample, ieq, 1, k] = model.computeQOIs(
                                             uResults[iParamSample, ieq, :, 1, :].transpose(),
                                             vResults[iParamSample, ieq, :, 1, :].transpose(),
                                             romData.W,
@@ -549,33 +549,62 @@ def main():
                             # Compute time-variant sensitivity indices
                             # Need to re-scale against parameter bounds
                             # Indices are nEq-1 x nT x 3 x nX
-                            uDGSMmean = np.sum(np.abs(uResults[:, 1:, :, :, :]), axis=0) / len(romParamSamples)
-                            uDGSMvar = np.sum(uResults[:, 1:, :, :, :] ** 2, axis=0) / len(romParamSamples)
-                            vDGSMmean = np.sum(np.abs(vResults[:, 1:, :, :, :]), axis=0) / len(romParamSamples)
-                            vDGSMvar = np.sum(vResults[:, 1:, :, :, :] ** 2, axis=0) / len(romParamSamples)
+                            uSensMean = np.sum(np.abs(uResults[:, 1:, :, :, :]), axis=0) / len(romParamSamples)
+                            uSensVar = np.sum(uResults[:, 1:, :, :, :] ** 2, axis=0) / len(romParamSamples)
+                            vSensMean = np.sum(np.abs(vResults[:, 1:, :, :, :]), axis=0) / len(romParamSamples)
+                            vSensVar = np.sum(vResults[:, 1:, :, :, :] ** 2, axis=0) / len(romParamSamples)
                             # Integrate sensitivities in time
                             # Indices are nEq-1 x 3 x nX
-                            uDGSMmean = np.sum(uDGSMmean, axis=1) / nT
-                            uDGSMvar = np.sum(uDGSMvar, axis=1) / nT
-                            vDGSMmean = np.sum(vDGSMmean, axis=1) / nT
-                            vDGSMvar = np.sum(vDGSMvar, axis=1) / nT
+                            uSensMean = np.sum(uSensMean, axis=1) / nT
+                            uSensVar = np.sum(uSensVar, axis=1) / nT
+                            vSensMean = np.sum(vSensMean, axis=1) / nT
+                            vSensVar = np.sum(vSensVar, axis=1) / nT
 
                             # QOI Sensitivities
                             # True Sensitivities
 
                             # ROM Sensitivities
-                            qoiDGSMmean = np.array(
-                                [
-                                    np.sum(np.abs(qoiResults[iret][0, :, :, :]), axis=1) / len(romParamSamples),
-                                    np.sum(np.abs(qoiResults[iret][1, :, :, :]), axis=1) / len(romParamSamples),
-                                ]
+                            qoiSensMean = np.sum(qoiResults[iret], axis=0) / len(romParamSamples)
+                            qoiSensAbsMean = np.sum(np.abs(qoiResults[iret]), axis=0) / len(romParamSamples)
+                            qoiSensVar = np.sum(qoiResults[iret] ** 2, axis=0) / len(romParamSamples)
+
+                        elif gsaMethod == "Morris":
+                            # Spatial Sensitivities
+                            # Compute time-variant sensitivity indices
+                            # Need to re-scale against parameter bounds
+                            # Indices are nEq-1 x nT x 3 x nX
+                            uSensMean = np.sum(uResults[:, 1:, :, :, :], axis=0) / len(romParamSamples)
+                            uSensAbsMean = np.sum(np.abs(uResults[:, 1:, :, :, :]), axis=0) / len(romParamSamples)
+                            uSensVar = np.sqrt(
+                                np.sum((uResults[:, 1:, :, :, :] - np.array([uSensMean])) ** 2, axis=0)
+                                / (len(romParamSamples) - 1)
                             )
-                            qoiDGSMvar = np.array(
-                                [
-                                    np.sum(qoiResults[iret][0, :, :, :] ** 2, axis=1) / len(romParamSamples),
-                                    np.sum(qoiResults[iret][1, :, :, :] ** 2, axis=1) / len(romParamSamples),
-                                ]
+                            vSensMean = np.sum(vResults[:, 1:, :, :, :], axis=0) / len(romParamSamples)
+                            vSensAbsMean = np.sum(np.abs(vResults[:, 1:, :, :, :]), axis=0) / len(romParamSamples)
+                            vSensVar = np.sqrt(
+                                np.sum((vResults[:, 1:, :, :, :] - np.array([vSensMean])) ** 2, axis=0)
+                                / (len(romParamSamples) - 1)
                             )
+                            # Integrate sensitivities in time
+                            # Indices are nEq-1 x 3 x nX
+                            uSensMean = np.sum(uSensMean, axis=1) / nT
+                            uSensAbsMean = np.sum(uSensAbsMean, axis=1) / nT
+                            uSensVar = np.sum(uSensVar, axis=1) / nT
+                            vSensMean = np.sum(vSensMean, axis=1) / nT
+                            vSensAbsMean = np.sum(vSensAbsMean, axis=1) / nT
+                            vSensVar = np.sum(vSensVar, axis=1) / nT
+
+                            # QOI Sensitivities
+                            # True Sensitivities
+
+                            # ROM Sensitivities
+                            qoiSensMean = np.sum(qoiResults[iret], axis=0) / len(romParamSamples)
+                            qoiSensAbsMean = np.sum(np.abs(qoiResults[iret]), axis=0) / len(romParamSamples)
+                            qoiSensVar = np.sqrt(
+                                np.sum((qoiResults[iret] - np.array([qoiSensMean])) ** 2, axis=0)
+                                / (len(romParamSamples) - 1)
+                            )
+
                         # ======= Plot Results =======
                         if plotSensitivity:
                             # Spatial Sensitivity plots
@@ -583,35 +612,39 @@ def main():
                             fig, axes = plt.subplots(4, 3, figsize=(figWidth, figHeight))
                             plt.subplots_adjust(wspace=0.35)
                             axes = np.reshape(axes, (4, 3))
-                            axes[0, 0].semilogy(x, uDGSMmean[:, 0, :].T)
-                            axes[0, 0].set_ylabel(r"u, $\mu$")
+                            axes[0, 0].semilogy(x, uSensAbsMean[:, 0, :].T)
+                            axes[0, 0].set_ylabel(r"u, $\mu^*$")
                             axes[0, 0].set_title("True Sensitivity")
-                            axes[0, 1].semilogy(x, uDGSMmean[:, 1, :].T)
+                            axes[0, 1].semilogy(x, uSensAbsMean[:, 1, :].T)
                             axes[0, 1].set_title("ROM Sensitivity")
                             axes[0, 2].semilogy(
-                                x, np.abs(uDGSMmean[:, 1, :] - uDGSMmean[:, 0, :]).T / np.abs(uDGSMmean[:, 0, :].T)
+                                x,
+                                np.abs(uSensAbsMean[:, 1, :] - uSensAbsMean[:, 0, :]).T
+                                / np.abs(uSensAbsMean[:, 0, :].T),
                             )
                             axes[0, 2].set_title("Relative ROM Error")
                             axes[0, 2].legend(paramSelect)
-                            axes[1, 0].semilogy(x, uDGSMvar[:, 0, :].T)
-                            axes[1, 0].set_ylabel(r"u, $v$")
-                            axes[1, 1].semilogy(x, uDGSMvar[:, 1, :].T)
+                            axes[1, 0].semilogy(x, uSensVar[:, 0, :].T)
+                            axes[1, 0].set_ylabel(r"u, $\sigma$")
+                            axes[1, 1].semilogy(x, uSensVar[:, 1, :].T)
                             axes[1, 2].semilogy(
-                                x, np.abs(uDGSMvar[:, 1, :] - uDGSMvar[:, 0, :]).T / np.abs(uDGSMvar[:, 0, :].T)
+                                x, np.abs(uSensVar[:, 1, :] - uSensVar[:, 0, :]).T / np.abs(uSensVar[:, 0, :].T)
                             )
-                            axes[2, 0].semilogy(x, vDGSMmean[:, 0, :].T)
-                            axes[2, 0].set_ylabel(r"v, $\mu$")
-                            axes[2, 1].semilogy(x, vDGSMmean[:, 1, :].T)
+                            axes[2, 0].semilogy(x, vSensAbsMean[:, 0, :].T)
+                            axes[2, 0].set_ylabel(r"v, $\mu^*$")
+                            axes[2, 1].semilogy(x, vSensAbsMean[:, 1, :].T)
                             axes[2, 2].semilogy(
-                                x, np.abs(vDGSMmean[:, 1, :] - vDGSMmean[:, 0, :]).T / np.abs(vDGSMmean[:, 0, :].T)
+                                x,
+                                np.abs(vSensAbsMean[:, 1, :] - vSensAbsMean[:, 0, :]).T
+                                / np.abs(vSensAbsMean[:, 0, :].T),
                             )
-                            axes[3, 0].semilogy(x, vDGSMvar[:, 0, :].T)
+                            axes[3, 0].semilogy(x, vSensVar[:, 0, :].T)
                             axes[3, 0].set_xlabel("x")
-                            axes[3, 0].set_ylabel(r"v, $v$")
-                            axes[3, 1].semilogy(x, vDGSMvar[:, 1, :].T)
+                            axes[3, 0].set_ylabel(r"v, $\sigma$")
+                            axes[3, 1].semilogy(x, vSensVar[:, 1, :].T)
                             axes[3, 1].set_xlabel("x")
                             axes[3, 2].semilogy(
-                                x, np.abs(vDGSMvar[:, 1, :] - vDGSMvar[:, 0, :]).T / np.abs(vDGSMvar[:, 0, :].T)
+                                x, np.abs(vSensVar[:, 1, :] - vSensVar[:, 0, :]).T / np.abs(vSensVar[:, 0, :].T)
                             )
                             axes[3, 2].set_xlabel("x")
                             plt.tight_layout()
@@ -626,28 +659,29 @@ def main():
                                 axes[0, 0].set_title("ROM Sensitivity")
                                 axes[0, 0].bar(
                                     np.arange(len(paramLabel)),
-                                    qoiDGSMmean[1, 1:, i],
+                                    qoiSensAbsMean[1:, 1, i],
                                     color="b",
                                     alpha=0.5,
                                 )
-                                axes[0, 0].set_ylabel(r"$\mu$")
+                                axes[0, 0].set_ylabel(r"$\mu^*$")
                                 axes[0, 0].set_xticks(np.arange(len(paramLabel)))
                                 axes[0, 0].set_xticklabels(paramLabel)
                                 # FOM
                                 axes[0, 1].set_title("FOM Sensitivity")
                                 axes[0, 1].bar(
                                     np.arange(len(paramLabel)),
-                                    qoiDGSMmean[0, 1:, i],
+                                    qoiSensAbsMean[1:, 0, i],
                                     color="b",
                                     alpha=0.5,
                                 )
                                 axes[0, 1].set_xticks(np.arange(len(paramLabel)))
                                 axes[0, 1].set_xticklabels(paramLabel)
                                 # Error
-                                axes[0, 2].set_title("ROM Error")
+                                axes[0, 2].set_title("Relative ROM Error")
                                 axes[0, 2].bar(
                                     np.arange(len(paramLabel)),
-                                    np.abs(qoiDGSMmean[1, 1:, i] - qoiDGSMmean[0, 1:, i]),
+                                    np.abs(qoiSensAbsMean[1:, 1, i] - qoiSensAbsMean[1:, 0, i])
+                                    / qoiSensAbsMean[1:, 0, i],
                                     color="b",
                                     alpha=0.5,
                                 )
@@ -657,17 +691,17 @@ def main():
                                 # ROM
                                 axes[1, 0].bar(
                                     np.arange(len(paramLabel)),
-                                    qoiDGSMvar[1, 1:, i],
+                                    qoiSensVar[1:, 1, i],
                                     color="b",
                                     alpha=0.5,
                                 )
-                                axes[1, 0].set_ylabel(r"$v$")
+                                axes[1, 0].set_ylabel(r"$\sigma$")
                                 axes[1, 0].set_xticks(np.arange(len(paramLabel)))
                                 axes[1, 0].set_xticklabels(paramLabel)
                                 # FOM
                                 axes[1, 1].bar(
                                     np.arange(len(paramLabel)),
-                                    qoiDGSMvar[0, 1:, i],
+                                    qoiSensVar[1:, 0, i],
                                     color="b",
                                     alpha=0.5,
                                 )
@@ -676,7 +710,7 @@ def main():
                                 # Error
                                 axes[1, 2].bar(
                                     np.arange(len(paramLabel)),
-                                    np.abs(qoiDGSMvar[1, 1:, i] - qoiDGSMvar[0, 1:, i]),
+                                    np.abs(qoiSensVar[1:, 1, i] - qoiSensVar[1:, 0, i]) / qoiSensVar[1:, 0, i],
                                     color="b",
                                     alpha=0.5,
                                 )

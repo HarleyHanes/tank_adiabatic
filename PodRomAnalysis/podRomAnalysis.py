@@ -188,6 +188,36 @@ def getSensitivityOptions(equationSet):
             r"$v_{\delta}$",
             r"$v_{v_H}$",
         ]
+    elif equationSet == "boundaryParams":
+        neq = 4
+        paramSelect = ["PeM", "PeT", "f"]
+        paramLabel = [
+            r"$\mathrm{Pe}_M$",
+            r"$\mathrm{Pe}_T$",
+            r"$f$",
+        ]
+        uLabels = [
+            r"$u$",
+            r"$u_{\mathrm{Pe_M}}$",
+            r"$u_{\mathrm{Pe_T}}$",
+            r"$u_{f}$",
+        ]
+        vLabels = [
+            r"$v$",
+            r"$v_{\mathrm{Pe_M}}$",
+            r"$v_{\mathrm{Pe_T}}$",
+            r"$v_{f}$",
+        ]
+        combinedLabels = [
+            r"$u$",
+            r"$u_{\mathrm{Pe_M}}$",
+            r"$u_{\mathrm{Pe_T}}$",
+            r"$u_{f}$",
+            r"$v$",
+            r"$v_{\mathrm{Pe_M}}$",
+            r"$v_{\mathrm{Pe_T}}$",
+            r"$v_{f}$",
+        ]
     elif equationSet == "nonLinearParams":
         neq = 4
         paramSelect = ["Da", "beta", "gamma"]
@@ -746,6 +776,16 @@ def computeSensitivity(
                     * (romData.uNmodes + romData.vNmodes) : (iparam + 2)
                     * (romData.uNmodes + romData.vNmodes),
                 ] *= np.abs(model.params[paramSelect[iparam]])
+            if paramSelect[iparam] == "f":
+                romCoeff[
+                    :,
+                    (iparam + 1)
+                    * (romData.uNmodes + romData.vNmodes) : (iparam + 2)
+                    * (romData.uNmodes + romData.vNmodes),
+                ] *= (
+                    10**4
+                )
+
         elif romSensitivityApproach == "sensEq":
             if verbosity >= 1:
                 print("Computing sensitivity for " + paramSelect[iparam])
