@@ -23,9 +23,9 @@ def main():
     showPlots = True
     # Run Types
     plotConvergence = False
-    plotComputationTime = True
+    plotComputationTime = False
 
-    plotRomInterpolation = False
+    plotRomInterpolation = True
 
     plotTimeSeries = False
     plotModes = False
@@ -43,7 +43,7 @@ def main():
     odeMethod = [
         #       "RK45",
         "BDF",
-        "LSODA",
+        #    "LSODA",
     ]  # LSODA, BDF, Note: Need a stiff solver, LSODA fastest but BDF needed to support complex step
     nPoints = 599
     nT = 600
@@ -55,13 +55,13 @@ def main():
         extrapolatory = True
         equationSet = param  # Comment out to do parameter sampling without sensitivity
         paramBounding = 0.1
-        nRomSamples = 1
+        nRomSamples = 2
     else:
         equationSet = "tankOnly"
 
     # ROM parameters
     usePodRom = True
-    useEnergyThreshold = False
+    useEnergyThreshold = True
     nDeimPoints = "max"  # Base value for DEIM, max or integer
     nonLinReduction = 4.0  # Base value for nonLinReduction, 1 means no reduction
     penaltyStrength = 0
@@ -86,7 +86,7 @@ def main():
     # Set simulation parameters
     # Set POD Retention
     if useEnergyThreshold:
-        modeRetention = [0.95, 0.99]
+        modeRetention = [0.999]
     else:
         if plotConvergence:
             if paramSet == "BizonChaotic":
@@ -135,7 +135,7 @@ def main():
         tmax = 1.5
     tEval = np.linspace(0, tmax, num=nT)
     # Determine parameters to get sensitivity of
-    neq, paramSelect, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
+    neq, paramSelect, paramLabels, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
     # Construct parameter samples
     if paramSelect == []:
         fomParamSamples = [baseParams]
@@ -367,7 +367,7 @@ def main():
 
                         error.append(np.empty((neq, len(romParamSamples), len(error_norm))))
                         qoiResults.append(
-                            np.empty((len(romParamSamples), len(qois)))
+                            np.empty((len(romParamSamples), neq, 2, len(qois)))
                         )  # Goal: Implement Computation of QoI sensitivity
                         if verbosity >= 1:
                             print(
@@ -525,16 +525,25 @@ def main():
                                                 )
                                     # ==== Compute QOIs ====
                                     for k in range(len(qois)):
-                                        # QOIs for ith sample (domain eqs, all times/points)
-                                        qoiResults[iret][iParamSample, k] = model.computeQOIs(
-                                            uResults[iParamSample, iPenalty, 0, :, 1, :].transpose(),
-                                            vResults[iParamSample, iPenalty, 0, :, 1, :].transpose(),
-                                            romData.W,
-                                            tEval,
-                                            qoi=qois[k],
-                                        )
+                                        for ieq in range(neq):
+                                            # FOM sensitivities
+                                            qoiResults[iret][iParamSample, ieq, 0, k] = model.computeQOIs(
+                                                uResults[iParamSample, iPenalty, ieq, :, 0, :].transpose(),
+                                                vResults[iParamSample, iPenalty, ieq, :, 0, :].transpose(),
+                                                romData.W,
+                                                tEval,
+                                                qoi=qois[k],
+                                            )
+                                            # ROM sensitivities
+                                            qoiResults[iret][iParamSample, ieq, 1, k] = model.computeQOIs(
+                                                uResults[iParamSample, iPenalty, ieq, :, 1, :].transpose(),
+                                                vResults[iParamSample, iPenalty, ieq, :, 1, :].transpose(),
+                                                romData.W,
+                                                tEval,
+                                                qoi=qois[k],
+                                            )
                                         if verbosity >= 2:
-                                            print(qois[k] + ": ", qoiResults[iret][iParamSample, k])
+                                            print(qois[k] + ": ", qoiResults[iret][iParamSample, 1, 1, k])
                                         # INCOMPLETE: Figure out what want to compute for sensitivity error.
                                     for i in range(neq):
                                         combinedResults[iParamSample, iPenalty, 2 * i, :, :, :] = uResults[
@@ -930,13 +939,13 @@ def main():
 
                             fig, axes = plt.subplots(1, 1, figsize=(4, 3))
                             # L2 Error
-                            axes.semilogy(rom_values, qoiResults[iret][:, 0], "-bs", lw=3, ms=8)
+                            axes.semilogy(rom_values, qoiResults[iret][:, 0, 1, 0], "-bs", lw=3, ms=8)
                             # Linf Error
-                            axes.semilogy(rom_values, qoiResults[iret][:, 1], "--m*", lw=3, ms=8)
+                            axes.semilogy(rom_values, qoiResults[iret][:, 0, 1, 1], "--m*", lw=3, ms=8)
                             # L2 Error
-                            axes.semilogy(rom_values, qoiResults[iret][:, 2], "-.g^", lw=3, ms=8)
+                            axes.semilogy(rom_values, qoiResults[iret][:, 0, 1, 2], "-.g^", lw=3, ms=8)
                             # Linf Error
-                            axes.semilogy(rom_values, qoiResults[iret][:, 3], "-ro", lw=3, ms=8)
+                            axes.semilogy(rom_values, qoiResults[iret][:, 0, 1, 3], "-ro", lw=3, ms=8)
                             axes.set_xlabel(param)
                             axes.legend(qois)
                             plt.savefig(
