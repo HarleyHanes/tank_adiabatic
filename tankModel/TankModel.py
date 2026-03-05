@@ -1698,6 +1698,8 @@ class TankModel:
         elif qoi == "Average Reactivity":
             # Compute average reactivity over time
             qoiResult = np.mean(np.sum(W @ uRom, axis=0))
+        elif qoi == "Max Domain Temperature":
+            qoiResult = np.max(vRom)
         else:
             raise ValueError("Invalid qoi selected: " + qoi)
         return qoiResult
