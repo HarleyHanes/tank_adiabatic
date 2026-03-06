@@ -22,7 +22,7 @@ def main():
     verbosity = 1
     showPlots = True
     # Run Types
-    plotConvergence = False
+    plotConvergence = True
     plotComputationTime = False
 
     plotRomInterpolation = False
@@ -43,14 +43,14 @@ def main():
     odeMethod = [
         #       "RK45",
         "BDF",
-        #    "LSODA",
+        # "LSODA",
     ]  # LSODA, BDF, Note: Need a stiff solver, LSODA fastest but BDF needed to support complex step
     nPoints = 599
     nT = 600
 
     # Parameter Sampling
 
-    param = "Le"
+    param = "vH"
     if param != "none":
         extrapolatory = True
         equationSet = param  # Comment out to do parameter sampling without sensitivity
@@ -90,7 +90,8 @@ def main():
     else:
         if plotConvergence:
             if paramSet == "BizonChaotic":
-                modeRetention = list(range(6, 53))  # 1e-1 to 1e-5
+                # modeRetention = list(range(6, 53))  # 1e-1 to 1e-5
+                modeRetention = [15, 20, 25, 30, 35]
                 # modeRetention = list(range(6,39)) #1e-1 to 1e-4
                 # modeRetention = list(range(6,89))
             elif paramSet == "BizonPeriodic":
@@ -103,7 +104,7 @@ def main():
             elif paramSet == "BizonNonLinear":
                 modeRetention = list(range(7, 59))
         else:
-            modeRetention = [25, 30, 35, 40]
+            modeRetention = [15, 20, 25, 30, 35]
 
     # Change all POD-ROM parameters to lists if not already
     if isinstance(modeRetention, (float, int)):
@@ -1330,10 +1331,11 @@ def main():
                     xlabel = "Energy Retained"
                 else:
                     xlabel = "Number of Retained Modes"
-                saveLocation = (
-                    "../../results/sensitivityAnalysis"
-                    + equationSet
-                    + "_nCol"
+
+                # Need to redefine save location since we have mixed solver types
+                saveFolder = "../../results/sensitivityAnalysis/" + paramSet
+                saveFolder += (
+                    "_nCol"
                     + str(nCollocation)
                     + "_nElem"
                     + str(nElements)
@@ -1341,31 +1343,57 @@ def main():
                     + str(nT)
                     + "_nX"
                     + str(nPoints)
+                    + "_"
+                    + "Mixed"
+                    + "/"
+                    + equationSet
                 )
 
+                if nonLinReduction > 1.0 or nDeimPoints != "max":
+                    if nonLinReduction > 1.0:
+                        saveFolder = saveFolder + "nDim" + str(nonLinReduction)
+                    if nDeimPoints != "max":
+                        saveFolder = saveFolder + "nDEIM" + str(nDeimPoints)
+                    saveFolder = saveFolder + "/"
+                else:
+                    saveFolder = saveFolder + "noControl/"
+
+                if useEnergyThreshold:
+                    saveFolder = saveFolder + "e" + str(modeRetention[0]) + "-" + str(modeRetention[-1]) + "/"
+                else:
+                    saveFolder = saveFolder + "m" + str(modeRetention[0]) + "-" + str(modeRetention[-1]) + "/"
+
+                if not os.path.exists(saveFolder):
+                    os.makedirs(saveFolder)
+
                 fig, axs = plotErrorConvergence(
-                    sensTimeMean, np.array(modeRetention), xLabel=xlabel, yLabel="Computation Time (s)", legends=legends
+                    sensTimeMean,
+                    np.array(modeRetention),
+                    xLabel=xlabel,
+                    yLabel="Computation Time (s)",
+                    legends=legends,
+                    plotType="plot",
                 )
-                plt.savefig(saveLocation + "computationTime.pdf", format="pdf")
-                plt.savefig(saveLocation + "computationTime.png", format="png")
+                plt.savefig(saveFolder + "computationTime.pdf", format="pdf")
+                plt.savefig(saveFolder + "computationTime.png", format="png")
 
                 fig, axs = plotErrorConvergence(
                     odeEvalsMean[0], np.array(modeRetention), xLabel=xlabel, yLabel="RHS Evals", legends=legends
                 )
-                plt.savefig(saveLocation + "rhsEvals.pdf", format="pdf")
-                plt.savefig(saveLocation + "rhsEvals.png", format="png")
+                plt.savefig(saveFolder + "rhsEvals.pdf", format="pdf")
+                plt.savefig(saveFolder + "rhsEvals.png", format="png")
 
                 fig, axs = plotErrorConvergence(
                     odeEvalsMean[1], np.array(modeRetention), xLabel=xlabel, yLabel="Jacobian Evals", legends=legends
                 )
-                plt.savefig(saveLocation + "jacobianEvals.pdf", format="pdf")
-                plt.savefig(saveLocation + "jacobianEvals.png", format="png")
+                plt.savefig(saveFolder + "jacobianEvals.pdf", format="pdf")
+                plt.savefig(saveFolder + "jacobianEvals.png", format="png")
 
                 fig, axs = plotErrorConvergence(
                     odeEvalsMean[2], np.array(modeRetention), xLabel=xlabel, yLabel="LU Decomps", legends=legends
                 )
-                plt.savefig(saveLocation + "luDecomps.pdf", format="pdf")
-                plt.savefig(saveLocation + "luDecomps.png", format="png")
+                plt.savefig(saveFolder + "luDecomps.pdf", format="pdf")
+                plt.savefig(saveFolder + "luDecomps.png", format="png")
 
     if showPlots:
         plt.show()
