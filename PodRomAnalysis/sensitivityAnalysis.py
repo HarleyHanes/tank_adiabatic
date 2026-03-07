@@ -50,12 +50,14 @@ def main():
 
     # Parameter Sampling
 
-    param = "vH"
+    constantParam = False
+    param = "gamma"
     if param != "none":
-        extrapolatory = True
         equationSet = param  # Comment out to do parameter sampling without sensitivity
-        paramBounding = 0.1
-        nRomSamples = 2
+        if not constantParam:
+            extrapolatory = True
+            paramBounding = 0.01
+            nRomSamples = 1
     else:
         equationSet = "tankOnly"
 
@@ -86,12 +88,12 @@ def main():
     # Set simulation parameters
     # Set POD Retention
     if useEnergyThreshold:
-        modeRetention = [0.999]
+        modeRetention = [0.9999]
     else:
         if plotConvergence:
             if paramSet == "BizonChaotic":
                 # modeRetention = list(range(6, 53))  # 1e-1 to 1e-5
-                modeRetention = [15, 20, 25, 30, 35]
+                modeRetention = [10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
                 # modeRetention = list(range(6,39)) #1e-1 to 1e-4
                 # modeRetention = list(range(6,89))
             elif paramSet == "BizonPeriodic":
@@ -138,7 +140,7 @@ def main():
     # Determine parameters to get sensitivity of
     neq, paramSelect, paramLabels, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
     # Construct parameter samples
-    if paramSelect == []:
+    if paramSelect == [] or constantParam:
         fomParamSamples = [baseParams]
         romParamSamples = [baseParams]
     else:
@@ -485,6 +487,7 @@ def main():
                                             sensInit[iInit],
                                             finiteDelta=finiteDelta,
                                             complexDelta=complexDelta,
+                                            scaleSensitivities=False,
                                             verbosity=verbosity,
                                         )
                                         sensTime[iMethod, imean, iret, iParamSample, iPenalty] += (
@@ -1280,42 +1283,49 @@ def main():
                             plt.close()
                     # Plot convergence
                     if usePodRom and plotConvergence and len(error) > 1:
-                        # Don't plot error convergence for sensitivities or multiple parameter values
-                        errorPlot = np.array([errorRet[0, 0, :] for errorRet in error]).T.tolist()
-                        errorPlot = [np.array(error) for error in errorPlot]
-                        # Note: plotErrorConvergnece was refactored for
-                        # lists of errors; this indexing may need revisiting
-                        if len(mean_reduction) > 1:
-                            legends = [
-                                mean_method + ", " + norm for mean_method in mean_reduction for norm in error_norm
-                            ]
-                        else:
-                            legends = error_norm
-                        fig, axs = plotErrorConvergence(
-                            errorPlot,
-                            truncationError,
-                            xLabel="Proportion Information Truncated in POD",
-                            yLabel="Relative ROM Error",
-                            legends=legends,
-                        )
-                        plt.savefig(
-                            controlSaveFolder
-                            + "errorConvergence_s"
-                            + str(modeRetention[0])
-                            + "_e"
-                            + str(modeRetention[-1])
-                            + ".pdf",
-                            format="pdf",
-                        )
-                        plt.savefig(
-                            controlSaveFolder
-                            + "errorConvergence_s"
-                            + str(modeRetention[0])
-                            + "_e"
-                            + str(modeRetention[-1])
-                            + ".png",
-                            format="png",
-                        )
+                        for iEq in range(neq):
+                            # Average errors over all parameter values
+                            errorPlot = np.array([errorRet[iEq, 0, :] for errorRet in error]).T.tolist()
+                            errorPlot = [np.array(error) for error in errorPlot]
+                            # Note: plotErrorConvergnece was refactored for
+                            # lists of errors; this indexing may need revisiting
+                            if len(mean_reduction) > 1:
+                                legends = [
+                                    mean_method + ", " + norm for mean_method in mean_reduction for norm in error_norm
+                                ]
+                            else:
+                                legends = error_norm
+                            fig, axs = plotErrorConvergence(
+                                errorPlot,
+                                truncationError,
+                                xLabel="Proportion Information Truncated in POD",
+                                yLabel="Relative ROM Error",
+                                legends=legends,
+                            )
+                            if neq == 0:
+                                eqType = "sol"
+                            else:
+                                eqType = paramSelect[iEq - 1]
+                            plt.savefig(
+                                controlSaveFolder
+                                + "errorConvergence_s"
+                                + str(modeRetention[0])
+                                + "_e"
+                                + str(modeRetention[-1])
+                                + "_"
+                                + eqType
+                                + ".pdf",
+                                format="pdf",
+                            )
+                            plt.savefig(
+                                controlSaveFolder
+                                + "errorConvergence_s"
+                                + str(modeRetention[0])
+                                + "_e"
+                                + str(modeRetention[-1])
+                                + ".png",
+                                format="png",
+                            )
             if usePodRom and plotComputationTime:
                 # Plot Computation Time
                 # Average over evething except method and retention
