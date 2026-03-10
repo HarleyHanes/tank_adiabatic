@@ -1275,6 +1275,8 @@ class TankModel:
 
     def computeDEIMProjection(self, romData, nDeimPoints):
         # Compute DEIM Projection
+        # Note: this DEIM projections is specific to model equations nonlinear term. Will need to make different DEIM
+        # projections for each nonlinear term (sens, gamma, and beta)
         u = romData.uModes @ romData.uTimeModes.transpose() + romData.uMean.reshape((romData.x.size, 1))
         v = romData.vModes @ romData.vTimeModes.transpose() + romData.vMean.reshape((romData.x.size, 1))
         nonLinData = (1 - u) * np.exp(self.params["gamma"] * self.params["beta"] * v / (1 + self.params["beta"] * v))
@@ -1654,8 +1656,8 @@ class TankModel:
                 ) / ((1 + self.params["beta"] * vNonlin) ** 2) - dudParamNonlin
             else:
                 raise (Exception("Invalid param value: " + param))
-            ddudParamdt += romData.uModesWeighted.transpose() @ nonlinearTerm
-            ddvdParamdt += romData.vModesWeighted.transpose() @ nonlinearTerm
+            ddudParamdt += romData.uNonLinProjection @ nonlinearTerm
+            ddvdParamdt += romData.vNonLinProjection @ nonlinearTerm
             # Construct boundary term
             # NOTE: Boundary penalty formulation may contain errors; verify before enabling.
             # Example penalty pattern (disabled): adjust ddudParamdt/ddvdParamdt using boundary residuals.

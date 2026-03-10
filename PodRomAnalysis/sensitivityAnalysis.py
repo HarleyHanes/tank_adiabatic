@@ -22,8 +22,8 @@ def main():
     verbosity = 1
     showPlots = True
     # Run Types
-    plotConvergence = True
-    plotComputationTime = False
+    plotConvergence = False
+    plotComputationTime = True
 
     plotRomInterpolation = False
 
@@ -43,28 +43,28 @@ def main():
     odeMethod = [
         #       "RK45",
         "BDF",
-        # "LSODA",
+        "LSODA",
     ]  # LSODA, BDF, Note: Need a stiff solver, LSODA fastest but BDF needed to support complex step
     nPoints = 599
     nT = 600
 
     # Parameter Sampling
 
-    constantParam = False
+    constantParam = True
     param = "gamma"
     if param != "none":
         equationSet = param  # Comment out to do parameter sampling without sensitivity
         if not constantParam:
             extrapolatory = True
-            paramBounding = 0.01
-            nRomSamples = 1
+            paramBounding = 0.25
+            nRomSamples = 7
     else:
         equationSet = "tankOnly"
 
     # ROM parameters
     usePodRom = True
     useEnergyThreshold = False
-    nDeimPoints = "max"  # Base value for DEIM, max or integer
+    nDeimPoints = 5  # Base value for DEIM, max or integer
     nonLinReduction = 4.0  # Base value for nonLinReduction, 1 means no reduction
     penaltyStrength = 0
     sensInit = ["zero"]
