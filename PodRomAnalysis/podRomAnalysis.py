@@ -435,7 +435,33 @@ def getParameterOptions(paramSet):
             "delta": 2,
             "vH": -0.065,
         }
+    elif paramSet == "BizonLinearStabalized":
+        baseParams = {
+            "PeM": 700,
+            "PeT": 700,
+            "f": 0.3,
+            "Le": 1,
+            "Da": 0,
+            "beta": 0,
+            "gamma": 0,
+            "delta": 2,
+            "vH": -0.065,
+        }
+        stabalized = True
     elif paramSet == "BizonNonLinear":
+        baseParams = {
+            "PeM": 700,
+            "PeT": 700,
+            "f": 0.3,
+            "Le": 1,
+            "Da": 0.15,
+            "beta": 1.8,
+            "gamma": 10,
+            "delta": 2,
+            "vH": -0.065,
+        }
+        stabalized = True
+    elif paramSet == "BizonNonLinearStabalized":
         baseParams = {
             "PeM": 700,
             "PeT": 700,

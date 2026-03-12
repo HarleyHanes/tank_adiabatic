@@ -30,14 +30,14 @@ def main():
 
     plotTimeSeries = True
     plotModes = True
-    plotError = False
+    plotError = True
     plotRomCoeff = True
     plotSingularValues = False
     plotFullSpectra = False
 
-    makeMovies = True
+    makeMovies = False
     # FOM parameters
-    paramSet = "BizonNonLinear"  # BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
+    paramSet = "BizonLinearStabalized"  # BizonPeriodic, BizonLinear, BizonChaotic, BizonAdvecDiffusion
     equationSet = "tankOnly"  # tankOnly, Le, vH, linearParams, linearBoundaryParams, allParams, nonBoundaryParams
     nCollocation = 2
     nElements = 64
@@ -98,14 +98,14 @@ def main():
             elif paramSet == "BizonPeriodic":
                 modeRetention = list(range(5, 32))  # 1e-1 to 1e-5
                 # modeRetention = list(range(6,29))
-            elif paramSet == "BizonLinear":
+            elif paramSet in ["BizonLinear", "BizonLinearStabalized"]:
                 # modeRetention = list(range(1,15))
                 # modeRetention = list(range(2,15)) #1e-1 to 1e-5
                 modeRetention = list(range(2, 20))  # 1e-1 to 1e-5
-            elif paramSet == "BizonNonLinear":
+            elif paramSet in ["BizonNonLinear", "BizonNonLinearStabalized"]:
                 modeRetention = list(range(7, 59))
         else:
-            modeRetention = [7]
+            modeRetention = [6, 7]
 
     # Change all POD-ROM parameters to lists if not already
     if isinstance(modeRetention, (float, int)):
@@ -243,12 +243,21 @@ def main():
     bounds = [0, 1]
     if stabalized:
         stabalizationTime = 150
+
+    if stabalized and paramSet not in ["BizonLinearStabalized", "BizonNonLinearStabalized"]:
         tmax = 4.1
     else:
         tmax = 1.5
     tEval = np.linspace(0, tmax, num=nT)
     # Determine parameters to get sensitivity of
-    neq, paramSelect, uLabels, vLabels, combinedLabels = getSensitivityOptions(equationSet)
+    (
+        neq,
+        paramSelect,
+        paramLabel,
+        uLabels,
+        vLabels,
+        combinedLabels,
+    ) = getSensitivityOptions(equationSet)
     # --------------------- Construct Parameter Samples ---------------------
     if param == "none":
         # No parameter sampling
@@ -279,12 +288,20 @@ def main():
     if verbosity >= 1:
         print("Running Stabalization")
     if stabalized:
+        if paramSet == "BizonLinearStabalized":
+            nonLinearParams = model.params
+            nonLinearParams["Da"] = 0.15
+            model = model.copy(params=nonLinearParams)
         # Run out till stabalizing in periodic domain
         initialCondition = np.zeros(model.nCollocation * model.nElements * 2 * neq)
 
         initialCondition[: model.nCollocation * model.nElements * 2] = model.solve_ivp(
             dydtStabalization, initialCondition, tEval=[0, stabalizationTime]
         ).y.transpose()[-1, :]
+        if paramSet == "BizonLinearStabalized":
+            linearParams = model.params
+            linearParams["Da"] = 0
+            model = model.copy(params=linearParams)
     # ------------------------ Get Simulation Data ------------------------
     # Step 1: Get FOM Data that will be used to generate ROM
     if verbosity >= 1:
